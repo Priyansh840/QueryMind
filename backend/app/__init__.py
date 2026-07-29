@@ -1,0 +1,3 @@
+"""
+QueryMind Backend - FastAPI Application
+"""

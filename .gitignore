@@ -1,0 +1,67 @@
+# ===========================
+# QueryMind - .gitignore
+# ===========================
+
+# ----- General -----
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# ----- Environment Variables -----
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ----- Frontend (Next.js) -----
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel
+frontend/.turbo
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ----- Backend (Python/FastAPI) -----
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.py[cod]
+backend/**/*.py[cod]
+backend/*$py.class
+backend/.Python
+backend/env/
+backend/venv/
+backend/.venv/
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+backend/*.egg-info/
+backend/dist/
+backend/build/
+backend/.eggs/
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# ----- Docker -----
+docker-compose.override.yml
+
+# ----- Testing -----
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ----- Misc -----
+*.bak
+*.orig
