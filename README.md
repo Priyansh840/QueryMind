@@ -97,7 +97,7 @@ npm run dev
 | Name | Role |
 |------|------|
 | Priyansh | Full Stack + AI |
-| | |
+| Praneet Shukla | AI + Full Stack |
 | | |
 | | |
 
