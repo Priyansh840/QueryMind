@@ -10,7 +10,7 @@ from sqlalchemy import String, Text, DateTime, Boolean, ARRAY
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.config.database import Base
+from database.postgres import Base
 
 
 class User(Base):

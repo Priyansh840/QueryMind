@@ -5,7 +5,12 @@ Aggregates all route modules into a single router.
 
 from fastapi import APIRouter
 
+from api.v1 import test_ai
+
 api_router = APIRouter()
+
+# Test endpoints (temporary — for testing the AI pipeline)
+api_router.include_router(test_ai.router, prefix="/test", tags=["🧪 Test AI Pipeline"])
 
 
 @api_router.get("/health", tags=["Health"])
@@ -14,7 +19,7 @@ async def api_health():
 
 
 # Future route includes:
-# from app.api.v1 import auth, users, documents, chat, search, memories, timeline, reflections, tags, dashboard
+# from api.v1 import auth, users, documents, chat, search, memories, timeline, reflections, tags, dashboard
 # api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 # api_router.include_router(users.router, prefix="/users", tags=["Users"])
 # api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])

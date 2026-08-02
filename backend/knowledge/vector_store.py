@@ -16,9 +16,9 @@ from qdrant_client.http.models import (
     MatchValue,
 )
 
-from app.config.settings import settings
-from app.config.qdrant import qdrant_client
-from app.ai.embeddings import embedding_service, EmbeddingService
+from core.config import settings
+from database.qdrant import qdrant_client
+from ingestion.embeddings import embedding_service, EmbeddingService
 
 
 class VectorStoreService:

@@ -24,6 +24,29 @@ services:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
 
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: querymind_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+    environment:
+      - APP_ENV=development
+      - DEBUG=True
+      - DATABASE_URL=postgresql+asyncpg://querymind:querymind_dev@postgres:5432/querymind
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - postgres
+      - qdrant
+    restart: unless-stopped
+
 volumes:
   pgdata:
   qdrant_data:

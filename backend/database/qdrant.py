@@ -4,7 +4,7 @@ QueryMind - Qdrant Vector Database Configuration
 
 from qdrant_client import QdrantClient
 
-from app.config.settings import settings
+from core.config import settings
 
 # Initialize Qdrant client
 qdrant_client = QdrantClient(

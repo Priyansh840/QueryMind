@@ -5,8 +5,8 @@ QueryMind - FastAPI Application Entry Point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config.settings import settings
-from app.api.v1.router import api_router
+from core.config import settings
+from api.v1.router import api_router
 
 
 def create_app() -> FastAPI:

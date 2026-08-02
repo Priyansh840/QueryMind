@@ -8,8 +8,8 @@ Flow: User Query → Embed → Vector Search → Build Context → LLM Generate 
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
-from app.ai.llm import llm_service, LLMService
-from app.ai.vector_store import vector_store, VectorStoreService
+from llm.provider import llm_service, LLMService
+from knowledge.vector_store import vector_store, VectorStoreService
 
 
 @dataclass

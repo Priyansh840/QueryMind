@@ -7,7 +7,7 @@ import google.generativeai as genai
 import httpx
 from typing import Optional
 
-from app.config.settings import settings
+from core.config import settings
 
 
 class LLMService:
@@ -23,7 +23,7 @@ class LLMService:
         # Configure Gemini
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+            self.gemini_model = genai.GenerativeModel("gemini-pro")
         else:
             self.gemini_model = None
 

@@ -6,7 +6,7 @@ Common dependencies for route handlers (DB session, auth, etc.)
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.database import get_db
+from database.postgres import get_db
 
 
 async def get_current_user():

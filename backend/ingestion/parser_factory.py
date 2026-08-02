@@ -5,10 +5,10 @@ Routes files to the correct parser based on file type.
 
 from typing import Dict
 
-from app.parsers.pdf_parser import parse_pdf
-from app.parsers.docx_parser import parse_docx
-from app.parsers.text_parser import parse_text
-from app.parsers.image_parser import parse_image
+from ingestion.pdf_parser import parse_pdf
+from ingestion.docx_parser import parse_docx
+from ingestion.text_parser import parse_text
+from ingestion.image_parser import parse_image
 
 
 # Supported file types and their parsers

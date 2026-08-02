@@ -6,7 +6,7 @@ SQLAlchemy async engine and session setup for PostgreSQL.
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
-from app.config.settings import settings
+from core.config import settings
 
 # Create async engine
 engine = create_async_engine(
