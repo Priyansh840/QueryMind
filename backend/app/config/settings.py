@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Google Gemini API
     GEMINI_API_KEY: str = ""
 
+    # Ollama (Local LLM fallback)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+
     # File Upload
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 50
