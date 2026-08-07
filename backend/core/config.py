@@ -18,15 +18,25 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://querymind:querymind_dev@localhost:5432/querymind"
 
     # Qdrant (Vector Database)
-    QDRANT_HOST: str = "localhost"
-    QDRANT_PORT: int = 6333
-    QDRANT_COLLECTION_DOCUMENTS: str = "querymind_documents"
-    QDRANT_COLLECTION_MEMORIES: str = "querymind_memories"
+    QDRANT_URL: str = ""
+    QDRANT_API_KEY: str = ""
+    QDRANT_VECTOR_DIMENSION: int = 768
+    EMBEDDING_MODEL: str = "text-embedding-004"
+    QDRANT_COLLECTION_DOCUMENTS: str = "document_chunks"
+    QDRANT_COLLECTION_MEMORIES: str = "memories"
+    QDRANT_COLLECTION_KNOWLEDGE: str = "knowledge"
 
     # Supabase Auth
     SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
+
+    # AI Providers
+    LLM_PROVIDER: str = "ollama" # gemini or ollama
+    OLLAMA_MODEL: str = "llama3.2"
+    EMBEDDING_PROVIDER: str = "ollama"
+
 
     # Google Gemini API
     GEMINI_API_KEY: str = ""
@@ -45,6 +55,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

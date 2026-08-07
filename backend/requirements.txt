@@ -9,9 +9,9 @@ python-multipart==0.0.9
 
 # ----- Database -----
 sqlalchemy[asyncio]==2.0.35
-asyncpg==0.29.0
+asyncpg
 alembic==1.13.0
-greenlet==3.1.0
+greenlet
 
 # ----- Authentication -----
 supabase==2.9.0
@@ -20,6 +20,8 @@ python-jose[cryptography]==3.3.0
 # ----- AI & LLM -----
 langchain
 langchain-google-genai
+langchain-community
+langgraph
 google-generativeai
 sentence-transformers
 
@@ -27,11 +29,11 @@ sentence-transformers
 qdrant-client==1.11.0
 
 # ----- Document Parsing -----
-pypdf==4.3.1
-python-docx==1.1.0
-pytesseract==0.3.13
-Pillow==10.4.0
-markdown==3.7
+pypdf
+python-docx
+pytesseract
+Pillow
+markdown
 
 # ----- Utilities -----
 python-dotenv==1.0.1

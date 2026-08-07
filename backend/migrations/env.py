@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from core.config import settings
 from database.postgres import Base
-from models.user import User
+import models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
