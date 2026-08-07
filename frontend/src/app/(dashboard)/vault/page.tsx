@@ -5,134 +5,155 @@ import { motion } from "framer-motion";
 import {
   Upload,
   FileText,
-  Image,
-  FileType,
+  Image as ImageIcon,
+  File,
   Grid3X3,
   List,
-  Filter,
-  Star,
+  Search,
+  FolderOpen,
   MoreVertical,
+  Clock,
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState } from "react";
+
+const mockFiles = [
+  { name: "machine_learning_notes.pdf", type: "pdf", size: "2.4 MB", date: "2 hours ago", chunks: 47 },
+  { name: "deep_learning_ch5.pdf", type: "pdf", size: "5.1 MB", date: "5 hours ago", chunks: 112 },
+  { name: "project_ideas.txt", type: "text", size: "12 KB", date: "1 day ago", chunks: 8 },
+  { name: "architecture_diagram.png", type: "image", size: "890 KB", date: "2 days ago", chunks: 3 },
+  { name: "react_patterns.md", type: "text", size: "34 KB", date: "3 days ago", chunks: 22 },
+  { name: "resume_2026.pdf", type: "pdf", size: "180 KB", date: "1 week ago", chunks: 6 },
+];
+
+const typeIcons: Record<string, typeof FileText> = {
+  pdf: FileText,
+  text: File,
+  image: ImageIcon,
+};
 
 export default function VaultPage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    // TODO: Handle file upload
-    const files = Array.from(e.dataTransfer.files);
-    console.log("Dropped files:", files);
-  }, []);
-
   return (
     <>
-      <Navbar title="Knowledge Vault" subtitle="Your document library" />
-
-      <div className="p-6 space-y-6">
-        {/* Upload zone */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`relative rounded-2xl border-2 border-dashed p-12 text-center transition-all cursor-pointer ${
+      <Navbar title="Knowledge Vault" />
+      <div className="p-10 max-w-6xl mx-auto space-y-8">
+        {/* Upload Zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={() => setIsDragging(false)}
+          className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 cursor-pointer ${
             isDragging
-              ? "border-indigo-500 bg-indigo-500/10"
-              : "border-slate-700/50 hover:border-indigo-500/30 bg-slate-800/20"
+              ? "border-gray-900 bg-gray-50"
+              : "border-gray-300 hover:border-gray-400 hover:bg-gray-50 bg-white"
           }`}
         >
-          <div className="flex flex-col items-center">
-            <div
-              className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-all ${
-                isDragging
-                  ? "bg-indigo-500/20 scale-110"
-                  : "bg-slate-800/50"
-              }`}
-            >
-              <Upload
-                className={`w-8 h-8 ${
-                  isDragging ? "text-indigo-400" : "text-slate-400"
-                }`}
-              />
-            </div>
-            <p className="text-lg font-medium text-white">
-              {isDragging ? "Drop files here!" : "Drag & drop files to upload"}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              Supports PDF, DOCX, TXT, MD, and Images
-            </p>
-            <button className="mt-4 px-6 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium hover:bg-indigo-500/20 transition-all">
-              Browse Files
-            </button>
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Upload className={`w-6 h-6 ${isDragging ? "text-gray-900" : "text-gray-500"}`} />
           </div>
-        </motion.div>
+          <h3 className="text-lg font-medium text-gray-900">
+            {isDragging ? "Drop files to upload" : "Click or drag to upload files"}
+          </h3>
+          <p className="text-sm text-gray-500 mt-2">
+            Supports PDF, DOCX, TXT, MD, and images up to 50MB
+          </p>
+        </div>
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-white">Documents</h3>
-            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-xs text-slate-400">
-              0 files
+        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="w-5 h-5 text-gray-400" />
+            <span className="text-sm font-medium text-gray-700">
+              {mockFiles.length} documents
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white transition-all">
-              <Filter className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setView("grid")}
-              className={`p-2 rounded-lg border transition-all ${
-                view === "grid"
-                  ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-                  : "bg-slate-800/50 border-slate-700/50 text-slate-400"
-              }`}
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`p-2 rounded-lg border transition-all ${
-                view === "list"
-                  ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-                  : "bg-slate-800/50 border-slate-700/50 text-slate-400"
-              }`}
-            >
-              <List className="w-4 h-4" />
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white shadow-sm focus-within:border-gray-400 focus-within:ring-1 focus-within:ring-gray-400 transition-all">
+              <Search className="w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search vault..."
+                className="bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400 w-48"
+              />
+            </div>
+            <div className="flex items-center bg-gray-100 p-1 rounded-md border border-gray-200">
+              <button
+                onClick={() => setView("grid")}
+                className={`p-1.5 rounded-sm transition-colors ${view === "grid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={`p-1.5 rounded-sm transition-colors ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Empty state */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex flex-col items-center justify-center py-20 text-center"
-        >
-          <div className="w-24 h-24 rounded-3xl bg-slate-800/30 flex items-center justify-center mb-6">
-            <FileText className="w-12 h-12 text-slate-600" />
-          </div>
-          <p className="text-lg font-medium text-slate-400">
-            Your vault is empty
-          </p>
-          <p className="text-sm text-slate-500 mt-1 max-w-sm">
-            Upload your first document to start building your AI-powered
-            knowledge base.
-          </p>
-        </motion.div>
+        {/* Files Grid/List */}
+        <div className={view === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "space-y-3"}>
+          {mockFiles.map((file, i) => {
+            const Icon = typeIcons[file.type] || File;
+
+            return view === "grid" ? (
+              <motion.div
+                key={file.name}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-white border border-gray-200 rounded-lg shadow-sm p-5 flex items-center gap-4 group hover:shadow-sm transition-shadow cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition-colors">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </div>
+                <h4 className="text-sm font-medium text-gray-900 truncate mb-1" title={file.name}>
+                  {file.name}
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                  <span>{file.size}</span>
+                  <span>·</span>
+                  <span>{file.chunks} chunks</span>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={file.name}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className="bg-white border border-gray-200 rounded-lg shadow-sm px-5 py-3 flex items-center gap-4 group hover:shadow-sm transition-shadow cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-4 h-4 text-gray-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                    {file.name}
+                  </h4>
+                </div>
+                <span className="text-sm text-gray-500 w-24 text-right hidden sm:block">{file.size}</span>
+                <span className="text-sm text-gray-500 w-32 text-right hidden md:block">{file.chunks} chunks</span>
+                <span className="text-sm text-gray-500 w-32 text-right hidden lg:flex items-center justify-end gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  {file.date}
+                </span>
+                <button className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition-colors ml-4">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
     </>
   );

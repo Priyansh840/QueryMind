@@ -1,65 +1,40 @@
 "use client";
 
-import { Bell, Search, Plus } from "lucide-react";
-import { motion } from "framer-motion";
+import { Search, Bell, Command } from "lucide-react";
 
 interface NavbarProps {
   title?: string;
-  subtitle?: string;
 }
 
-export default function Navbar({ title = "Dashboard", subtitle }: NavbarProps) {
+export default function Navbar({ title }: NavbarProps) {
   return (
-    <header className="h-16 glass border-b border-slate-800/50 flex items-center justify-between px-6 sticky top-0 z-30">
-      {/* Page title */}
-      <div>
-        <h1 className="text-lg font-semibold text-white">{title}</h1>
-        {subtitle && (
-          <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
-        )}
+    <header className="h-14 flex items-center justify-between px-6 border-b border-gray-200 bg-white sticky top-0 z-30">
+      {/* Left — page title */}
+      <div className="flex items-center gap-3">
+        <h1 className="text-lg font-medium text-gray-900 tracking-tight">
+          {title || "Dashboard"}
+        </h1>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 uppercase font-medium">
+          ONLINE
+        </span>
       </div>
 
-      {/* Right actions */}
+      {/* Right — search + notifications */}
       <div className="flex items-center gap-3">
         {/* Quick search */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/50 border border-slate-700/50 text-slate-400 text-sm hover:border-indigo-500/30 transition-all"
-        >
-          <Search className="w-4 h-4" />
-          <span className="hidden sm:inline">Quick search...</span>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-700/50 text-slate-500">
-            ⌘K
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 text-xs hover:border-gray-300 hover:text-gray-900 transition-colors">
+          <Search className="w-3.5 h-3.5" />
+          <span>Search...</span>
+          <kbd className="ml-4 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white text-[10px] border border-gray-200">
+            <Command className="w-2.5 h-2.5" />K
           </kbd>
-        </motion.button>
+        </button>
 
-        {/* New upload */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-        </motion.button>
-
-        {/* Notifications */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="relative p-2 rounded-xl bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white transition-all"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500 ai-pulse" />
-        </motion.button>
-
-        {/* User avatar */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-white text-sm font-bold cursor-pointer"
-        >
-          P
-        </motion.div>
+        {/* Notification bell */}
+        <button className="relative p-2 rounded-md hover:bg-gray-100 transition-colors">
+          <Bell className="w-4 h-4 text-gray-500" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-gray-900 rounded-full border border-white" />
+        </button>
       </div>
     </header>
   );

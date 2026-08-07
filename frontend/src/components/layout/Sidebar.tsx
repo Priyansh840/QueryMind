@@ -2,153 +2,105 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  MessageSquare,
-  Search,
-  Upload,
-  Brain,
-  Clock,
-  Sparkles,
-  Settings,
-  User,
-  FolderOpen,
-  ChevronLeft,
-  ChevronRight,
-  Zap,
+import { 
+  Home, 
+  Briefcase, 
+  FlaskConical, 
+  FolderGit2, 
+  GraduationCap, 
+  Plus, 
+  BrainCircuit, 
+  History, 
+  Settings 
 } from "lucide-react";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Chat", href: "/chat", icon: MessageSquare },
-  { label: "Knowledge", href: "/vault", icon: FolderOpen },
-  { label: "Search", href: "/search", icon: Search },
-  { label: "Memory", href: "/memory", icon: Brain },
-  { label: "Timeline", href: "/timeline", icon: Clock },
-  { label: "Reflection", href: "/reflection", icon: Sparkles },
+const mainNav = [
+  { name: "Home", href: "/dashboard", icon: Home },
+  { name: "Career", href: "/career", icon: Briefcase },
+  { name: "Research", href: "/research", icon: FlaskConical },
+  { name: "Projects", href: "/projects", icon: FolderGit2 },
+  { name: "Learning", href: "/learning", icon: GraduationCap },
 ];
 
-const bottomItems = [
-  { label: "Settings", href: "/settings", icon: Settings },
-  { label: "Profile", href: "/profile", icon: User },
+const secondaryNav = [
+  { name: "New Space", href: "/new", icon: Plus },
+  { name: "Memory", href: "/memory", icon: BrainCircuit },
+  { name: "Activity", href: "/timeline", icon: History },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <motion.aside
-      animate={{ width: collapsed ? 72 : 260 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="fixed left-0 top-0 h-screen z-40 flex flex-col glass border-r border-slate-800/50"
-    >
+    <aside className="w-64 h-screen border-r border-gray-200 bg-[#F3F4F6] flex flex-col pt-6 pb-4">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 h-16 border-b border-slate-800/50">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center flex-shrink-0">
-          <Zap className="w-4 h-4 text-white" />
+      <div className="flex items-center gap-3 px-6 mb-8">
+        <div className="w-8 h-8 bg-gray-900 text-white rounded-lg flex items-center justify-center font-bold text-sm">
+          Q
         </div>
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              className="text-lg font-bold gradient-text whitespace-nowrap"
+        <div>
+          <h1 className="text-[15px] font-semibold text-gray-900 leading-tight">
+            QueryMind
+          </h1>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
+            Personal Intelligence
+          </p>
+        </div>
+      </div>
+
+      {/* Main Navigation */}
+      <div className="px-3 flex-1">
+        <nav className="space-y-1">
+          {mainNav.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? "bg-gray-200 text-gray-900 font-medium"
+                    : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-900"
+                }`}
+              >
+                <item.icon className="w-4 h-4" strokeWidth={isActive ? 2.5 : 2} />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="my-6 border-t border-gray-200 mx-3"></div>
+
+        {/* Secondary Navigation */}
+        <nav className="space-y-1">
+          {secondaryNav.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 transition-colors"
             >
-              QueryMind
-            </motion.span>
-          )}
-        </AnimatePresence>
+              <item.icon className="w-4 h-4" strokeWidth={2} />
+              {item.name}
+            </Link>
+          ))}
+        </nav>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                className={cn(
-                  "sidebar-item",
-                  isActive && "active",
-                  collapsed && "justify-center px-0"
-                )}
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="whitespace-nowrap overflow-hidden"
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {isActive && (
-                  <motion.div
-                    layoutId="activeIndicator"
-                    className="absolute left-0 w-[3px] h-6 rounded-r-full bg-indigo-500"
-                  />
-                )}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Bottom items */}
-      <div className="px-3 py-4 space-y-1 border-t border-slate-800/50">
-        {bottomItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                className={cn(
-                  "sidebar-item",
-                  isActive && "active",
-                  collapsed && "justify-center px-0"
-                )}
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="whitespace-nowrap"
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </div>
-            </Link>
-          );
-        })}
-
-        {/* Collapse button */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="sidebar-item w-full justify-center mt-2 hover:bg-slate-800/50"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <>
-              <ChevronLeft className="w-5 h-5" />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
+      {/* User Profile Footer */}
+      <div className="px-3 mt-auto">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-200/50 transition-colors cursor-pointer group">
+          <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-300">
+             {/* Replace with actual image later */}
+             <div className="w-full h-full bg-gray-400 text-white flex items-center justify-center text-xs">PS</div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">User profile</p>
+            <p className="text-xs text-gray-500 truncate">Active</p>
+          </div>
+          <Settings className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+        </div>
       </div>
-    </motion.aside>
+    </aside>
   );
 }

@@ -27,7 +27,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Prevent forceful redirect on /auth/sync since it's handled gracefully in the components
+    if (error.response?.status === 401 && !error.config?.url?.includes("/auth/sync")) {
       // Redirect to login on auth failure
       if (typeof window !== "undefined") {
         window.location.href = "/login";

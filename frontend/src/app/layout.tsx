@@ -1,32 +1,40 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
-  title: "QueryMind — AI Second Brain",
-  description:
-    "Your AI-powered second brain. Upload documents, chat with your knowledge, and let AI organize your life.",
-  keywords: ["AI", "second brain", "RAG", "knowledge management", "productivity"],
+  title: "QueryMind | Personal Intelligence, Structured",
+  description: "A living map of your knowledge, connected by semantic relationships.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
-      suppressHydrationWarning
-    >
-      <body className="min-h-full bg-[#0a0a0f]" suppressHydrationWarning>{children}</body>
+    <html lang="en">
+      <body
+        className={`${inter.variable} ${jetbrainsMono.variable} ${playfair.variable} font-sans antialiased bg-[#f9fafb] text-gray-900 min-h-screen flex flex-col selection:bg-gray-200`}
+      >
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,206 +1,213 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  Zap,
-  Brain,
-  Search,
-  Upload,
-  MessageSquare,
-  Shield,
-  ArrowRight,
-  Sparkles,
-  ExternalLink,
-} from "lucide-react";
-
-const features = [
-  {
-    icon: Upload,
-    title: "Knowledge Vault",
-    description: "Upload PDFs, DOCX, images, and text files. AI extracts, chunks, and indexes everything automatically.",
-    color: "indigo",
-  },
-  {
-    icon: MessageSquare,
-    title: "AI Chat (RAG)",
-    description: "Ask questions about your documents. Get accurate answers with citations pointing to exact sources.",
-    color: "cyan",
-  },
-  {
-    icon: Search,
-    title: "Semantic Search",
-    description: "Search using natural language. No keywords needed — just describe what you're looking for.",
-    color: "purple",
-  },
-  {
-    icon: Brain,
-    title: "Memory Engine",
-    description: "QueryMind remembers your preferences, goals, skills, and interests across every conversation.",
-    color: "emerald",
-  },
-  {
-    icon: Shield,
-    title: "Spaces",
-    description: "Isolated knowledge spaces for different areas of your life. No cross-contamination.",
-    color: "amber",
-  },
-  {
-    icon: Sparkles,
-    title: "AI Agents",
-    description: "Specialized AI agents for planning, research, writing, and coding — working together.",
-    color: "rose",
-  },
-];
+import { Play } from "lucide-react";
+import PageTransition from "@/components/ui/PageTransition";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0f] overflow-hidden">
-      {/* Ambient background glow */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[150px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-cyan-500/5 rounded-full blur-[150px]" />
-      </div>
-
-      {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 lg:px-20 h-16">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-lg font-bold gradient-text">QueryMind</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="text-sm text-slate-400 hover:text-white transition-all"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/register"
-            className="px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium hover:bg-indigo-500/20 transition-all"
-          >
-            Get Started
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="relative z-10 px-6 lg:px-20 pt-24 pb-20 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium mb-8">
-            <Sparkles className="w-3.5 h-3.5" />
-            AI-Powered Second Brain
-          </div>
-
-          <h1 className="text-5xl lg:text-7xl font-bold leading-tight max-w-4xl mx-auto">
-            <span className="text-white">Your </span>
-            <span className="gradient-text">AI Second Brain</span>
-            <br />
-            <span className="text-white">That Actually </span>
-            <span className="gradient-text">Remembers</span>
-          </h1>
-
-          <p className="text-lg text-slate-400 mt-6 max-w-2xl mx-auto leading-relaxed">
-            Upload documents, ask questions, and let AI organize your knowledge.
-            QueryMind builds a personal knowledge graph that grows smarter with
-            every interaction.
-          </p>
-
-          <div className="flex items-center justify-center gap-4 mt-10">
-            <Link href="/dashboard">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all flex items-center gap-2"
-              >
-                Launch Dashboard
-                <ArrowRight className="w-4 h-4" />
-              </motion.button>
-            </Link>
-            <a
-              href="https://github.com/Priyansh840/QueryMind"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/50 text-white font-medium hover:border-slate-600 transition-all flex items-center gap-2"
-              >
-                <ExternalLink className="w-4 h-4" />
-                GitHub
-              </motion.button>
-            </a>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Features */}
-      <section className="relative z-10 px-6 lg:px-20 py-20">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl lg:text-4xl font-bold text-white">
-            Everything Your Brain Needs
-          </h2>
-          <p className="text-slate-400 mt-3 max-w-lg mx-auto">
-            A complete AI-powered knowledge management system designed to think
-            the way you think.
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {features.map((feature, i) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass-card p-6"
-            >
-              <div
-                className={`w-12 h-12 rounded-2xl bg-${feature.color}-500/10 border border-${feature.color}-500/20 flex items-center justify-center mb-4`}
-              >
-                <feature.icon className={`w-6 h-6 text-${feature.color}-400`} />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">
-                {feature.title}
-              </h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                {feature.description}
-              </p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-slate-800/50 px-6 lg:px-20 py-8">
-        <div className="flex items-center justify-between">
+    <PageTransition>
+      <div className="min-h-screen bg-white text-gray-900 flex flex-col font-sans selection:bg-gray-200">
+        {/* Navigation */}
+        <nav className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-100 z-10 relative">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-indigo-400" />
-            <span className="text-sm text-slate-500">
-              QueryMind © 2026 — Built with ❤️
+            <span className="text-xl font-bold tracking-tight font-[family-name:var(--font-serif)]">
+              QueryMind
             </span>
           </div>
-          <a
-            href="https://github.com/Priyansh840/QueryMind"
-            className="text-sm text-slate-500 hover:text-white transition-all"
-          >
-            GitHub
-          </a>
-        </div>
-      </footer>
-    </div>
+          <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+            <Link href="#features" className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Features
+            </Link>
+            <Link href="#spaces" className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Spaces
+            </Link>
+            <Link href="#evolution" className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Evolution
+            </Link>
+            <Link href="#pricing" className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+              Pricing
+            </Link>
+          </div>
+          <div className="flex items-center gap-5">
+            <Link
+              href="/login"
+              className="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              className="text-xs font-medium bg-black text-white px-5 py-2.5 rounded hover:bg-gray-800 transition-colors"
+            >
+              Get Started
+            </Link>
+          </div>
+        </nav>
+
+        {/* Hero Section */}
+        <main className="flex-1 flex flex-col items-center w-full overflow-hidden">
+          <div className="pt-24 pb-16 px-6 text-center max-w-4xl mx-auto w-full relative z-10">
+            <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full border border-gray-200 text-[10px] font-bold text-gray-500 mb-10 uppercase tracking-widest bg-white">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
+              Introducing QueryMind 2.0
+            </div>
+            
+            <h1 className="text-5xl md:text-[5.5rem] font-medium tracking-tight text-gray-900 mb-8 leading-[1.1] font-[family-name:var(--font-serif)]">
+              My digital world <span className="text-gray-400 italic">finally</span> has a<br/> home.
+            </h1>
+            
+            <p className="text-[17px] text-gray-500 max-w-[640px] mx-auto mb-12 font-normal leading-[1.6]">
+              QueryMind is a personal intelligence system built around dedicated, intelligent<br className="hidden md:block" />
+              Spaces. Cultivate your career, research, projects, and learning in environments<br className="hidden md:block" />
+              designed to evolve with you.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
+              <Link
+                href="/register"
+                className="w-full sm:w-auto px-8 py-3.5 bg-black text-white text-sm font-medium rounded shadow-md hover:bg-gray-800 transition-all text-center"
+              >
+                Get Started
+              </Link>
+              <button
+                className="w-full sm:w-auto px-8 py-3.5 bg-white text-gray-900 border border-gray-200 text-sm font-medium rounded shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+              >
+                <div className="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center">
+                  <Play className="w-2.5 h-2.5 text-gray-500 ml-0.5" fill="currentColor" />
+                </div>
+                Watch the Film
+              </button>
+            </div>
+          </div>
+
+          {/* Hero Image */}
+          <div className="w-full max-w-[1200px] px-6 mx-auto mb-32">
+            <div className="w-full aspect-[16/9] bg-gray-100 rounded-3xl overflow-hidden shadow-2xl relative border border-gray-200/50">
+              {/* Using the generated image */}
+              <img 
+                src="/hero_mockup_1786128385111.png" 
+                alt="QueryMind Desktop UI"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+
+          {/* Spaces Section */}
+          <div id="spaces" className="w-full max-w-6xl px-6 mx-auto mb-32">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-gray-900 mb-6 font-[family-name:var(--font-serif)]">
+                Spaces designed for focus.
+              </h2>
+              <p className="text-[15px] text-gray-500 max-w-2xl mx-auto">
+                Environments tailored to specific modes of thinking, keeping your workflows organized and<br className="hidden md:block" /> contextually relevant.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 gap-y-16">
+              {/* Career Space */}
+              <div className="group">
+                <div className="w-full aspect-[16/10] bg-gray-100 rounded-xl overflow-hidden mb-6 border border-gray-200">
+                  <img src="/career_space_1786128411879.png" alt="Career Space" className="w-full h-full object-cover" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 font-[family-name:var(--font-serif)]">Career Space</h3>
+                <p className="text-[13px] text-gray-500 leading-relaxed pr-8">
+                  Capture professional workflows and milestones. A living memory of achievements aligning daily tasks with long-term goals.
+                </p>
+              </div>
+
+              {/* Research Space */}
+              <div className="group">
+                <div className="w-full aspect-[16/10] bg-gray-100 rounded-xl overflow-hidden mb-6 border border-gray-200">
+                  <img src="/research_space_1786128425841.png" alt="Research Space" className="w-full h-full object-cover" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 font-[family-name:var(--font-serif)]">Research Space</h3>
+                <p className="text-[13px] text-gray-500 leading-relaxed pr-8">
+                  A canvas for synthesis. Surface connected information organically, turning fragmented data into a cohesive web of insights.
+                </p>
+              </div>
+
+              {/* Projects Space */}
+              <div className="group">
+                <div className="w-full aspect-[16/10] bg-gray-100 rounded-xl overflow-hidden mb-6 border border-gray-200">
+                  <img src="/projects_space_1786128440421.png" alt="Projects Space" className="w-full h-full object-cover" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 font-[family-name:var(--font-serif)]">Projects Space</h3>
+                <p className="text-[13px] text-gray-500 leading-relaxed pr-8">
+                  Structure active workflows. Connect relevant content and resources to stay focused on executing your most ambitious goals.
+                </p>
+              </div>
+
+              {/* Learning Space */}
+              <div className="group">
+                <div className="w-full aspect-[16/10] bg-gray-100 rounded-xl overflow-hidden mb-6 border border-gray-200">
+                  <img src="/learning_space_1786128453504.png" alt="Learning Space" className="w-full h-full object-cover" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 font-[family-name:var(--font-serif)]">Learning Space</h3>
+                <p className="text-[13px] text-gray-500 leading-relaxed pr-8">
+                  A distraction-free zone for curiosity. Build permanent memories and seamlessly integrate new insights into your worldview.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Features Section */}
+          <div className="w-full max-w-6xl px-6 mx-auto mb-40 border-t border-gray-200 pt-20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Quiet Intelligence</h4>
+                <p className="text-xs text-gray-500 leading-relaxed pr-4">
+                  An invisible layer that understands context, surfacing what you need, exactly when you need it, without demanding your attention.
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Structured Flexibility</h4>
+                <p className="text-xs text-gray-500 leading-relaxed pr-4">
+                  Rigorous underlying organization that adapts gracefully to how you think and work, rather than forcing you into rigid folders.
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Enduring Memory</h4>
+                <p className="text-xs text-gray-500 leading-relaxed pr-4">
+                  Your digital footprint compounded over time, ensuring past insights are easily retrievable for future endeavors.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer CTA */}
+          <div className="w-full py-24 bg-[#FAFAFA] border-t border-gray-100 flex flex-col items-center justify-center text-center px-6">
+            <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-gray-900 mb-6 max-w-2xl font-[family-name:var(--font-serif)] leading-tight">
+              The future of personal intelligence is here.
+            </h2>
+            <p className="text-sm text-gray-500 mb-10">
+              Stop managing files and start cultivating thoughts. Join the early access group today.
+            </p>
+            <Link
+              href="/register"
+              className="px-8 py-3.5 bg-black text-white text-sm font-medium rounded hover:bg-gray-800 transition-all shadow-md"
+            >
+              Start your journey
+            </Link>
+          </div>
+
+          {/* Footer */}
+          <footer className="w-full px-8 py-10 bg-white border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between">
+            <div className="flex flex-col mb-4 sm:mb-0">
+              <span className="text-lg font-bold tracking-tight text-gray-900 font-[family-name:var(--font-serif)] mb-1">
+                QueryMind
+              </span>
+              <span className="text-[10px] text-gray-400">© 2026 QueryMind Intelligence Systems</span>
+            </div>
+            <div className="flex items-center gap-6">
+              <Link href="#" className="text-[10px] text-gray-400 hover:text-gray-900 transition-colors">Privacy Policy</Link>
+              <Link href="#" className="text-[10px] text-gray-400 hover:text-gray-900 transition-colors">Terms of Service</Link>
+              <Link href="#" className="text-[10px] text-gray-400 hover:text-gray-900 transition-colors">Security</Link>
+              <Link href="#" className="text-[10px] text-gray-400 hover:text-gray-900 transition-colors">Contact</Link>
+            </div>
+          </footer>
+        </main>
+      </div>
+    </PageTransition>
   );
 }

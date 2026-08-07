@@ -1,6 +1,5 @@
-"use client";
-
 import Sidebar from "@/components/layout/Sidebar";
+import PageTransition from "@/components/ui/PageTransition";
 
 export default function DashboardLayout({
   children,
@@ -8,11 +7,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden bg-white">
       <Sidebar />
-      {/* Main content area — offset by sidebar width */}
-      <main className="flex-1 ml-[260px] transition-all duration-300">
-        {children}
+      <main className="flex-1 overflow-y-auto bg-white rounded-tl-3xl shadow-[-10px_0_30px_rgba(0,0,0,0.03)] border-l border-t border-gray-200 mt-2">
+        <PageTransition>{children}</PageTransition>
       </main>
     </div>
   );

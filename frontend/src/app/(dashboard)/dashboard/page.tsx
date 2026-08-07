@@ -1,157 +1,156 @@
 "use client";
 
-import Navbar from "@/components/layout/Navbar";
-import { motion } from "framer-motion";
-import {
-  FolderOpen,
-  MessageSquare,
-  Brain,
-  Upload,
-  TrendingUp,
-  Zap,
-  ArrowRight,
-  FileText,
-  Clock,
-} from "lucide-react";
-
-const stats = [
-  { label: "Documents", value: "0", icon: FolderOpen, color: "from-indigo-500 to-indigo-600" },
-  { label: "Conversations", value: "0", icon: MessageSquare, color: "from-cyan-500 to-cyan-600" },
-  { label: "Memories", value: "0", icon: Brain, color: "from-purple-500 to-purple-600" },
-  { label: "Vectors", value: "0", icon: TrendingUp, color: "from-emerald-500 to-emerald-600" },
-];
-
-const quickActions = [
-  { label: "Upload Document", icon: Upload, href: "/vault", color: "indigo" },
-  { label: "Start Chat", icon: MessageSquare, href: "/chat", color: "cyan" },
-  { label: "Search Knowledge", icon: Zap, href: "/search", color: "purple" },
-];
+import { Eye, Cloud, Circle, Lightbulb } from "lucide-react";
 
 export default function DashboardPage() {
   return (
-    <>
-      <Navbar title="Dashboard" subtitle="Welcome back, Priyansh" />
+    <div className="p-10 max-w-6xl mx-auto">
+      {/* Header */}
+      <header className="mb-10">
+        <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-3">
+          Your World
+        </h1>
+        <p className="text-gray-600 max-w-2xl text-[15px]">
+          A living map of your knowledge, connected by semantic relationships and
+          continuous observation.
+        </p>
+      </header>
 
-      <div className="p-6 space-y-6">
-        {/* Greeting */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="text-2xl font-bold text-white">
-            Good evening! <span className="text-3xl">👋</span>
-          </h2>
-          <p className="text-slate-400 mt-1">
-            Here&apos;s what&apos;s happening with your second brain today.
-          </p>
-        </motion.div>
-
-        {/* Stats grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1, duration: 0.4 }}
-              className="glass-card p-5"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-400">{stat.label}</p>
-                  <p className="text-3xl font-bold text-white mt-1">{stat.value}</p>
-                </div>
-                <div
-                  className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}
-                >
-                  <stat.icon className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </motion.div>
-          ))}
+      {/* Graph Visualization Area */}
+      <div className="w-full h-[400px] rounded-lg border border-gray-200 mb-12 grid-pattern relative overflow-hidden flex items-center justify-center">
+        {/* Connection Lines (Approximated with CSS) */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* Top Line */}
+          <div className="absolute top-[25%] left-[45%] w-[1px] h-[100px] border-l-2 border-dashed border-gray-300 transform -rotate-45" />
+          {/* Top Left Line */}
+          <div className="absolute top-[35%] left-[35%] w-[1px] h-[100px] border-l-2 border-dashed border-gray-300 transform -rotate-90" />
+          {/* Bottom Left Line */}
+          <div className="absolute bottom-[35%] left-[40%] w-[1px] h-[80px] border-l-2 border-dashed border-gray-300 transform rotate-45" />
+          {/* Right Line */}
+          <div className="absolute top-[40%] right-[30%] w-[1px] h-[120px] border-l-2 border-dashed border-gray-300 transform rotate-[60deg]" />
+          {/* Bottom Right Line */}
+          <div className="absolute bottom-[40%] right-[35%] w-[1px] h-[80px] border-l-2 border-dashed border-gray-300 transform -rotate-45" />
         </div>
 
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.4 }}
-        >
-          <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {quickActions.map((action) => (
-              <a key={action.label} href={action.href}>
-                <div className="glass-card p-5 group cursor-pointer flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-10 h-10 rounded-xl bg-${action.color}-500/10 border border-${action.color}-500/20 flex items-center justify-center`}
-                    >
-                      <action.icon className={`w-5 h-5 text-${action.color}-400`} />
-                    </div>
-                    <span className="font-medium text-white">{action.label}</span>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
-                </div>
-              </a>
-            ))}
+        {/* Nodes */}
+        <div className="relative w-full h-full max-w-3xl mx-auto">
+          {/* Center Node */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+            <div className="bg-gray-900 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-lg hover:scale-105 transition-transform cursor-pointer">
+              <Lightbulb className="w-4 h-4 text-gray-300" />
+              <span className="font-medium text-sm">Core Intelligence</span>
+            </div>
           </div>
-        </motion.div>
 
-        {/* Recent Activity + AI Suggestions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
-            className="glass-card p-6"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-indigo-400" />
-              Recent Activity
-            </h3>
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-              <FileText className="w-10 h-10 mb-3 opacity-30" />
-              <p className="text-sm">No recent activity yet</p>
-              <p className="text-xs mt-1">Upload your first document to get started!</p>
+          {/* Peripheral Nodes */}
+          <div className="absolute top-[20%] left-[40%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
+            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
+              <Cloud className="w-3.5 h-3.5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Generative AI Models</span>
             </div>
-          </motion.div>
+          </div>
 
-          {/* AI Suggestions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.4 }}
-            className="glass-card p-6"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-cyan-400" />
-              AI Suggestions
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
-                <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 ai-pulse" />
-                <div>
-                  <p className="text-sm text-white">Upload your first document</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Start building your knowledge base by uploading a PDF, DOCX, or text file.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/10">
-                <div className="w-2 h-2 rounded-full bg-cyan-500 mt-1.5" />
-                <div>
-                  <p className="text-sm text-white">Try the AI Chat</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Ask questions about your uploaded documents and get AI-powered answers.
-                  </p>
-                </div>
-              </div>
+          <div className="absolute top-[35%] left-[25%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
+            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
+              <Circle className="w-2 h-2 text-gray-300 fill-gray-300" />
+              <span className="text-sm font-medium text-gray-700">Career</span>
             </div>
-          </motion.div>
+          </div>
+
+          <div className="absolute bottom-[30%] left-[35%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
+            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
+              <Circle className="w-2 h-2 text-gray-800 fill-gray-800" />
+              <span className="text-sm font-medium text-gray-700">Skills</span>
+            </div>
+          </div>
+
+          <div className="absolute top-[35%] right-[20%] transform translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
+            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
+              <Circle className="w-2 h-2 text-gray-400 fill-gray-400" />
+              <span className="text-sm font-medium text-gray-700">Projects</span>
+            </div>
+          </div>
+
+          <div className="absolute bottom-[40%] right-[25%] transform translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
+            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
+              <Circle className="w-2 h-2 text-gray-300 fill-gray-300" />
+              <span className="text-sm font-medium text-gray-700">Research</span>
+            </div>
+          </div>
         </div>
       </div>
-    </>
+
+      {/* QueryMind Noticed Section */}
+      <div>
+        <div className="flex items-center gap-2 mb-6">
+          <Eye className="w-5 h-5 text-gray-700" />
+          <h2 className="text-lg font-medium text-gray-900 tracking-tight">
+            QUERYMIND NOTICED
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1 */}
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+            <div className="mb-4">
+              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
+                New Connection
+              </span>
+            </div>
+            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
+              This research paper is related to 3 concepts in your Projects Space.
+            </p>
+            <div className="flex items-center gap-3">
+              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
+                Explore
+              </button>
+              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
+                Save
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2 */}
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+            <div className="mb-4">
+              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
+                Career Evolved
+              </span>
+            </div>
+            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
+              Your recent projects show experience with technologies that were not previously part of your Career Space.
+            </p>
+            <div className="flex items-center gap-3">
+              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
+                Review
+              </button>
+              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
+                Update
+              </button>
+            </div>
+          </div>
+
+          {/* Card 3 */}
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
+            <div className="mb-4">
+              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
+                Memory
+              </span>
+            </div>
+            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
+              You have repeatedly referenced multi-agent orchestration across several projects.
+            </p>
+            <div className="flex items-center gap-3">
+              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
+                Explore
+              </button>
+              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
+                Synthesize
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
