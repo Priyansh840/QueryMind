@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>MYND — Knowledge Operating System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MYND is an AI-native Knowledge Operating System. Object-based, spatial, alive.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/design-system.css?v=2026_04">
+  <link rel="stylesheet" href="css/shell.css?v=2026_04">
+  <link rel="stylesheet" href="css/components.css?v=2026_04">
+</head>
+<body>
+
+<div id="app-root">
+
+  <!-- ================================================================
+       SIDEBAR — Fixed Left, Top-to-Bottom
+       ================================================================ -->
+  <aside class="app-sidebar">
+    <div class="sidebar-header" onclick="window.store.setRoute('home')" title="MYND Home">
+      <div class="sidebar-logo-circle">M</div>
+      <span class="sidebar-logo-text">MYND</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- Primary Core Nav -->
+      <div class="nav-group">
+        <a class="nav-item active" id="navHome" onclick="window.store.setRoute('home')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+            </span>
+            <span>Home</span>
+          </div>
+        </a>
+        <a class="nav-item" id="navWorkspace" onclick="window.store.setRoute('workspace')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
+            </span>
+            <span>Workspace</span>
+          </div>
+        </a>
+        <a class="nav-item" id="navSearch" onclick="window.store.setRoute('search')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </span>
+            <span>Search</span>
+          </div>
+          <span class="kbd">⌘K</span>
+        </a>
+        <a class="nav-item" id="navActivity" onclick="window.store.setRoute('intelligence')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </span>
+            <span>Activity</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Spaces Group -->
+      <div class="nav-group" style="margin-top: var(--s-10);">
+        <div class="nav-group-header">
+          <span class="nav-group-label">Spaces</span>
+          <span class="nav-group-add" onclick="window.store.openSystemSettings('integrations')" title="Add Space">+</span>
+        </div>
+        <a class="nav-item nav-space" data-space="career" onclick="window.store.selectSpace('career')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon"><span class="space-dot" style="background: var(--accent-purple);"></span></span>
+            <span>Career</span>
+          </div>
+          <span class="nav-item-badge">126</span>
+        </a>
+        <a class="nav-item nav-space" data-space="research" onclick="window.store.selectSpace('research')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon"><span class="space-dot" style="background: #10B981;"></span></span>
+            <span>Research</span>
+          </div>
+          <span class="nav-item-badge">148</span>
+        </a>
+
+        <a class="nav-item nav-space" data-space="personal" onclick="window.store.selectSpace('personal')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon"><span class="space-dot" style="background: #14B8A6;"></span></span>
+            <span>Personal</span>
+          </div>
+          <span class="nav-item-badge">36</span>
+        </a>
+        <a class="nav-item nav-space" data-space="learning" onclick="window.store.selectSpace('learning')">
+          <div class="nav-item-left">
+            <span class="nav-item-icon"><span class="space-dot" style="background: #7C3AED;"></span></span>
+            <span>Learning</span>
+          </div>
+          <span class="nav-item-badge">42</span>
+        </a>
+        <a class="nav-item nav-add-space" onclick="window.store.openSystemSettings('integrations')" style="margin-top: var(--s-8); border: 1px dashed var(--border-strong); opacity: 0.7; justify-content: center; font-size: var(--t-caption); padding: var(--s-6) var(--s-12); display: flex; align-items: center; border-radius: var(--r-md); cursor: pointer;">
+          <div class="nav-item-left" style="gap: var(--s-6); display: flex; align-items: center;">
+            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" style="display: block;">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span style="font-weight: var(--w-semi);">Add new space</span>
+          </div>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer">
+      <div class="user-profile-bar" onclick="window.store.openSystemSettings('general')">
+        <div class="user-avatar-wrapper">
+          <div class="text-avatar" style="width: 24px; height: 24px; border-radius: var(--r-sm); background: var(--surface-subtle); color: var(--text-primary); display: flex; align-items: center; justify-content: center; font-size: var(--t-caption); font-weight: var(--w-semi); flex-shrink: 0;">A</div>
+          <span class="user-name-text">Aryan Kulkarni</span>
+        </div>
+        <span class="user-chevron">
+          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>
+      </div>
+
+      <div class="sidebar-utility-bar">
+        <button class="sidebar-utility-btn" onclick="window.store.openSystemSettings('general')" title="Settings">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <button class="sidebar-utility-btn" onclick="window.store.openSystemSettings('autonomy')" title="Help & Info">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </button>
+        <button class="sidebar-utility-btn" onclick="window.store.toggleTheme()" title="Toggle Dark Mode">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================================================================
+       BODY — Center Workspace + Right Context Panel
+       ================================================================ -->
+  <div class="app-body">
+
+    <!-- MAIN APP WORKSPACE (Center) -->
+    <main class="app-workspace">
+      <!-- Workspace Header Bar -->
+      <header class="workspace-header-bar">
+        <div></div> <!-- Spacing spacer -->
+
+        <div class="workspace-search-capsule" onclick="window.store.openSpotlight()">
+          <span class="workspace-search-icon">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </span>
+          <span class="workspace-search-placeholder" style="color: var(--text-tertiary);">Ask or search anything...</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="kbd">⌘K</span>
+          </div>
+        </div>
+
+        <div class="workspace-header-actions">
+          <button class="workspace-notification-btn" title="Notifications">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+          </button>
+          <button class="workspace-notification-btn" onclick="window.store.toggleTheme()" title="Toggle Theme">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </button>
+          <div class="text-avatar" style="width: 28px; height: 28px; border-radius: var(--r-full); background: #DDD6FE; color: #6D28D9; display: flex; align-items: center; justify-content: center; font-size: var(--t-caption); font-weight: var(--w-bold); cursor: pointer;" onclick="window.store.openSystemSettings('general')">A</div>
+        </div>
+      </header>
+
+      <!-- Main scrollable content -->
+      <div class="workspace-scroll-container">
+        <div class="workspace-content-grid" id="workspaceContent">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT CONTEXT PANEL -->
+    <aside class="app-context-panel" id="contextPanelContent">
+      <!-- Rendered dynamically by app.js -->
+    </aside>
+
+  </div>
+
+  <!-- ================================================================
+       SPOTLIGHT / COMMAND PALETTE
+       ================================================================ -->
+  <div class="spotlight-overlay" id="spotlightOverlay">
+    <div class="spotlight-box">
+      <div class="spotlight-header">
+        <span class="spotlight-prompt">›</span>
+        <input type="text" class="spotlight-input" id="spotlightInput" placeholder="Search objects, spaces, or type a command…">
+        <span class="kbd">ESC</span>
+      </div>
+      <div class="spotlight-results" id="spotlightResultsList"></div>
+      <div class="spotlight-footer">
+        <span>Navigate <span class="kbd">↑</span><span class="kbd">↓</span></span>
+        <span>Open <span class="kbd">↵</span></span>
+        <span>Close <span class="kbd">ESC</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       ASK AI CONTEXTUAL DRAWER (Slide from right when active)
+       ================================================================ -->
+  <div class="ask-ai-drawer" id="askAiDrawer">
+    <div class="ask-ai-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="alive-dot"></span>
+        <span style="font-weight: 600; font-size: 13px;">Mynd Intelligence</span>
+      </div>
+      <button class="close-btn" onclick="window.store.closeAskAi()">✕</button>
+    </div>
+    <div class="ask-ai-context" id="askAiTargetTag">Active Environment</div>
+    <div class="ask-ai-stream" id="askAiStreamContent"></div>
+    <div class="ask-ai-input-row">
+      <input type="text" class="ask-ai-input" id="askAiInput" placeholder="Ask anything…">
+      <button class="ask-ai-send" id="askAiSubmit">→</button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       SYSTEM SETTINGS MODAL
+       ================================================================ -->
+  <div class="settings-overlay" id="systemSettingsModal">
+    <div class="settings-box">
+      <div class="settings-header">
+        <span style="font-weight: 600;">Settings</span>
+        <button class="close-btn" onclick="window.store.closeSystemSettings()">✕</button>
+      </div>
+      <div class="settings-tabs">
+        <button class="settings-tab active" onclick="window.store.openSystemSettings('general')">General</button>
+        <button class="settings-tab" onclick="window.store.openSystemSettings('appearance')">Appearance</button>
+        <button class="settings-tab" onclick="window.store.openSystemSettings('autonomy')">Autonomy</button>
+        <button class="settings-tab" onclick="window.store.openSystemSettings('storage')">Storage</button>
+        <button class="settings-tab" onclick="window.store.openSystemSettings('integrations')">Integrations</button>
+      </div>
+      <div class="settings-content" id="systemSettingsContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Scripts -->
+<script src="js/store.js?v=2026_04"></script>
+<script src="js/graph.js?v=2026_04"></script>
+<script src="js/capture.js?v=2026_04"></script>
+<script src="js/shortcuts.js?v=2026_04"></script>
+
+<!-- Utils -->
+<script src="js/utils/drag.js?v=2026_04"></script>
+<script src="js/utils/map-viewport.js?v=2026_04"></script>
+
+<!-- Page Renderers -->
+<script src="js/pages/home.js?v=2026_04"></script>
+<script src="js/pages/workspace.js?v=2026_04"></script>
+<script src="js/pages/space.js?v=2026_04"></script>
+<script src="js/pages/search.js?v=2026_04"></script>
+<script src="js/pages/intelligence.js?v=2026_04"></script>
+
+<!-- Component Renderers -->
+<script src="js/components/sidebar.js?v=2026_04"></script>
+<script src="js/components/header.js?v=2026_04"></script>
+<script src="js/components/context-panel.js?v=2026_04"></script>
+<script src="js/components/spotlight.js?v=2026_04"></script>
+<script src="js/components/ask-ai.js?v=2026_04"></script>
+<script src="js/components/settings.js?v=2026_04"></script>
+
+<!-- App Coordinator -->
+<script src="js/app.js?v=2026_04"></script>
+
+</body>
+</html>

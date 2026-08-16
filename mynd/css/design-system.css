@@ -1,0 +1,208 @@
+:root {
+  /* ==========================================================================
+     MYND DESIGN SYSTEM v3 — HIGH FIDELITY EXACT REPLICATION
+     Calm, elegant, minimal, Indiglo-Purple Accents, soft borders
+     ========================================================================== */
+
+  /* LIGHT THEME */
+  --bg: #FFFFFF;
+  --bg-translucent: rgba(255, 255, 255, 0.85);
+  --surface: #FFFFFF;
+  --surface-subtle: #F9FAFB;
+  --surface-hover: #F3F4F6;
+  --sidebar-bg: #FAFAFA;
+  --border: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --divider: #E5E7EB;
+
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-tertiary: #9CA3AF;
+  --text-ghost: #D1D5DB;
+
+  --accent: #6366F1; /* Indigo */
+  --accent-purple: #8B5CF6; /* Purple/Violet */
+  --accent-contrast: #FFFFFF;
+  --accent-soft: #EEF2FF;
+  --accent-soft-purple: #F5F3FF;
+
+  /* Custom Category Colors matching Map */
+  --color-resume: #10B981; /* Green */
+  --color-skills: #F59E0B; /* Orange */
+  --color-certs: #14B8A6; /* Teal */
+  --color-goals: #ED64A6; /* Pink */
+  --color-interviews: #EF4444; /* Red */
+  --color-projects: #3B82F6; /* Blue */
+
+  /* Elevation & Shadows */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
+  --shadow-dock: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+
+  /* Spacing */
+  --s-2: 2px; --s-4: 4px; --s-6: 6px; --s-8: 8px;
+  --s-10: 10px; --s-12: 12px; --s-16: 16px; --s-20: 20px;
+  --s-24: 24px; --s-32: 32px; --s-40: 40px; --s-48: 48px;
+  --s-56: 56px; --s-64: 64px; --s-80: 80px;
+
+  /* Radii */
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px;
+  --r-lg: 12px; --r-xl: 16px; --r-full: 9999px;
+
+  /* Typography */
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+
+  --t-display: 32px;
+  --t-h1: 24px;
+  --t-h2: 18px;
+  --t-h3: 15px;
+  --t-body: 14px;
+  --t-small: 13px;
+  --t-caption: 12px;
+  --t-micro: 11px;
+
+  --w-bold: 700; --w-semi: 600; --w-medium: 500;
+  --w-regular: 400; --w-light: 300;
+
+  --lh-tight: 1.2; --lh-snug: 1.35;
+  --lh-normal: 1.5; --lh-relaxed: 1.65;
+
+  /* Motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Shell */
+  --header-h: 56px;
+  --sidebar-w: 240px;
+  --context-w: 360px;
+}
+
+/* DARK THEME */
+[data-theme="dark"] {
+  --bg: #0B0F19;
+  --bg-translucent: rgba(11, 15, 25, 0.85);
+  --surface: #111827;
+  --surface-subtle: #1F2937;
+  --surface-hover: #374151;
+  --sidebar-bg: #0D111D;
+  --border: #1F2937;
+  --border-strong: #374151;
+  --divider: #1F2937;
+
+  --text-primary: #F9FAFB;
+  --text-secondary: #D1D5DB;
+  --text-tertiary: #9CA3AF;
+  --text-ghost: #4B5563;
+
+  --accent: #818CF8;
+  --accent-purple: #A78BFA;
+  --accent-contrast: #0B0F19;
+  --accent-soft: rgba(99, 102, 241, 0.15);
+  --accent-soft-purple: rgba(139, 92, 246, 0.15);
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.5);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.6);
+  --shadow-dock: 0 10px 25px rgba(0, 0, 0, 0.6);
+}
+
+/* ZEN MODE */
+body.zen-mode-active {
+  --bg: #000000 !important;
+  --surface: #000000 !important;
+  --text-primary: #ECECEC !important;
+  --text-secondary: #777777 !important;
+  --accent: #ECECEC !important;
+  --border: #111111 !important;
+}
+
+/* ==========================================================================
+   RESET & UTILITIES
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  height: 100%; width: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: var(--t-body);
+  line-height: var(--lh-normal);
+  overflow: hidden;
+  user-select: none;
+  transition: background 250ms var(--ease), color 250ms var(--ease);
+}
+
+input, button, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+button { background: none; border: none; cursor: pointer; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
+
+/* Invisible scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--r-full); }
+*:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+/* Animations */
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.view-enter { animation: view-enter 350ms var(--ease-soft) both; }
+
+/* Stagger animation for containers */
+.stagger > * {
+  animation: view-enter 300ms var(--ease-soft) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+
+/* Breathing live state */
+@keyframes breathe {
+  0%, 100% { opacity: 0.5; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.alive-dot {
+  width: 6px; height: 6px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  display: inline-block;
+  animation: breathe 2.5s ease-in-out infinite;
+}
+
+/* Static space indicator dot — no animation */
+.space-dot {
+  width: 8px; height: 8px;
+  border-radius: var(--r-full);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Shortcuts badge kbd */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-tertiary);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  line-height: 1;
+}
