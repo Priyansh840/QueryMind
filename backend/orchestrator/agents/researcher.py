@@ -51,9 +51,14 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
             db.add(step)
             await db.flush()
         else:
-            # For simplicity in this iteration, just grab the first step
-            workflow = obj.workflows[0] if obj.workflows else Workflow(id=uuid.uuid4(), objective_id=objective_id)
-            db.add(workflow)
+            # For simplicity in this iteration, query for the first workflow
+            from sqlalchemy.future import select
+            result = await db.execute(select(Workflow).where(Workflow.objective_id == objective_id))
+            workflow = result.scalars().first()
+            if not workflow:
+                workflow = Workflow(id=uuid.uuid4(), objective_id=objective_id)
+                db.add(workflow)
+                
             step = WorkflowStep(id=uuid.uuid4(), workflow_id=workflow.id, step_order=1, intent_type="research")
             db.add(step)
             await db.flush()
@@ -91,7 +96,13 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
         system_prompt = (
             "You are an expert Research Agent for MYND. "
             "Analyze the provided context and the user query. "
-            "Extract factual information, important points, and sources. "
+            "IMPORTANT: The user may ask you to 'analyze an uploaded file'. "
+            "The contents of their uploaded files have ALREADY been extracted and provided to you below in the 'Context' section. "
+            "NEVER say that you cannot access or read files. "
+            "CRITICAL RULE: Evaluate if the Context is actually relevant to the user's query. "
+            "If the query is a general greeting (e.g. 'how are you') and the Context is entirely unrelated (e.g. a resume), "
+            "DO NOT force the extraction of irrelevant facts. Instead, return empty arrays. "
+            "If the Context is relevant, extract factual information, important points, and sources. "
             "Return a strictly valid JSON object with this exact structure:\n"
             "{\n"
             '  "facts": ["fact 1", "fact 2"],\n'
@@ -109,9 +120,20 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
         
         response = await llm.ainvoke(messages)
         
-        # Parse JSON
-        content = response.content.replace("```json", "").replace("```", "").strip()
-        findings = json.loads(content)
+        # Parse JSON safely using regex to extract JSON object even if wrapped in text/markdown
+        import re
+        content = response.content
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            content = match.group(0)
+        else:
+            content = content.replace("```json", "").replace("```", "").strip()
+            
+        try:
+            findings = json.loads(content)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON from LLM: {content}")
+            findings = {"facts": ["Failed to parse facts from LLM"], "important_points": [], "sources": []}
         
         state["research_findings"] = findings
         

@@ -34,8 +34,9 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
     # Database Logging - Start
     try:
         # Assuming workflow and objective exist from researcher node
-        obj = await db.get(Objective, objective_id)
-        workflow = obj.workflows[0] if (obj and obj.workflows) else None
+        from sqlalchemy.future import select
+        result = await db.execute(select(Workflow).where(Workflow.objective_id == objective_id))
+        workflow = result.scalars().first()
         
         if not workflow:
             raise ValueError("Workflow not found for Synthesis logging.")
@@ -66,8 +67,13 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         
         system_prompt = (
             "You are MYND Synthesis Agent. "
-            "Your job is to take raw research findings and compile them into a clear, "
-            "structured, and user-friendly final response. "
+            "Your job is to compile a clear, structured, and user-friendly final response. "
+            "IMPORTANT: The user may refer to 'uploaded files'. The contents of those files have already "
+            "been extracted and provided to you as Research Facts. "
+            "NEVER say you cannot access files or that you are an AI model without file access. "
+            "CRITICAL RULE: If the Research Facts are empty and the Original Query is a general conversational question (e.g., 'How are you?'), "
+            "just answer the question naturally without mentioning the lack of facts or the uploaded document. "
+            "Only mention the lack of facts if the user explicitly asked about the document and no facts were found. "
             "Ensure the tone is helpful and context-aware. "
             "Do not output raw JSON, output beautiful Markdown."
         )

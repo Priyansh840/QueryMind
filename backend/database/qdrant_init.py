@@ -16,13 +16,9 @@ from core.config import settings
 def init_qdrant():
     """Initializes Qdrant collections and payload indexes."""
     
-    if not settings.QDRANT_URL or not settings.QDRANT_API_KEY:
-        print("ERROR: QDRANT_URL or QDRANT_API_KEY is not set.")
-        sys.exit(1)
-
-    print(f"Connecting to Qdrant Cloud at {settings.QDRANT_URL}...")
+    print(f"Connecting to Qdrant at {settings.qdrant_client_url}...")
     client = QdrantClient(
-        url=settings.QDRANT_URL,
+        url=settings.qdrant_client_url,
         api_key=settings.QDRANT_API_KEY,
     )
     

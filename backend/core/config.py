@@ -19,7 +19,16 @@ class Settings(BaseSettings):
 
     # Qdrant (Vector Database)
     QDRANT_URL: str = ""
+    QDRANT_HOST: str = "localhost"
+    QDRANT_PORT: int = 6333
     QDRANT_API_KEY: str = ""
+    
+    @property
+    def qdrant_client_url(self) -> str:
+        if self.QDRANT_URL:
+            return self.QDRANT_URL
+        return f"http://{self.QDRANT_HOST}:{self.QDRANT_PORT}"
+        
     QDRANT_VECTOR_DIMENSION: int = 768
     EMBEDDING_MODEL: str = "text-embedding-004"
     QDRANT_COLLECTION_DOCUMENTS: str = "document_chunks"

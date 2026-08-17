@@ -28,7 +28,7 @@ def get_embeddings() -> Embeddings:
         from langchain_core.embeddings import FakeEmbeddings
         return FakeEmbeddings(size=settings.QDRANT_VECTOR_DIMENSION)
     elif provider == "ollama":
-        model_name = settings.OLLAMA_MODEL or "llama3"
+        model_name = "nomic-embed-text"
         logger.info(f"Initializing local Ollama Embeddings (Model: {model_name})")
         return OllamaEmbeddings(
             model=model_name,

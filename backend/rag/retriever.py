@@ -23,13 +23,13 @@ async def retrieve_context(query: str, user_id: str, space_id: str) -> List[Dict
     query_vector = await embeddings.aembed_query(query)
     
     # 2. Init Qdrant Client
-    if not settings.QDRANT_URL or not settings.QDRANT_API_KEY:
-        logger.warning("Qdrant credentials missing. Skipping retrieval.")
+    if not settings.qdrant_client_url:
+        logger.warning("Qdrant URL missing. Skipping retrieval.")
         return []
 
     client = AsyncQdrantClient(
-        url=settings.QDRANT_URL,
-        api_key=settings.QDRANT_API_KEY,
+        url=settings.qdrant_client_url,
+        api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
     )
     
     results = []

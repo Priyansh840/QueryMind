@@ -65,3 +65,8 @@ htmlcov/
 # ----- Misc -----
 *.bak
 *.orig
+
+# ----- Test Files -----
+backend/dummy.pdf
+backend/dummy.txt
+uploads/
