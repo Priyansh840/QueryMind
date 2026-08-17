@@ -28,14 +28,14 @@ export default function LoginPage() {
       if (signInError) throw signInError;
 
       if (data.session) {
-        try {
-          await api.post("/auth/sync", {
-            email: data.user.email,
-            full_name: data.user.user_metadata?.full_name,
-          });
-        } catch (syncErr) {
+        // Fire and forget the sync so we don't block the redirect if backend is down
+        api.post("/auth/sync", {
+          email: data.user.email,
+          full_name: data.user.user_metadata?.full_name,
+        }).catch(syncErr => {
           console.warn("Backend sync failed, but proceeding to dashboard:", syncErr);
-        }
+        });
+        
         router.push("/dashboard");
       }
     } catch (err: any) {

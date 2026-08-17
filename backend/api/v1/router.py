@@ -5,9 +5,12 @@ Aggregates all route modules into a single router.
 
 from fastapi import APIRouter
 
-from api.v1 import auth, documents
+from api.v1 import auth, documents, test_ai
 
 api_router = APIRouter()
+
+# Test endpoints
+api_router.include_router(test_ai.router, prefix="/test", tags=["Test AI Pipeline"])
 
 # Auth endpoint
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])

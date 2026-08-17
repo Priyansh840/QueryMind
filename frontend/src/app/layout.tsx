@@ -1,26 +1,22 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
-  variable: "--font-inter",
+  variable: "--sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--mono",
   subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
-  title: "QueryMind | Personal Intelligence, Structured",
-  description: "A living map of your knowledge, connected by semantic relationships.",
+  title: "QueryMind | Knowledge Operating System",
+  description: "An AI-native Knowledge Operating System. Object-based, spatial, alive.",
 };
 
 export default function RootLayout({
@@ -29,9 +25,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} ${playfair.variable} font-sans antialiased bg-[#f9fafb] text-gray-900 min-h-screen flex flex-col selection:bg-gray-200`}
+        className={`${inter.variable} ${ibmPlexMono.variable} font-sans antialiased`}
       >
         {children}
       </body>

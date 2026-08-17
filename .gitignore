@@ -24,8 +24,11 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# ----- Frontend (Next.js) -----
+# ----- Frontend & BFF (Node.js) -----
+node_modules/
+**/node_modules/
 frontend/node_modules/
+bff/node_modules/
 frontend/.next/
 frontend/out/
 frontend/.vercel

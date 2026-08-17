@@ -1,21 +1,7 @@
 @import "tailwindcss";
-
-
-@layer base {
-  :root {
-    --background: #f9fafb;
-    --foreground: #111827;
-    
-    /* We don't need dark mode variables if we are going full light theme */
-    
-    --radius: 0.5rem;
-  }
-
-  body {
-    @apply bg-[var(--background)] text-[var(--foreground)] antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
+@import "../../mynd/css/design-system.css";
+@import "../../mynd/css/shell.css";
+@import "../../mynd/css/components.css";
 
 @layer utilities {
   .text-balance {

@@ -21,18 +21,16 @@ class RAGResponse:
 
 
 # System prompt for the QueryMind AI
-SYSTEM_PROMPT = """You are QueryMind, an intelligent AI assistant that acts as the user's personal "second brain."
-You answer questions based ONLY on the context provided from the user's personal documents.
+SYSTEM_PROMPT = """You are QueryMind, an intelligent and versatile AI assistant.
+You can answer general knowledge questions, day-to-day life queries, technical topics, coding, and synthesize the user's uploaded documents.
 
 RULES:
-1. Answer ONLY based on the provided context. Do not make up information.
-2. If the context doesn't contain the answer, say "I couldn't find this information in your documents."
-3. When referencing information, mention which document it came from.
-4. Be concise but thorough.
-5. Use bullet points for lists and structure your answers clearly.
-6. If the user asks a general question, still try to relate it to their documents when possible.
+1. If the user's question relates to their uploaded documents, answer using the provided context and mention the source document.
+2. If the user asks a general knowledge or day-to-day question (e.g. 'what is the capital of India', 'how are you', 'explain gravity', coding help, etc.) and the context is not relevant:
+   - Answer the question directly, accurately, and naturally using your broad knowledge.
+   - NEVER say "I couldn't find this information in your documents" unless the user specifically asked you to find it in their files.
+3. Be clear, accurate, and structured with clean Markdown."""
 
-You have access to the user's uploaded documents. Think of yourself as their personal knowledge assistant who has read everything they've uploaded."""
 
 CONTEXT_TEMPLATE = """
 --- CONTEXT FROM USER'S DOCUMENTS ---
@@ -71,7 +69,7 @@ class RAGPipeline:
         self,
         llm: LLMService = llm_service,
         store: VectorStoreService = vector_store,
-        top_k: int = 5,
+        top_k: int = 10,
     ):
         self.llm = llm
         self.store = store
@@ -82,6 +80,7 @@ class RAGPipeline:
         user_query: str,
         user_id: str,
         document_ids: Optional[List[str]] = None,
+        document_title: Optional[str] = None,
         top_k: Optional[int] = None,
     ) -> RAGResponse:
         """
@@ -91,6 +90,7 @@ class RAGPipeline:
             user_query: Natural language question from the user
             user_id: Current user's ID (for filtering vectors)
             document_ids: Optional list of document IDs to search within
+            document_title: Optional document title to filter search
             top_k: Override default number of chunks to retrieve
 
         Returns:
@@ -102,6 +102,7 @@ class RAGPipeline:
         search_results = self.store.search_similar(
             query=user_query,
             user_id=user_id,
+            document_title=document_title,
             top_k=k,
         )
 

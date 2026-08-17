@@ -94,22 +94,22 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
         context_str = "\n\n".join([f"Source: {c['source']}\n{c['content']}" for c in context_results])
         
         system_prompt = (
-            "You are an expert Research Agent for MYND. "
-            "Analyze the provided context and the user query. "
-            "IMPORTANT: The user may ask you to 'analyze an uploaded file'. "
-            "The contents of their uploaded files have ALREADY been extracted and provided to you below in the 'Context' section. "
-            "NEVER say that you cannot access or read files. "
-            "CRITICAL RULE: Evaluate if the Context is actually relevant to the user's query. "
-            "If the query is a general greeting (e.g. 'how are you') and the Context is entirely unrelated (e.g. a resume), "
-            "DO NOT force the extraction of irrelevant facts. Instead, return empty arrays. "
-            "If the Context is relevant, extract factual information, important points, and sources. "
-            "Return a strictly valid JSON object with this exact structure:\n"
+            "You are an expert Research Agent for QueryMind. "
+            "Analyze the provided context and the user query.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Evaluate if the Context is ACTUALLY RELEVANT to the user's specific query.\n"
+            "2. If the user is asking a general knowledge question (e.g. 'what is the capital of India', 'how are you', 'what is the weather', general coding, math, general science) "
+            "and the Context is unrelated (e.g. a resume or technical report not asked for), DO NOT extract irrelevant facts. Return empty arrays:\n"
+            '   {"facts": [], "important_points": [], "sources": []}\n'
+            "3. If the Context contains information genuinely relevant to answering the user's query, extract the factual information, key points, and document sources.\n"
+            "4. Return a strictly valid JSON object with this exact structure:\n"
             "{\n"
             '  "facts": ["fact 1", "fact 2"],\n'
             '  "important_points": ["point 1"],\n'
             '  "sources": ["source 1"]\n'
             "}"
         )
+
         
         human_prompt = f"Query: {state['raw_query']}\n\nContext:\n{context_str}"
         

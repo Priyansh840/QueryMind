@@ -1,7 +1,7 @@
 {
-  "name": "mynd-knowledge-os",
+  "name": "querymind-knowledge-os",
   "version": "1.0.0",
-  "description": "MYND — AI-native Personal Knowledge Operating System",
+  "description": "QueryMind — AI-native Personal Knowledge Operating System",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

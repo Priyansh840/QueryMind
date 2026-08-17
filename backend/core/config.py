@@ -29,14 +29,15 @@ class Settings(BaseSettings):
             return self.QDRANT_URL
         return f"http://{self.QDRANT_HOST}:{self.QDRANT_PORT}"
         
-    QDRANT_VECTOR_DIMENSION: int = 768
-    EMBEDDING_MODEL: str = "text-embedding-004"
-    QDRANT_COLLECTION_DOCUMENTS: str = "document_chunks"
-    QDRANT_COLLECTION_MEMORIES: str = "memories"
-    QDRANT_COLLECTION_KNOWLEDGE: str = "knowledge"
+    QDRANT_VECTOR_DIMENSION: int = 384
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    QDRANT_COLLECTION_DOCUMENTS: str = "querymind_documents"
+    QDRANT_COLLECTION_MEMORIES: str = "querymind_memories"
+    QDRANT_COLLECTION_KNOWLEDGE: str = "querymind_documents"
 
     # Supabase Auth
     SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""

@@ -1,156 +1,267 @@
 "use client";
 
-import { Eye, Cloud, Circle, Lightbulb } from "lucide-react";
+import React from "react";
+import Link from "next/link";
+import KnowledgeMap from "@/components/graph/KnowledgeMap";
+import { useMyndStore } from "@/lib/mynd-store";
+import { Upload, FileText, Sparkles, ArrowRight } from "lucide-react";
 
 export default function DashboardPage() {
+  const userProfile = useMyndStore((state) => state.userProfile);
+  const isFocusMode = useMyndStore((state) => state.isFocusMode);
+  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
+  const selectSpace = useMyndStore((state) => state.selectSpace);
+  const openObjectModal = useMyndStore((state) => state.openObjectModal);
+  const recentObjects = useMyndStore((state) => state.recentObjects);
+  const activityFeed = useMyndStore((state) => state.activityFeed);
+  const setRoute = useMyndStore((state) => state.setRoute);
+
   return (
-    <div className="p-10 max-w-6xl mx-auto">
-      {/* Header */}
-      <header className="mb-10">
-        <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-3">
-          Your World
-        </h1>
-        <p className="text-gray-600 max-w-2xl text-[15px]">
-          A living map of your knowledge, connected by semantic relationships and
-          continuous observation.
-        </p>
-      </header>
-
-      {/* Graph Visualization Area */}
-      <div className="w-full h-[400px] rounded-lg border border-gray-200 mb-12 grid-pattern relative overflow-hidden flex items-center justify-center">
-        {/* Connection Lines (Approximated with CSS) */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {/* Top Line */}
-          <div className="absolute top-[25%] left-[45%] w-[1px] h-[100px] border-l-2 border-dashed border-gray-300 transform -rotate-45" />
-          {/* Top Left Line */}
-          <div className="absolute top-[35%] left-[35%] w-[1px] h-[100px] border-l-2 border-dashed border-gray-300 transform -rotate-90" />
-          {/* Bottom Left Line */}
-          <div className="absolute bottom-[35%] left-[40%] w-[1px] h-[80px] border-l-2 border-dashed border-gray-300 transform rotate-45" />
-          {/* Right Line */}
-          <div className="absolute top-[40%] right-[30%] w-[1px] h-[120px] border-l-2 border-dashed border-gray-300 transform rotate-[60deg]" />
-          {/* Bottom Right Line */}
-          <div className="absolute bottom-[40%] right-[35%] w-[1px] h-[80px] border-l-2 border-dashed border-gray-300 transform -rotate-45" />
+    <>
+      {/* 1. Greeting Hero */}
+      <div className="greeting-hero-container stagger">
+        <div className="greeting-text-block">
+          <div className="greeting-time-row">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+            <span>Welcome, {userProfile.name}</span>
+          </div>
+          <h1 className="greeting-headline">You&apos;re in flow</h1>
+          <div
+            className="greeting-subtitle"
+            onClick={() => selectSpace("general")}
+          >
+            {recentObjects.length} active knowledge objects indexed →
+          </div>
         </div>
 
-        {/* Nodes */}
-        <div className="relative w-full h-full max-w-3xl mx-auto">
-          {/* Center Node */}
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-            <div className="bg-gray-900 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-lg hover:scale-105 transition-transform cursor-pointer">
-              <Lightbulb className="w-4 h-4 text-gray-300" />
-              <span className="font-medium text-sm">Core Intelligence</span>
-            </div>
-          </div>
+        <button
+          className="focus-mode-btn"
+          onClick={toggleFocusMode}
+          style={isFocusMode ? { background: "var(--accent-soft)", borderColor: "var(--accent)" } : undefined}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.2" fill="none">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="3" fill="currentColor" />
+          </svg>
+          <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
+        </button>
+      </div>
 
-          {/* Peripheral Nodes */}
-          <div className="absolute top-[20%] left-[40%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
-            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
-              <Cloud className="w-3.5 h-3.5 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Generative AI Models</span>
-            </div>
-          </div>
+      {/* 2. Continue Section */}
+      <div className="continue-section stagger">
+        <div className="section-label-row">
+          <span className="section-title-text">Continue where you left off</span>
+          {recentObjects.length > 0 && (
+            <Link
+              href="/vault"
+              style={{ fontSize: "var(--t-caption)", fontWeight: 600, color: "var(--accent)" }}
+            >
+              Vault ({recentObjects.length})
+            </Link>
+          )}
+        </div>
 
-          <div className="absolute top-[35%] left-[25%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
-            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
-              <Circle className="w-2 h-2 text-gray-300 fill-gray-300" />
-              <span className="text-sm font-medium text-gray-700">Career</span>
-            </div>
-          </div>
-
-          <div className="absolute bottom-[30%] left-[35%] transform -translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
-            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
-              <Circle className="w-2 h-2 text-gray-800 fill-gray-800" />
-              <span className="text-sm font-medium text-gray-700">Skills</span>
-            </div>
-          </div>
-
-          <div className="absolute top-[35%] right-[20%] transform translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
-            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
-              <Circle className="w-2 h-2 text-gray-400 fill-gray-400" />
-              <span className="text-sm font-medium text-gray-700">Projects</span>
-            </div>
-          </div>
-
-          <div className="absolute bottom-[40%] right-[25%] transform translate-x-1/2 hover:scale-105 transition-transform cursor-pointer">
-            <div className="bg-white border border-gray-200 px-4 py-2 rounded-md shadow-sm flex items-center gap-2">
-              <Circle className="w-2 h-2 text-gray-300 fill-gray-300" />
-              <span className="text-sm font-medium text-gray-700">Research</span>
-            </div>
-          </div>
+        <div className="continue-cards-grid">
+          {recentObjects.length === 0 ? (
+            <Link
+              href="/vault"
+              className="continue-card"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                padding: "16px 20px",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                textDecoration: "none",
+              }}
+            >
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  background: "var(--surface-subtle)",
+                  color: "var(--accent)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Upload style={{ width: "16px", height: "16px" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Upload your first document
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  PDFs, notes, research — start building your knowledge vault
+                </div>
+              </div>
+              <ArrowRight style={{ width: "14px", height: "14px", color: "var(--text-ghost)", marginLeft: "auto" }} />
+            </Link>
+          ) : (
+            recentObjects.slice(0, 3).map((obj) => (
+              <div
+                key={obj.id}
+                className="continue-card"
+                onClick={() => openObjectModal(obj)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  padding: "16px 20px",
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
+                    background: obj.iconBg || "var(--surface-subtle)",
+                    color: obj.iconColor || "var(--accent)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <FileText style={{ width: "16px", height: "16px" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {obj.title}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                    {obj.type} • {obj.updated || obj.time || "recently"}
+                  </div>
+                </div>
+                {obj.badge && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--accent)", background: "var(--accent-soft)", padding: "2px 8px", borderRadius: "var(--r-full)" }}>
+                    {obj.badge}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* QueryMind Noticed Section */}
-      <div>
-        <div className="flex items-center gap-2 mb-6">
-          <Eye className="w-5 h-5 text-gray-700" />
-          <h2 className="text-lg font-medium text-gray-900 tracking-tight">
-            QUERYMIND NOTICED
-          </h2>
+      {/* 3. Quick Actions */}
+      <div className="stagger" style={{ marginTop: "8px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <Link
+          href="/chat"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 18px",
+            borderRadius: "var(--r-lg)",
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
+            fontSize: "13px",
+            fontWeight: 600,
+            textDecoration: "none",
+            border: "1px solid transparent",
+            transition: "all 200ms var(--ease)",
+          }}
+        >
+          <Sparkles style={{ width: "14px", height: "14px" }} />
+          <span>Chat with AI</span>
+        </Link>
+        <Link
+          href="/vault"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 18px",
+            borderRadius: "var(--r-lg)",
+            background: "var(--surface)",
+            color: "var(--text-secondary)",
+            fontSize: "13px",
+            fontWeight: 600,
+            textDecoration: "none",
+            border: "1px solid var(--border)",
+            transition: "all 200ms var(--ease)",
+          }}
+        >
+          <Upload style={{ width: "14px", height: "14px" }} />
+          <span>Upload Document</span>
+        </Link>
+      </div>
+
+      {/* 4. Knowledge Graph Canvas */}
+      <div className="stagger" style={{ marginTop: "24px" }}>
+        <div className="section-label-row" style={{ marginBottom: "12px" }}>
+          <span className="section-title-text">Knowledge Map</span>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1 */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
-            <div className="mb-4">
-              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
-                New Connection
-              </span>
-            </div>
-            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
-              This research paper is related to 3 concepts in your Projects Space.
-            </p>
-            <div className="flex items-center gap-3">
-              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
-                Explore
-              </button>
-              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
-                Save
-              </button>
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
-            <div className="mb-4">
-              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
-                Career Evolved
-              </span>
-            </div>
-            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
-              Your recent projects show experience with technologies that were not previously part of your Career Space.
-            </p>
-            <div className="flex items-center gap-3">
-              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
-                Review
-              </button>
-              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
-                Update
-              </button>
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 flex flex-col h-full hover:shadow-md transition-shadow">
-            <div className="mb-4">
-              <span className="inline-block px-2 py-1 text-[10px] font-bold tracking-wider text-gray-600 uppercase border border-gray-300 rounded">
-                Memory
-              </span>
-            </div>
-            <p className="text-gray-700 text-[15px] leading-relaxed flex-1 mb-8">
-              You have repeatedly referenced multi-agent orchestration across several projects.
-            </p>
-            <div className="flex items-center gap-3">
-              <button className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors">
-                Explore
-              </button>
-              <button className="px-5 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors">
-                Synthesize
-              </button>
-            </div>
-          </div>
+        <div
+          style={{
+            height: "320px",
+            borderRadius: "var(--r-xl)",
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            overflow: "hidden",
+          }}
+        >
+          <KnowledgeMap />
         </div>
       </div>
-    </div>
+
+      {/* 5. Activity Timeline */}
+      <div className="stagger" style={{ marginTop: "28px", paddingBottom: "40px" }}>
+        <div className="section-label-row" style={{ marginBottom: "12px" }}>
+          <span className="section-title-text">Recent Activity</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+          {activityFeed.length === 0 ? (
+            <div style={{ fontSize: "13px", color: "var(--text-tertiary)", padding: "16px 0" }}>
+              No activity yet. Upload documents or chat with AI to get started.
+            </div>
+          ) : (
+            activityFeed.slice(0, 6).map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "10px 0",
+                  borderBottom: "1px solid var(--border)",
+                  fontSize: "13px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "var(--r-full)",
+                    background: "var(--accent)",
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: "var(--text-primary)", flex: 1 }}>{item.title}</span>
+                <span style={{ fontSize: "11px", color: "var(--text-ghost)", whiteSpace: "nowrap" }}>
+                  {item.time || ""}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,122 +1,239 @@
 "use client";
 
-import Navbar from "@/components/layout/Navbar";
-import NeonCard from "@/components/ui/NeonCard";
-import { motion } from "framer-motion";
-import { Search as SearchIcon, Sparkles, FileText, ArrowRight, Clock, Zap } from "lucide-react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
+import { Search as SearchIcon, FileText, Upload, Sparkles } from "lucide-react";
 
-const suggestions = [
-  "How do transformers work?",
-  "My notes on React patterns",
-  "Compare supervised vs unsupervised learning",
-  "What are my career goals?",
-];
-
-const mockResults = [
-  { title: "Transformers Architecture Notes", source: "machine_learning_notes.pdf", relevance: 96, snippet: "The transformer architecture relies on self-attention mechanisms to process sequential data..." },
-  { title: "Deep Learning Chapter 5 — Attention", source: "deep_learning_ch5.pdf", relevance: 89, snippet: "Attention allows the model to focus on relevant parts of the input sequence..." },
-  { title: "Project Ideas — NLP Pipeline", source: "project_ideas.txt", relevance: 72, snippet: "Build a RAG-based knowledge assistant using embeddings and vector search..." },
-];
+interface VectorSearchResult {
+  score?: number;
+  payload?: {
+    content?: string;
+    document_title?: string;
+    page_number?: number;
+    chunk_index?: number;
+  };
+}
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [searched, setSearched] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [vectorResults, setVectorResults] = useState<KnowledgeObject[]>([]);
+  const openObjectModal = useMyndStore((state) => state.openObjectModal);
+  const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
+  const recentObjects = useMyndStore((state) => state.recentObjects);
+
+  // Debounced search to Qdrant backend
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setVectorResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/v1/test/search?query=${encodeURIComponent(searchQuery)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results && data.results.length > 0) {
+            const mapped: KnowledgeObject[] = data.results.map((r: VectorSearchResult, idx: number) => ({
+              id: `vec-${idx}`,
+              title: r.payload?.document_title || `Vector Match ${idx + 1}`,
+              type: "Qdrant Chunk",
+              badge: `${Math.round((r.score || 0.85) * 100)}% match`,
+              meta: `Page ${r.payload?.page_number || 1} • Chunk ${r.payload?.chunk_index || 0}`,
+              summary: r.payload?.content || "",
+              content: r.payload?.content || "",
+            }));
+            setVectorResults(mapped);
+          } else {
+            setVectorResults([]);
+          }
+        }
+      } catch {
+        // Fallback gracefully
+        setVectorResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Combine real uploaded documents with Qdrant vector matches
+  const localMatching = recentObjects.filter(
+    (r) =>
+      !searchQuery.trim() ||
+      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.summary && r.summary.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const displayedResults = vectorResults.length > 0 ? vectorResults : localMatching;
 
   return (
-    <>
-      <Navbar title="Semantic Search" />
-      <div className="p-6 space-y-6">
-        {/* Search Bar */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="relative">
-            <div className="flex items-center gap-3 neon-input !p-0 !px-5 !py-4 !rounded-2xl border-pulse">
-              <SearchIcon className="w-5 h-5 text-[#00f0ff]" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") setSearched(true); }}
-                placeholder="Search your knowledge using natural language..."
-                className="flex-1 bg-transparent outline-none text-base text-[#e0e7ff] placeholder:text-[#3d4270] font-[family-name:var(--font-mono)]"
-              />
-              <motion.button
-                onClick={() => setSearched(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00f0ff] to-[#a855f7] text-white text-sm font-semibold shadow-[0_0_15px_rgba(0,240,255,0.2)]"
-              >
-                <Zap className="w-4 h-4" />
-              </motion.button>
-            </div>
+    <div className="search-view-container stagger" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Search Input Filter Bar */}
+      <div className="search-filter-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+        <div className="search-tabs" style={{ display: "flex", gap: "8px" }}>
+          {["all", "documents", "notes", "spaces"].map((tab) => (
+            <button
+              key={tab}
+              className={`search-tab ${activeTab === tab ? "active" : ""}`}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "6px 14px",
+                fontSize: "12px",
+                fontWeight: 600,
+                borderRadius: "20px",
+                border: "1px solid var(--border)",
+                background: activeTab === tab ? "var(--accent-soft)" : "var(--surface)",
+                color: activeTab === tab ? "var(--accent)" : "var(--text-secondary)",
+                cursor: "pointer",
+                textTransform: "capitalize",
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <SearchIcon className="w-4 h-4 text-gray-400" style={{ position: "absolute", left: "12px" }} />
+          <input
+            type="text"
+            placeholder="Search knowledge or ask Qdrant…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="kbd"
+            style={{
+              width: "320px",
+              padding: "8px 14px 8px 36px",
+              background: "var(--surface)",
+              border: "1px solid var(--border-strong)",
+              fontSize: "13px",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Top Results */}
+      <div className="search-section">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h2 className="search-section-title" style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+            {vectorResults.length > 0
+              ? `Qdrant Vector Matches (${vectorResults.length})`
+              : searchQuery.trim()
+              ? `Search Results (${displayedResults.length})`
+              : `Indexed Workspace Items (${displayedResults.length})`}
+          </h2>
+          {isSearching && (
+            <span style={{ fontSize: "12px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
+              Searching vector store…
+            </span>
+          )}
+        </div>
+
+        {displayedResults.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "48px 24px",
+              background: "var(--surface)",
+              borderRadius: "12px",
+              border: "1px dashed var(--border-strong)",
+            }}
+          >
+            <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)" }}>
+              {searchQuery.trim() ? "No matching results found" : "No indexed documents yet"}
+            </h3>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px", marginBottom: "16px" }}>
+              {searchQuery.trim()
+                ? "Try searching for different keywords or upload relevant documents."
+                : "Upload PDF or text documents to start searching your knowledge base."}
+            </p>
+            <Link
+              href="/vault"
+              className="kbd"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 16px",
+                background: "var(--accent)",
+                color: "#FFF",
+                border: "none",
+                borderRadius: "8px",
+                textDecoration: "none",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Go to Knowledge Vault</span>
+            </Link>
           </div>
-        </motion.div>
-
-        {/* Suggestions */}
-        {!searched && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="space-y-4">
-            <p className="text-xs text-[#6b7294] font-[family-name:var(--font-mono)] uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5" /> Suggested Queries
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => { setQuery(s); setSearched(true); }}
-                  className="px-4 py-2 rounded-full bg-[#111128] border border-[rgba(0,240,255,0.08)] text-sm text-[#6b7294] hover:text-[#00f0ff] hover:border-[rgba(0,240,255,0.2)] transition-all"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Results */}
-        {searched && (
-          <div className="space-y-4">
-            <p className="text-xs text-[#6b7294] font-[family-name:var(--font-mono)]">
-              // found {mockResults.length} results for &quot;{query || "transformers"}&quot;
-            </p>
-            {mockResults.map((result, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
+        ) : (
+          <div className="search-results-box" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            {displayedResults.map((item, i) => (
+              <div
+                key={item.id}
+                className="search-result-item"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "16px",
+                  padding: "16px 20px",
+                  borderBottom: i < displayedResults.length - 1 ? "1px solid var(--divider)" : "none",
+                  cursor: "pointer",
+                  transition: "background 100ms ease",
+                }}
+                onClick={() => openObjectModal(item)}
               >
-                <NeonCard className="p-5 group cursor-pointer">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-[#a855f7]/10 border border-[#a855f7]/15 flex items-center justify-center">
-                        <FileText className="w-4 h-4 text-[#a855f7]" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-[#e0e7ff]">{result.title}</h3>
-                        <p className="text-[10px] text-[#3d4270] font-[family-name:var(--font-mono)] flex items-center gap-1 mt-0.5">
-                          <Clock className="w-2.5 h-2.5" /> {result.source}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-16 rounded-full bg-[#111128] overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#00f0ff] to-[#a855f7]"
-                          style={{ width: `${result.relevance}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-[#00f0ff] font-[family-name:var(--font-mono)]">
-                        {result.relevance}%
-                      </span>
-                    </div>
+                <div
+                  className="sr-icon"
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "6px",
+                    background: "var(--surface-subtle)",
+                    color: "var(--accent)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                </div>
+
+                <div className="sr-main" style={{ flex: 1 }}>
+                  <div className="sr-title-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="sr-title" style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>
+                      {item.title}
+                    </span>
+                    <span className="kbd" style={{ fontSize: "10px", background: "var(--accent-soft)", color: "var(--accent)", border: "none" }}>
+                      {item.badge || item.type}
+                    </span>
                   </div>
-                  <p className="text-sm text-[#6b7294] mt-3 leading-relaxed">{result.snippet}</p>
-                </NeonCard>
-              </motion.div>
+                  <div className="sr-meta" style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                    {item.meta || `${item.type} • ${item.updated || "Indexed"}`}
+                  </div>
+                  <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "8px", lineHeight: "1.45" }}>
+                    {item.summary}
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

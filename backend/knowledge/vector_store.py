@@ -116,8 +116,9 @@ class VectorStoreService:
         query: str,
         user_id: str,
         collection: Optional[str] = None,
-        top_k: int = 5,
-        score_threshold: float = 0.3,
+        document_title: Optional[str] = None,
+        top_k: int = 12,
+        score_threshold: float = 0.25,
     ) -> List[Dict]:
         """
         Perform ANN semantic search using cosine similarity.
@@ -126,6 +127,7 @@ class VectorStoreService:
             query: Natural language search query
             user_id: Filter results to this user only
             collection: Which collection to search (defaults to documents)
+            document_title: Optional document title filter
             top_k: Number of top results to return
             score_threshold: Minimum similarity score
 
@@ -137,18 +139,26 @@ class VectorStoreService:
         # Embed the query
         query_vector = self.embedder.embed_query(query)
 
+        # Build filter conditions
+        must_conditions = [
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
+            )
+        ]
+        if document_title:
+            must_conditions.append(
+                FieldCondition(
+                    key="document_title",
+                    match=MatchValue(value=document_title),
+                )
+            )
+
         # Search with user filter
         results = self.client.search(
             collection_name=collection_name,
             query_vector=query_vector,
-            query_filter=Filter(
-                must=[
-                    FieldCondition(
-                        key="user_id",
-                        match=MatchValue(value=user_id),
-                    )
-                ]
-            ),
+            query_filter=Filter(must=must_conditions),
             limit=top_k,
             score_threshold=score_threshold,
         )

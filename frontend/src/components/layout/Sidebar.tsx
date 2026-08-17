@@ -16,16 +16,16 @@ import {
 
 const mainNav = [
   { name: "Home", href: "/dashboard", icon: Home },
-  { name: "Career", href: "/career", icon: Briefcase },
-  { name: "Research", href: "/research", icon: FlaskConical },
-  { name: "Projects", href: "/projects", icon: FolderGit2 },
-  { name: "Learning", href: "/learning", icon: GraduationCap },
+  { name: "Chat", href: "/chat", icon: BrainCircuit },
+  { name: "Vault", href: "/vault", icon: FolderGit2 },
+  { name: "Search", href: "/search", icon: FlaskConical },
+  { name: "Profile", href: "/profile", icon: GraduationCap },
 ];
 
 const secondaryNav = [
-  { name: "New Space", href: "/new", icon: Plus },
   { name: "Memory", href: "/memory", icon: BrainCircuit },
   { name: "Activity", href: "/timeline", icon: History },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function Sidebar() {

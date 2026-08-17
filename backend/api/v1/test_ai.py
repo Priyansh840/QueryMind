@@ -96,6 +96,7 @@ async def test_upload_and_process(
 @router.post("/ask")
 async def test_ask_question(
     question: str = Form(...),
+    document_title: Optional[str] = Form(None),
 ):
     """
     Test the RAG pipeline:
@@ -104,10 +105,12 @@ async def test_ask_question(
     response = await rag_pipeline.query(
         user_query=question,
         user_id=TEST_USER_ID,
+        document_title=document_title,
     )
 
     return {
         "question": question,
+        "document_title": document_title,
         "answer": response.answer,
         "citations": response.citations,
         "suggested_questions": response.suggested_questions,
