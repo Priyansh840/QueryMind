@@ -22,8 +22,9 @@ export default function VaultPage() {
   // Sync with backend on load
   useEffect(() => {
     const fetchBackendDocs = async () => {
+      if (!activeSpaceId) return;
       try {
-        const docs = await queryMindApi.listDocuments(activeSpaceId || "00000000-0000-0000-0000-000000000001");
+        const docs = await queryMindApi.listDocuments(activeSpaceId);
         if (Array.isArray(docs) && docs.length > 0) {
           docs.forEach((d: { id: string; title: string; file_type?: string; file_size?: number }) => {
             const exists = uploadedDocuments.some((u) => u.title === d.title);
@@ -46,7 +47,7 @@ export default function VaultPage() {
   }, [activeSpaceId, addDocument, uploadedDocuments]);
 
   const handleFileUpload = async (selectedFile: File) => {
-    if (!selectedFile) return;
+    if (!selectedFile || !activeSpaceId) return;
 
     setIsUploading(true);
     setUploadStatus(null);
@@ -57,7 +58,7 @@ export default function VaultPage() {
     try {
       const data = await queryMindApi.uploadDocument(
         selectedFile,
-        activeSpaceId || "00000000-0000-0000-0000-000000000001"
+        activeSpaceId
       );
 
       // Add to store with real backend vector results

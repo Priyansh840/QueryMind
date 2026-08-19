@@ -33,7 +33,7 @@ export default function RegisterPage() {
         try {
           await api.post("/auth/sync", {
             email: data.user!.email,
-            full_name: name,
+            display_name: name,
           });
         } catch (syncErr) {
           console.warn("Backend sync failed, but proceeding to dashboard:", syncErr);

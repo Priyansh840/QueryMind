@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     QDRANT_COLLECTION_DOCUMENTS: str = "querymind_documents"
     QDRANT_COLLECTION_MEMORIES: str = "querymind_memories"
-    QDRANT_COLLECTION_KNOWLEDGE: str = "querymind_documents"
+    QDRANT_COLLECTION_KNOWLEDGE: str = "querymind_knowledge"
 
     # Supabase Auth
     SUPABASE_URL: str = ""

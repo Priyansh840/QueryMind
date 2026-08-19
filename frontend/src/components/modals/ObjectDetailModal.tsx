@@ -76,13 +76,13 @@ export default function ObjectDetailModal() {
             </div>
           )}
 
-          {/* Key Ideas */}
+          {/* Key Ideas & Structured Knowledge */}
           {selectedObject.keyIdeas && selectedObject.keyIdeas.length > 0 && (
             <div>
               <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "8px" }}>
-                Key Concepts
+                Structured Knowledge & Key Concepts
               </div>
-              <ul style={{ paddingLeft: "20px", fontSize: "13px", color: "var(--text-primary)", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <ul style={{ paddingLeft: "20px", fontSize: "13px", color: "var(--text-primary)", display: "flex", flexDirection: "column", gap: "6px" }}>
                 {selectedObject.keyIdeas.map((idea, i) => (
                   <li key={i}>{idea}</li>
                 ))}

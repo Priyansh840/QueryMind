@@ -11,30 +11,32 @@ const api = axios.create({
   timeout: 45000,
 });
 
-// Request interceptor — attach auth token if present
+// Request interceptor — attach Supabase auth JWT token if session exists
 api.interceptors.request.use(
   async (config) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {
-      // Running offline/local
+      // Local/offline fallback
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor — handle errors globally
+// Response interceptor — handle unauthorized responses globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !error.config?.url?.includes("/auth/sync")) {
       if (typeof window !== "undefined") {
-        // Only redirect if auth is enforced
+        // Redirect to login if unauthenticated on protected routes
       }
     }
     return Promise.reject(error);
@@ -63,17 +65,116 @@ export interface ObjectiveTraceData {
   trace: TraceEvent[];
 }
 
+export interface SpaceData {
+  id: string;
+  user_id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpaceCreateData {
+  name: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  is_default?: boolean;
+}
+
+export interface SpaceUpdateData {
+  name?: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  is_default?: boolean;
+}
+
+export interface KnowledgeItemData {
+  id: string;
+  user_id: string;
+  space_id?: string;
+  document_id?: string;
+  document_title?: string;
+  source_chunk_id?: string;
+  title?: string;
+  content: string;
+  knowledge_type: string;
+  page_number?: number;
+  confidence: number;
+  metadata_json?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 export const queryMindApi = {
+  // Knowledge Management
+  getKnowledge: async (filters?: {
+    spaceId?: string;
+    documentId?: string;
+    knowledgeType?: string;
+  }): Promise<KnowledgeItemData[]> => {
+    const params = new URLSearchParams();
+    if (filters?.spaceId) params.append("space_id", filters.spaceId);
+    if (filters?.documentId) params.append("document_id", filters.documentId);
+    if (filters?.knowledgeType) params.append("knowledge_type", filters.knowledgeType);
+
+    const qs = params.toString();
+    const url = `/knowledge${qs ? `?${qs}` : ""}`;
+    const res = await api.get<KnowledgeItemData[]>(url);
+    return res.data;
+  },
+
+  getKnowledgeItem: async (knowledgeId: string): Promise<KnowledgeItemData> => {
+    const res = await api.get<KnowledgeItemData>(`/knowledge/${knowledgeId}`);
+    return res.data;
+  },
+
+  deleteKnowledgeItem: async (knowledgeId: string): Promise<{ status: string; message: string }> => {
+    const res = await api.delete<{ status: string; message: string }>(`/knowledge/${knowledgeId}`);
+    return res.data;
+  },
+
+  // Spaces Management
+  getSpaces: async (): Promise<SpaceData[]> => {
+    const res = await api.get<SpaceData[]>("/spaces");
+    return res.data;
+  },
+
+  getSpace: async (spaceId: string): Promise<SpaceData> => {
+    const res = await api.get<SpaceData>(`/spaces/${spaceId}`);
+    return res.data;
+  },
+
+  createSpace: async (data: SpaceCreateData): Promise<SpaceData> => {
+    const res = await api.post<SpaceData>("/spaces", data);
+    return res.data;
+  },
+
+  updateSpace: async (spaceId: string, data: SpaceUpdateData): Promise<SpaceData> => {
+    const res = await api.patch<SpaceData>(`/spaces/${spaceId}`, data);
+    return res.data;
+  },
+
+  deleteSpace: async (spaceId: string): Promise<{ status: string; message: string }> => {
+    const res = await api.delete<{ status: string; message: string }>(`/spaces/${spaceId}`);
+    return res.data;
+  },
+
   // LangGraph Multi-Agent Orchestrator
   chatWithOrchestrator: async (
     query: string,
-    spaceId: string = "00000000-0000-0000-0000-000000000001",
-    userId: string = "00000000-0000-0000-0000-000000000001"
+    spaceId?: string
   ): Promise<ChatResponseData> => {
     const res = await api.post<ChatResponseData>("/chat/", {
       query,
       space_id: spaceId,
-      user_id: userId,
     });
     return res.data;
   },
@@ -85,35 +186,20 @@ export const queryMindApi = {
   },
 
   // Document Management (Postgres + Qdrant)
-  uploadDocument: async (
-    file: File,
-    spaceId: string = "00000000-0000-0000-0000-000000000001",
-    userId: string = "00000000-0000-0000-0000-000000000001"
-  ) => {
+  uploadDocument: async (file: File, spaceId: string) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("space_id", spaceId);
-    formData.append("user_id", userId);
 
-    const res = await fetch("/api/v1/documents/upload", {
-      method: "POST",
-      body: formData,
+    const res = await api.post("/documents/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
-    if (!res.ok) {
-      // Fallback to test ingestion pipeline
-      const testData = new FormData();
-      testData.append("file", file);
-      const testRes = await fetch("/api/v1/test/upload-and-process", {
-        method: "POST",
-        body: testData,
-      });
-      if (!testRes.ok) throw new Error(`Upload failed with status ${testRes.status}`);
-      return testRes.json();
-    }
-    return res.json();
+    return res.data;
   },
 
-  listDocuments: async (spaceId: string = "00000000-0000-0000-0000-000000000001") => {
+  listDocuments: async (spaceId: string) => {
     try {
       const res = await api.get(`/documents/?space_id=${spaceId}`);
       return res.data;
@@ -122,11 +208,8 @@ export const queryMindApi = {
     }
   },
 
-  deleteDocument: async (
-    documentId: string,
-    userId: string = "00000000-0000-0000-0000-000000000001"
-  ) => {
-    const res = await api.delete(`/documents/${documentId}?user_id=${userId}`);
+  deleteDocument: async (documentId: string) => {
+    const res = await api.delete(`/documents/${documentId}`);
     return res.data;
   },
 
@@ -137,12 +220,12 @@ export const queryMindApi = {
     if (documentTitle) {
       formData.append("document_title", documentTitle);
     }
-    const res = await fetch("/api/v1/test/ask", {
-      method: "POST",
-      body: formData,
+    const res = await api.post("/test/ask", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
-    if (!res.ok) throw new Error(`RAG query failed with status ${res.status}`);
-    return res.json();
+    return res.data;
   },
 
   // Semantic Vector Search

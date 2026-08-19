@@ -113,8 +113,7 @@ export default function ChatPage() {
 
       const chatData = await queryMindApi.chatWithOrchestrator(
         textToSend,
-        activeSpaceId || "00000000-0000-0000-0000-000000000001",
-        "00000000-0000-0000-0000-000000000001"
+        activeSpaceId || undefined
       );
 
       setActiveStep("synthesizer");

@@ -143,7 +143,10 @@ export interface MyndState {
   }) => KnowledgeObject;
   addCapturedItem: (text: string, spaceId?: string) => void;
   deleteDocument: (id: string) => void;
-  addSpace: (space: { name: string; desc?: string; color?: string }) => void;
+  addSpace: (space: { name: string; desc?: string; color?: string; id?: string }) => void;
+  setSpaces: (spaces: Space[]) => void;
+  setActiveSpaceId: (spaceId: string) => void;
+  clearSpaces: () => void;
   clearAllData: () => void;
   loadSampleData: () => void;
 }
@@ -443,7 +446,7 @@ export const useMyndStore = create<MyndState>()(
       },
 
       addSpace: (space) => {
-        const id = space.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        const id = space.id || space.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
         const newSpace: Space = {
           id,
           name: space.name,
@@ -461,23 +464,25 @@ export const useMyndStore = create<MyndState>()(
         }));
       },
 
+      setSpaces: (spaces: Space[]) => {
+        set({ spaces });
+      },
+
+      setActiveSpaceId: (spaceId: string) => {
+        set({ activeSpaceId: spaceId });
+      },
+
+      clearSpaces: () => {
+        set({ spaces: [], activeSpaceId: "" });
+      },
+
       clearAllData: () => {
         set({
-          spaces: initialSpaces,
+          spaces: [],
+          activeSpaceId: "",
           uploadedDocuments: [],
           recentObjects: [],
-          activityFeed: [
-            {
-              id: `act-${Date.now()}`,
-              title: "Data Reset",
-              text: "Workspace cleared and ready for real data",
-              time: "Just now",
-              space: "General",
-              iconType: "sparkles",
-              color: "#8B5CF6",
-              bg: "#F5F3FF",
-            },
-          ],
+          activityFeed: [],
           userProfile: initialProfile,
           selectedObject: null,
         });

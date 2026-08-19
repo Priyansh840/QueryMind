@@ -5,7 +5,7 @@ Aggregates all route modules into a single router.
 
 from fastapi import APIRouter
 
-from api.v1 import auth, documents, test_ai
+from api.v1 import auth, documents, test_ai, spaces, knowledge
 
 api_router = APIRouter()
 
@@ -15,8 +15,14 @@ api_router.include_router(test_ai.router, prefix="/test", tags=["Test AI Pipelin
 # Auth endpoint
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
+# Spaces endpoint
+api_router.include_router(spaces.router, prefix="/spaces", tags=["Spaces"])
+
 # Documents endpoint
 api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
+
+# Knowledge endpoint
+api_router.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
 
 
 @api_router.get("/health", tags=["Health"])

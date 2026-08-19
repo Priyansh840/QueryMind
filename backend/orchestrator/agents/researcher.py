@@ -79,19 +79,38 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
         raise
 
     try:
-        # 2. Retrieve Context from Qdrant
+        # 2. Retrieve Context from Qdrant (Documents + Knowledge)
         context_results = await retrieve_context(
             query=state["raw_query"],
             user_id=state["user_id"],
             space_id=state["space_id"]
         )
+
+        try:
+            from rag.knowledge_retriever import retrieve_knowledge
+            knowledge_results = await retrieve_knowledge(
+                query=state["raw_query"],
+                user_id=state["user_id"],
+                space_id=state["space_id"],
+                top_k=5,
+            )
+        except Exception as k_err:
+            logger.warning(f"Knowledge retrieval note in researcher: {k_err}")
+            knowledge_results = []
         
         state["retrieved_context"] = context_results
+        state["retrieved_knowledge"] = knowledge_results
         
         # 3. Call LLM to extract facts
         llm = get_llm()
         
-        context_str = "\n\n".join([f"Source: {c['source']}\n{c['content']}" for c in context_results])
+        context_blocks = []
+        for c in context_results:
+            context_blocks.append(f"[DOCUMENT CONTEXT | Source: {c['source']}]\n{c['content']}")
+        for k in knowledge_results:
+            context_blocks.append(f"[STRUCTURED KNOWLEDGE ({k['knowledge_type'].upper()}) | Source: {k['source']}]\n{k['content']}")
+
+        context_str = "\n\n".join(context_blocks)
         
         system_prompt = (
             "You are an expert Research Agent for QueryMind. "
