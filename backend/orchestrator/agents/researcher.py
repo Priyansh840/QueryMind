@@ -106,10 +106,9 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
         
         context_blocks = []
         for c in context_results:
-            context_blocks.append(f"[DOCUMENT CONTEXT | Source: {c['source']}]\n{c['content']}")
-        for k in knowledge_results:
-            context_blocks.append(f"[STRUCTURED KNOWLEDGE ({k['knowledge_type'].upper()}) | Source: {k['source']}]\n{k['content']}")
-
+            page = f" (Page {c['page_number']})" if c.get('page_number') else ""
+            title = c.get('document_title') or c.get('source') or 'Unknown'
+            context_blocks.append(f"Source: {title}{page} [ID: {c.get('chunk_id', 'none')}]\n{c.get('content', '')}")
         context_str = "\n\n".join(context_blocks)
         
         system_prompt = (

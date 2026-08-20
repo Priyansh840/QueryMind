@@ -22,7 +22,6 @@ from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 UPLOAD_DIR = "uploads"

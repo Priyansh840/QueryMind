@@ -5,7 +5,7 @@ Temporary endpoints to test the AI Orchestrator pipeline.
 
 import os
 import shutil
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from typing import Optional
 
 from core.config import settings
@@ -14,11 +14,9 @@ from ingestion.chunker import chunker
 from knowledge.knowledge_service import rag_pipeline
 from knowledge.vector_store import vector_store
 from llm.provider import llm_service
+from api.deps import get_current_supabase_user
 
 router = APIRouter()
-
-# Use a test user ID for now
-TEST_USER_ID = "test-user-001"
 
 
 @router.get("/health")
@@ -37,11 +35,15 @@ async def test_health():
 @router.post("/upload-and-process")
 async def test_upload_and_process(
     file: UploadFile = File(...),
+    user_payload: dict = Depends(get_current_supabase_user)
 ):
     """
-    Test the full document processing pipeline:
+    Test the full document processing pipeline (Legacy Step 1 route):
     Upload → Parse → Chunk → Embed → Store in Qdrant
     """
+    user_id = user_payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
     # Save uploaded file temporarily
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
@@ -71,7 +73,7 @@ async def test_upload_and_process(
 
         point_ids = vector_store.upsert_chunks(
             chunks=chunk_dicts,
-            user_id=TEST_USER_ID,
+            user_id=user_id,
             document_id=f"doc-{file.filename}",
             document_title=file.filename,
         )
@@ -97,14 +99,19 @@ async def test_upload_and_process(
 async def test_ask_question(
     question: str = Form(...),
     document_title: Optional[str] = Form(None),
+    user_payload: dict = Depends(get_current_supabase_user)
 ):
     """
     Test the RAG pipeline:
     Question → Embed → Search Qdrant → LLM Generate → Response with Citations
     """
+    user_id = user_payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+        
     response = await rag_pipeline.query(
         user_query=question,
-        user_id=TEST_USER_ID,
+        user_id=user_id,
         document_title=document_title,
     )
 
@@ -119,14 +126,21 @@ async def test_ask_question(
 
 
 @router.get("/search")
-async def test_search(query: str):
+async def test_search(
+    query: str,
+    user_payload: dict = Depends(get_current_supabase_user)
+):
     """
     Test semantic search only (without LLM generation).
     Returns relevant chunks from Qdrant.
     """
+    user_id = user_payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+        
     results = vector_store.search_similar(
         query=query,
-        user_id=TEST_USER_ID,
+        user_id=user_id,
         top_k=5,
     )
 

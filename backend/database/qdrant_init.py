@@ -22,7 +22,7 @@ def init_qdrant():
         api_key=settings.QDRANT_API_KEY,
     )
     
-    dimension = settings.QDRANT_VECTOR_DIMENSION
+    dimension = settings.EMBEDDING_DIMENSION
     print(f"Configured Vector Dimension: {dimension} (Model: {settings.EMBEDDING_MODEL})")
 
     collections_to_create = [
@@ -63,6 +63,14 @@ def init_qdrant():
     # 1. Document Chunks
     client.create_payload_index(
         collection_name=settings.QDRANT_COLLECTION_DOCUMENTS,
+        field_name="chunk_id", field_schema="keyword"
+    )
+    client.create_payload_index(
+        collection_name=settings.QDRANT_COLLECTION_DOCUMENTS,
+        field_name="document_id", field_schema="keyword"
+    )
+    client.create_payload_index(
+        collection_name=settings.QDRANT_COLLECTION_DOCUMENTS,
         field_name="user_id", field_schema="keyword"
     )
     client.create_payload_index(
@@ -71,7 +79,7 @@ def init_qdrant():
     )
     client.create_payload_index(
         collection_name=settings.QDRANT_COLLECTION_DOCUMENTS,
-        field_name="document_id", field_schema="keyword"
+        field_name="source_type", field_schema="keyword"
     )
 
     # 2. Memories
