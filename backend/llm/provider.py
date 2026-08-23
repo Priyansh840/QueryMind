@@ -8,7 +8,14 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models import ChatOllama
+try:
+    from langchain_community.chat_models import ChatOllama
+except ImportError:
+    try:
+        from langchain_ollama import ChatOllama
+    except ImportError:
+        ChatOllama = None
+
 from core.config import settings
 import logging
 
