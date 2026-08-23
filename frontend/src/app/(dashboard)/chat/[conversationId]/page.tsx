@@ -20,7 +20,8 @@ import {
 import { queryMindApi, TraceEvent, ObjectiveTraceData } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -58,24 +59,56 @@ const quickChips = [
 
 /* ═══════════════════════════════════════════════════════════════ */
 
-export default function ChatPage() {
+export default function ConversationPage() {
+  const params = useParams();
+  const conversationId = params.conversationId as string;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const userProfile = useMyndStore((state) => state.userProfile);
-  const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
 
   const greeting = useMemo(() => getGreeting(userProfile.name), [userProfile.name]);
 
   /* ─── state ───────────────────────────────────────────────── */
-  const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [hasStartedChat, setHasStartedChat] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isOrchestrating, setIsOrchestrating] = useState(false);
-  const [activeStep, setActiveStep] = useState<"idle" | "objective" | "researcher" | "synthesizer">("idle");
+  const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
   const [activeTrace, setActiveTrace] = useState<ObjectiveTraceData | null>(null);
   const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load History
+  useEffect(() => {
+    if (!conversationId) return;
+    queryMindApi.getConversationMessages(conversationId)
+      .then((data) => {
+        const mapped: Message[] = data.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          citations: m.citations,
+          objectiveId: m.metadata_json?.objective_id,
+          timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        }));
+        setMessages(mapped);
+      })
+      .catch((err) => console.error("Failed to load history", err));
+  }, [conversationId]);
+
+  // Initial query execution from redirect
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) {
+      handleSend(q);
+      router.replace(`/chat/${conversationId}`);
+    }
+  }, [searchParams, conversationId, router]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -96,25 +129,120 @@ export default function ChatPage() {
     const textToSend = queryText || input;
     if (!textToSend.trim() || isOrchestrating) return;
 
-    if (!activeSpaceId) {
-      alert("Please select a space first.");
-      return;
-    }
+    if (!hasStartedChat) setHasStartedChat(true);
 
+    const tempUserId = Date.now();
+    const tempAiId = tempUserId + 1;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempUserId,
+        role: "user",
+        content: textToSend,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+      {
+        id: tempAiId,
+        role: "ai",
+        content: "",
+        citations: [],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }
+    ]);
+    
+    setInput("");
     setIsOrchestrating(true);
+    setWorkflowSteps([]);
+    setAgentStatus("Initializing...");
 
     try {
-      // Create new conversation
-      const conv = await queryMindApi.createConversation(
-        activeSpaceId,
-        textToSend.substring(0, 40) + (textToSend.length > 40 ? "..." : "")
-      );
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await fetch(`/api/v1/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          role: "user",
+          content: textToSend
+        })
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
       
-      // Navigate to the new conversation and pass the initial query
-      router.push(`/chat/${conv.id}?q=${encodeURIComponent(textToSend)}`);
+      let done = false;
+      
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const jsonStr = line.replace("data: ", "").trim();
+                if (!jsonStr) continue;
+                const data = JSON.parse(jsonStr);
+                
+                if (data.event === "workflow.started") {
+                  // Ignore for now, handled by step.started
+                } else if (data.event === "workflow.step.started") {
+                  setWorkflowSteps((prev) => {
+                    const exists = prev.find(s => s.step === data.data.step && s.iteration === data.data.iteration);
+                    if (exists) return prev;
+                    return [...prev, { ...data.data, status: "running" }];
+                  });
+                } else if (data.event === "workflow.step.completed") {
+                  setWorkflowSteps((prev) => prev.map(s => 
+                    (s.step === data.data.step && (s.iteration === data.data.iteration || !data.data.iteration)) 
+                      ? { ...s, status: "completed", ...data.data } 
+                      : s
+                  ));
+                } else if (data.event === "agent.status") {
+                  setAgentStatus(data.data.status);
+                } else if (data.event === "token") {
+                  setMessages((prev) => prev.map(msg => 
+                    msg.id === tempAiId ? { ...msg, content: msg.content + data.data.text } : msg
+                  ));
+                } else if (data.event === "citation") {
+                  setMessages((prev) => prev.map(msg => 
+                    msg.id === tempAiId ? { ...msg, citations: [...(msg.citations || []), `${data.data.document_title || 'Document'} (p. ${data.data.page_number || 1})`] } : msg
+                  ));
+                } else if (data.event === "message.completed") {
+                  setMessages((prev) => prev.map(msg => 
+                    msg.id === tempAiId ? { ...msg, id: data.data.message_id, content: data.data.content } : msg
+                  ));
+                } else if (data.event === "error") {
+                   throw new Error(data.data.detail);
+                }
+              } catch (err) {
+                 console.error("SSE parse error", err, line);
+              }
+            }
+          }
+        }
+      }
     } catch (err: any) {
       console.error(err);
-      alert("Failed to create conversation: " + err.message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "ai",
+          content: `⚠️ Error: ${err.message}.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          isError: true,
+        },
+      ]);
+    } finally {
       setIsOrchestrating(false);
     }
   };
@@ -565,33 +693,49 @@ export default function ChatPage() {
                 Multi-Agent Workflow
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {[
-                  { key: "objective", label: "Objective Initialization" },
-                  { key: "researcher", label: "Researcher — Vector Search in Qdrant" },
-                  { key: "synthesizer", label: "Synthesizer — Multi-Source Response" },
-                ].map((step, idx) => {
-                  const keys = ["objective", "researcher", "synthesizer"];
-                  const curIdx = keys.indexOf(activeStep);
-                  const isDone = idx < curIdx;
-                  const isActive = step.key === activeStep;
+                {workflowSteps.map((step, idx) => {
+                  const isDone = step.status === "completed";
+                  const isActive = step.status === "running";
+                  
+                  let label = "Processing...";
+                  if (step.step === "planner") label = "Planner — Analyzing query";
+                  if (step.step === "researcher") label = `Researcher Iteration ${step.iteration} — Searching knowledge base`;
+                  if (step.step === "critic") label = `Critic Iteration ${step.iteration} — Evaluating evidence`;
+                  if (step.step === "synthesizer") label = "Synthesizer — Drafting final response";
+
                   return (
-                    <div
-                      key={step.key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        color: isActive ? "var(--accent)" : isDone ? "var(--text-primary)" : "var(--text-ghost)",
-                      }}
-                    >
-                      {isActive ? (
-                        <RefreshCw style={{ width: "14px", height: "14px", animation: "spin 1s linear infinite" }} />
-                      ) : isDone ? (
-                        <CheckCircle2 style={{ width: "14px", height: "14px", color: "#10B981" }} />
-                      ) : (
-                        <Clock style={{ width: "14px", height: "14px" }} />
+                    <div key={`${step.step}-${step.iteration || idx}`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          color: isActive ? "var(--accent)" : isDone ? "var(--text-primary)" : "var(--text-ghost)",
+                        }}
+                      >
+                        {isActive ? (
+                          <RefreshCw style={{ width: "14px", height: "14px", animation: "spin 1s linear infinite" }} />
+                        ) : isDone ? (
+                          <CheckCircle2 style={{ width: "14px", height: "14px", color: "#10B981" }} />
+                        ) : (
+                          <Clock style={{ width: "14px", height: "14px" }} />
+                        )}
+                        <span style={{ fontSize: "13px", fontWeight: 500 }}>
+                          {idx + 1}. {label} {isActive && agentStatus && `- ${agentStatus}`}
+                        </span>
+                      </div>
+                      
+                      {/* Show Tasks if running/completed researcher */}
+                      {step.step === "researcher" && step.tasks && (
+                         <div style={{ marginLeft: "24px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                            {step.tasks.map((t: any) => (
+                               <div key={t.id} style={{ fontSize: "12px", color: "var(--text-secondary)", display: "flex", gap: "6px" }}>
+                                  <span style={{ opacity: 0.6 }}>↳</span>
+                                  <span>{t.query}</span>
+                               </div>
+                            ))}
+                         </div>
                       )}
-                      <span style={{ fontSize: "13px", fontWeight: 500 }}>{idx + 1}. {step.label}</span>
                     </div>
                   );
                 })}

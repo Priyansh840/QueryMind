@@ -40,6 +40,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://querymind:querymind_dev@postgres:5432/querymind
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     env_file:
       - ./backend/.env
     depends_on:

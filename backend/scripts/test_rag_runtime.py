@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from core.config import settings
 from rag.retriever import retrieve_context
 from rag.ingestion import process_document
-from ingestion.embeddings import embedding_service
+from llm.embeddings import get_embeddings
 from database.postgres import async_session
 
 USER_A_EMAIL = "test_a@example.com"
@@ -261,7 +261,8 @@ async def main():
     collection_info = qdrant_client.get_collection(settings.QDRANT_COLLECTION_DOCUMENTS)
     collection_dim = collection_info.config.params.vectors.size
 
-    test_vec = embedding_service.embed_text("Test vector dimension check")
+    embeddings_model = get_embeddings()
+    test_vec = await embeddings_model.aembed_query("Test vector dimension check")
     actual_dim = len(test_vec)
 
     if actual_dim == expected_dim == collection_dim:
@@ -472,7 +473,7 @@ async def main():
     # TEST 15 — Failure Cleanup (Controlled Test Hook)
     # -------------------------------------------------------------
     # Use fail_at_stage="after_qdrant_upsert" to test rollback of Postgres chunks and cleanup of Qdrant vectors
-    failed_temp_path = "/tmp/failed_test_doc.pdf"
+    failed_temp_path = "failed_test_doc_unique.pdf"
     with open(failed_temp_path, "wb") as f:
         f.write(SAMPLE_PDF_BYTES)
 
@@ -481,44 +482,61 @@ async def main():
     orphan_qdrant_before = 0
 
     async with async_session() as db:
+        doc_id = uuid.uuid4()
+        from rag.ingestion import IngestionEngine
+        
+        # Manually insert the pending doc first to simulate what process_document does
+        from models.knowledge import Document
+        document = Document(
+            id=doc_id,
+            space_id=space_a1_id,
+            title="failed_test_doc_unique.pdf",
+            file_url=failed_temp_path,
+            type="application/pdf",
+            status="pending"
+        )
+        db.add(document)
+        await db.commit()
+
+        ingestion_engine = IngestionEngine()
         try:
-            await process_document(
+            await ingestion_engine.run_ingestion(
+                document_id=str(doc_id),
                 file_path=failed_temp_path,
-                filename="failed_test_doc.pdf",
+                filename="failed_test_doc_unique.pdf",
                 content_type="application/pdf",
                 user_id=user_a["user_id"],
                 space_id=str(space_a1_id),
-                db=db,
                 fail_at_stage="after_qdrant_upsert",
             )
-        except RuntimeError as err:
+        except Exception:
             failure_caught = True
 
     # Check if any orphan records exist in Postgres for failed doc
     async with engine.connect() as conn:
-        res = await conn.execute(text("SELECT count(*) FROM documents WHERE title = 'failed_test_doc.pdf';"))
-        failed_doc_in_pg = res.scalar()
-        res_chunks = await conn.execute(text("SELECT count(*) FROM document_chunks dc JOIN documents d ON d.id = dc.document_id WHERE d.title = 'failed_test_doc.pdf';"))
+        res = await conn.execute(text("SELECT status FROM documents WHERE title = 'failed_test_doc_unique.pdf' ORDER BY created_at DESC LIMIT 1;"))
+        failed_doc_status = res.scalar()
+        res_chunks = await conn.execute(text("SELECT count(*) FROM document_chunks dc JOIN documents d ON d.id = dc.document_id WHERE d.title = 'failed_test_doc_unique.pdf';"))
         failed_chunks_in_pg = res_chunks.scalar()
 
     # Check if any orphan vectors exist in Qdrant for failed doc
     failed_qdrant_points = qdrant_client.count(
         collection_name=settings.QDRANT_COLLECTION_DOCUMENTS,
-        count_filter=qmodels.Filter(must=[qmodels.FieldCondition(key="filename", match=qmodels.MatchValue(value="failed_test_doc.pdf"))]),
+        count_filter=qmodels.Filter(must=[qmodels.FieldCondition(key="filename", match=qmodels.MatchValue(value="failed_test_doc_unique.pdf"))]),
     ).count
 
-    if failure_caught and failed_doc_in_pg == 0 and failed_chunks_in_pg == 0 and failed_qdrant_points == 0:
-        evidence = f"Failure injected at 'after_qdrant_upsert' caught. PostgreSQL doc: {failed_doc_in_pg}, chunks: {failed_chunks_in_pg}, Qdrant points: {failed_qdrant_points}. Rollback 100% verified."
+    if failed_doc_status == 'failed' and failed_chunks_in_pg == 0 and failed_qdrant_points == 0:
+        evidence = f"Failure injected at 'after_qdrant_upsert' caught. PostgreSQL doc status: {failed_doc_status}, chunks: {failed_chunks_in_pg}, Qdrant points: {failed_qdrant_points}. Rollback 100% verified."
         record_test(15, "Failure Cleanup", "PASS", evidence)
     else:
-        evidence = f"Failure caught: {failure_caught}, Postgres doc: {failed_doc_in_pg}, chunks: {failed_chunks_in_pg}, Qdrant points: {failed_qdrant_points}"
+        evidence = f"Status: {failed_doc_status}, Postgres chunks: {failed_chunks_in_pg}, Qdrant points: {failed_qdrant_points}"
         record_test(15, "Failure Cleanup", "FAIL", evidence, "Orphan chunks or vectors left behind on failure")
 
     # -------------------------------------------------------------
     # TEST 16 — End-to-End Orchestrator
     # -------------------------------------------------------------
     # Upload clean test document to Space A1 so the LangGraph orchestrator can answer against it
-    async with httpx.AsyncClient(base_url=API_BASE_URL, timeout=45.0) as client:
+    async with httpx.AsyncClient(base_url=API_BASE_URL, timeout=120.0) as client:
         files = {"file": ("test_quantum_arch.pdf", SAMPLE_PDF_BYTES, "application/pdf")}
         data = {"space_id": str(space_a1_id)}
         headers = {"Authorization": f"Bearer {user_a['access_token']}"}

@@ -12,16 +12,16 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from orchestrator.state import AgentState
 from llm.provider import get_llm
-from models.orchestrator import AgentRun, WorkflowStep, Workflow, Objective, Synthesis
+from models.orchestrator import AgentRun, WorkflowStep, Workflow, Synthesis
+from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
 
 async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Synthesis Node:
-    1. Takes research findings.
+    1. Takes all accumulated research results and planner output.
     2. Generates a clear, structured final synthesis.
-    3. Logs execution to Database (AgentRun & Synthesis tables).
     """
     logger.info("Starting Synthesis Agent...")
     
@@ -30,28 +30,28 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         raise ValueError("Database session 'db' must be provided in config['configurable'].")
         
     objective_id = state.get("objective_id")
-
-    # Database Logging - Start
+    workflow_iteration = state.get("workflow_iteration", 1)
+    
+    obj_uuid = uuid.UUID(objective_id)
+    workflow_id = uuid.uuid5(obj_uuid, "workflow")
+    step_id = uuid.uuid5(workflow_id, "synthesizer")
+    
     try:
-        # Assuming workflow and objective exist from researcher node
-        from sqlalchemy.future import select
-        result = await db.execute(select(Workflow).where(Workflow.objective_id == objective_id))
-        workflow = result.scalars().first()
+        step_order = 90  # Final step
+        step_stmt = insert(WorkflowStep).values(
+            id=step_id, workflow_id=workflow_id, step_order=step_order, 
+            iteration=workflow_iteration, intent_type="synthesis"
+        ).on_conflict_do_nothing()
+        await db.execute(step_stmt)
         
-        if not workflow:
-            raise ValueError("Workflow not found for Synthesis logging.")
-
-        step = WorkflowStep(id=uuid.uuid4(), workflow_id=workflow.id, step_order=2, intent_type="synthesis")
-        db.add(step)
-        await db.flush()
-            
+        run_id = uuid.uuid4()
         run = AgentRun(
-            id=uuid.uuid4(),
-            workflow_step_id=step.id,
+            id=run_id,
+            workflow_step_id=step_id,
             agent_type="synthesizer",
             status="running",
             started_at=datetime.utcnow(),
-            input_context={"research_findings": state.get("research_findings")}
+            input_context={"results_count": len(state.get("research_results", []))}
         )
         db.add(run)
         await db.commit()
@@ -61,59 +61,77 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         raise
 
     try:
-        findings = state.get("research_findings", {})
-        
-        llm = get_llm(temperature=0.4) # Slightly more creative for synthesis
+        llm = get_llm(temperature=0.4)
         
         system_prompt = (
-            "You are QueryMind, an intelligent, helpful, and versatile AI assistant. "
-            "You excel at answering general knowledge questions, day-to-day life queries, technical tasks, "
-            "and synthesizing the user's uploaded personal documents when relevant.\n\n"
+            "You are QueryMind, an intelligent and helpful AI assistant. "
+            "You are provided with the user's original query, chat history, and evidence retrieved from the user's personal knowledge vault.\n\n"
             "CRITICAL RULES:\n"
-            "1. If Research Facts are provided from relevant uploaded documents, use them to provide a thorough, accurate response with citations.\n"
-            "2. If Research Facts are EMPTY or the user is asking a general question (e.g. 'what is the capital of India', 'what is the weather', 'explain physics', 'how are you', coding questions, etc.):\n"
-            "   - Answer the question directly, accurately, and naturally using your broad general knowledge.\n"
-            "   - NEVER say 'I couldn't find this in your documents' or bring up uploaded PDFs unless the user explicitly asked about their files.\n"
-            "3. Tone should be friendly, clear, and professional. Format with clean, beautiful Markdown."
+            "1. If no research was required (NO_RESEARCH_REQUIRED), simply answer the general query naturally.\n"
+            "2. If research was performed, use the provided evidence to thoroughly answer the query.\n"
+            "3. If evidence is marked as NO_EVIDENCE, explicitly state that the information was not found in the vault. Do NOT hallucinate citations.\n"
+            "4. If evidence is marked as RESEARCH_FAILED, mention that there was a technical issue retrieving some documents.\n"
+            "5. Tone should be friendly, clear, and professional. Format with clean, beautiful Markdown."
         )
-
         
+        planner_out = state.get("planner_output", {})
+        results = state.get("research_results", [])
+        
+        context_blocks = []
+        if not planner_out.get("needs_research", False):
+            context_blocks.append("[NO_RESEARCH_REQUIRED]")
+        else:
+            for res in results:
+                if res["status"] == "completed":
+                    ev_str = "\n".join([f"- {e['content']} (Source: {e['document_title']})" for e in res["evidence"]])
+                    context_blocks.append(f"Task: {res['query']}\nEvidence:\n{ev_str}")
+                elif res["status"] == "no_evidence":
+                    context_blocks.append(f"Task: {res['query']}\nEvidence: [NO_EVIDENCE]")
+                elif res["status"] == "failed":
+                    context_blocks.append(f"Task: {res['query']}\nEvidence: [RESEARCH_FAILED]")
+                    
         human_prompt = (
             f"Original Query: {state.get('raw_query')}\n\n"
-            f"Research Facts: {json.dumps(findings.get('facts', []))}\n"
-            f"Important Points: {json.dumps(findings.get('important_points', []))}\n"
-            f"Sources: {json.dumps(findings.get('sources', []))}"
+            f"Research Context:\n" + "\n\n".join(context_blocks)
         )
         
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ]
+        if state.get("workflow_status") == "terminated_budget":
+            human_prompt += "\n\nNOTE: The research process reached its maximum budget/iteration limits. Synthesize the best possible answer from the partial evidence provided."
+            
+        messages = [SystemMessage(content=system_prompt)]
+        messages.extend(state.get("chat_history", []))
+        messages.append(HumanMessage(content=human_prompt))
         
-        response = await llm.ainvoke(messages)
-        
+        response = await llm.ainvoke(messages, config=config)
         final_text = response.content.strip()
         
-        state["final_synthesis"] = final_text
-        state["citations"] = findings.get("sources", [])
-        state["confidence_score"] = 0.95 # Mock for now
+        # Extract unique citations (document titles)
+        citations = []
+        for res in results:
+            if res["status"] == "completed":
+                for e in res["evidence"]:
+                    if e["document_title"] not in citations:
+                        citations.append(e["document_title"])
         
-        # Database Logging - Complete
+        state["final_synthesis"] = final_text
+        state["citations"] = citations
+        if state.get("workflow_status") != "terminated_budget":
+            state["workflow_status"] = "completed"
+        
         run.status = "completed"
         run.completed_at = datetime.utcnow()
-        run.output_summary = final_text
+        run.output_summary = {"text": final_text, "citations": citations}
         db.add(run)
         
-        # Create final Synthesis record
+        # Synthesis record
         synth_record = Synthesis(
             id=uuid.uuid4(),
-            objective_id=objective_id,
-            findings=findings.get("facts", []),
-            recommendations=findings.get("important_points", []),
-            evidence=findings.get("sources", [])
+            objective_id=obj_uuid,
+            findings=[],
+            recommendations=[],
+            evidence=citations
         )
         db.add(synth_record)
-        
         await db.commit()
         
         return state
@@ -125,4 +143,7 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         run.completed_at = datetime.utcnow()
         db.add(run)
         await db.commit()
-        raise
+        
+        state["final_synthesis"] = "I encountered a critical error while synthesizing the final response. Please try again later."
+        state["workflow_status"] = "failed"
+        return state

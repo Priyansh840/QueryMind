@@ -28,7 +28,7 @@ async def retrieve_context(
     user_id: str,
     space_id: str,
     top_k: int = 8,
-    score_threshold: float = 0.35,
+    score_threshold: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """
     1. Embeds query dynamically.
@@ -72,13 +72,14 @@ async def retrieve_context(
         q_vec = await embeddings_model.aembed_query(query)
         
         # 2. Search Vectors
-        hits = await client.search(
+        response = await client.query_points(
             collection_name=collection_name,
-            query_vector=q_vec,
+            query=q_vec,
             query_filter=tenant_filter,
             limit=top_k,
             score_threshold=score_threshold,
         )
+        hits = response.points
 
         if not hits:
             logger.info("No matching vectors found above threshold.")

@@ -1,6 +1,6 @@
 """
 Research Agent for MYND AI Orchestrator.
-Retrieves context from Qdrant and extracts factual findings.
+Retrieves context from Qdrant and extracts factual findings for specific tasks.
 """
 
 import json
@@ -8,167 +8,124 @@ import logging
 import uuid
 from datetime import datetime
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import SystemMessage, HumanMessage
 
 from orchestrator.state import AgentState
 from rag.retriever import retrieve_context
-from llm.provider import get_llm
-from models.orchestrator import AgentRun, WorkflowStep, Workflow, Objective
+from models.orchestrator import AgentRun, WorkflowStep, Workflow
+from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
 
 async def research_node(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Research Node:
-    1. Retrieves semantic context from Qdrant.
-    2. Analyzes context with LLM to extract facts.
-    3. Logs execution to Database.
+    Executes all 'pending' tasks in state['research_tasks'].
     """
     logger.info("Starting Research Agent...")
     
-    # 1. Retrieve DB session from config
     db = config.get("configurable", {}).get("db")
     if not db:
         raise ValueError("Database session 'db' must be provided in config['configurable'].")
         
-    # Create DB Tracking Records if they don't exist
-    # To log an AgentRun, we need a WorkflowStep -> Workflow -> Objective
     objective_id = state.get("objective_id")
-    if not objective_id:
-        objective_id = str(uuid.uuid4())
-        state["objective_id"] = objective_id
-        
-    # Database Logging - Start
+    workflow_iteration = state.get("workflow_iteration", 1)
+    
+    obj_uuid = uuid.UUID(objective_id)
+    workflow_id = uuid.uuid5(obj_uuid, "workflow")
+    step_id = uuid.uuid5(workflow_id, f"researcher_{workflow_iteration}")
+    
     try:
-        # Check if objective exists (if not, this is a mock/test run, we should create the hierarchy)
-        obj = await db.get(Objective, objective_id)
-        if not obj:
-            obj = Objective(id=objective_id, user_id=state["user_id"], raw_input=state["raw_query"])
-            db.add(obj)
-            workflow = Workflow(id=uuid.uuid4(), objective_id=objective_id)
-            db.add(workflow)
-            step = WorkflowStep(id=uuid.uuid4(), workflow_id=workflow.id, step_order=1, intent_type="research")
-            db.add(step)
-            await db.flush()
-        else:
-            # For simplicity in this iteration, query for the first workflow
-            from sqlalchemy.future import select
-            result = await db.execute(select(Workflow).where(Workflow.objective_id == objective_id))
-            workflow = result.scalars().first()
-            if not workflow:
-                workflow = Workflow(id=uuid.uuid4(), objective_id=objective_id)
-                db.add(workflow)
-                
-            step = WorkflowStep(id=uuid.uuid4(), workflow_id=workflow.id, step_order=1, intent_type="research")
-            db.add(step)
-            await db.flush()
-            
-        run = AgentRun(
-            id=uuid.uuid4(),
-            workflow_step_id=step.id,
-            agent_type="researcher",
-            status="running",
-            started_at=datetime.utcnow(),
-            input_context={"raw_query": state["raw_query"]}
-        )
-        db.add(run)
+        step_order = (workflow_iteration * 10) + 2  # 12, 22, 32...
+        step_stmt = insert(WorkflowStep).values(
+            id=step_id, workflow_id=workflow_id, step_order=step_order, 
+            iteration=workflow_iteration, intent_type="research"
+        ).on_conflict_do_nothing()
+        await db.execute(step_stmt)
         await db.commit()
     except Exception as e:
-        logger.error(f"Error creating DB records: {e}")
+        logger.error(f"Error creating DB records for researcher step: {e}")
         await db.rollback()
         raise
 
-    try:
-        # 2. Retrieve Context from Qdrant (Documents + Knowledge)
-        context_results = await retrieve_context(
-            query=state["raw_query"],
-            user_id=state["user_id"],
-            space_id=state["space_id"]
-        )
-
-        try:
-            from rag.knowledge_retriever import retrieve_knowledge
-            knowledge_results = await retrieve_knowledge(
-                query=state["raw_query"],
-                user_id=state["user_id"],
-                space_id=state["space_id"],
-                top_k=5,
-            )
-        except Exception as k_err:
-            logger.warning(f"Knowledge retrieval note in researcher: {k_err}")
-            knowledge_results = []
+    if "research_results" not in state:
+        state["research_results"] = []
         
-        state["retrieved_context"] = context_results
-        state["retrieved_knowledge"] = knowledge_results
-        
-        # 3. Call LLM to extract facts
-        llm = get_llm()
-        
-        context_blocks = []
-        for c in context_results:
-            page = f" (Page {c['page_number']})" if c.get('page_number') else ""
-            title = c.get('document_title') or c.get('source') or 'Unknown'
-            context_blocks.append(f"Source: {title}{page} [ID: {c.get('chunk_id', 'none')}]\n{c.get('content', '')}")
-        context_str = "\n\n".join(context_blocks)
-        
-        system_prompt = (
-            "You are an expert Research Agent for QueryMind. "
-            "Analyze the provided context and the user query.\n\n"
-            "CRITICAL RULES:\n"
-            "1. Evaluate if the Context is ACTUALLY RELEVANT to the user's specific query.\n"
-            "2. If the user is asking a general knowledge question (e.g. 'what is the capital of India', 'how are you', 'what is the weather', general coding, math, general science) "
-            "and the Context is unrelated (e.g. a resume or technical report not asked for), DO NOT extract irrelevant facts. Return empty arrays:\n"
-            '   {"facts": [], "important_points": [], "sources": []}\n'
-            "3. If the Context contains information genuinely relevant to answering the user's query, extract the factual information, key points, and document sources.\n"
-            "4. Return a strictly valid JSON object with this exact structure:\n"
-            "{\n"
-            '  "facts": ["fact 1", "fact 2"],\n'
-            '  "important_points": ["point 1"],\n'
-            '  "sources": ["source 1"]\n'
-            "}"
-        )
-
-        
-        human_prompt = f"Query: {state['raw_query']}\n\nContext:\n{context_str}"
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ]
-        
-        response = await llm.ainvoke(messages)
-        
-        # Parse JSON safely using regex to extract JSON object even if wrapped in text/markdown
-        import re
-        content = response.content
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
-            content = match.group(0)
-        else:
-            content = content.replace("```json", "").replace("```", "").strip()
+    for task in state.get("research_tasks", []):
+        if task.get("status") != "pending":
+            continue
             
+        # Log Agent Run for this specific task
+        run_id = uuid.uuid4()
+        run = AgentRun(
+            id=run_id,
+            workflow_step_id=step_id,
+            agent_type="researcher",
+            task_id=task["id"],
+            status="running",
+            started_at=datetime.utcnow(),
+            input_context={"query": task["query"], "purpose": task["purpose"]}
+        )
+        db.add(run)
+        await db.commit()
+        
+        state["total_research_tasks"] = state.get("total_research_tasks", 0) + 1
+        
         try:
-            findings = json.loads(content)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to decode JSON from LLM: {content}")
-            findings = {"facts": ["Failed to parse facts from LLM"], "important_points": [], "sources": []}
-        
-        state["research_findings"] = findings
-        
-        # Database Logging - Complete
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        run.output_summary = json.dumps(findings)
-        db.add(run)
-        await db.commit()
-        
-        return state
-        
-    except Exception as e:
-        logger.error(f"Researcher failed: {e}")
-        run.status = "failed"
-        run.error = str(e)
-        run.completed_at = datetime.utcnow()
-        db.add(run)
-        await db.commit()
-        raise
+            context_results = await retrieve_context(
+                query=task["query"],
+                user_id=state["user_id"],
+                space_id=state["space_id"]
+            )
+            
+            evidence_list = []
+            for c in context_results:
+                evidence_list.append({
+                    "chunk_id": str(c.get("chunk_id", "")),
+                    "document_title": c.get("document_title", "Unknown"),
+                    "source": c.get("source", "Unknown"),
+                    "page_number": c.get("page_number"),
+                    "content": c.get("content", ""),
+                    "relevance_score": c.get("score")
+                })
+            
+            status = "completed" if evidence_list else "no_evidence"
+            
+            result = {
+                "task_id": task["id"],
+                "query": task["query"],
+                "iteration": workflow_iteration,
+                "status": status,
+                "error": None,
+                "evidence": evidence_list
+            }
+            
+            task["status"] = "completed"
+            state["research_results"].append(result)
+            
+            run.status = status
+            run.output_summary = result
+            run.completed_at = datetime.utcnow()
+            db.add(run)
+            await db.commit()
+            
+        except Exception as e:
+            logger.error(f"Researcher failed for task {task['id']}: {e}")
+            result = {
+                "task_id": task["id"],
+                "query": task["query"],
+                "iteration": workflow_iteration,
+                "status": "failed",
+                "error": str(e),
+                "evidence": []
+            }
+            task["status"] = "failed"
+            state["research_results"].append(result)
+            
+            run.status = "failed"
+            run.error = str(e)
+            run.output_summary = result
+            run.completed_at = datetime.utcnow()
+            db.add(run)
+            await db.commit()
+
+    return state

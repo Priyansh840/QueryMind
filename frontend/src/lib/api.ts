@@ -113,6 +113,39 @@ export interface KnowledgeItemData {
   updated_at: string;
 }
 
+export interface ProjectData {
+  id: string;
+  space_id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+export interface GoalData {
+  id: string;
+  user_id: string;
+  project_id?: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
+export interface MemoryData {
+  id: string;
+  user_id: string;
+  memory_type: string;
+  content: string;
+  confidence: number;
+  status: string;
+  importance: string;
+  reinforcement_count: number;
+  source_count: number;
+  first_seen_at: string;
+  last_reinforced_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const queryMindApi = {
   // Knowledge Management
   getKnowledge: async (filters?: {
@@ -138,6 +171,72 @@ export const queryMindApi = {
 
   deleteKnowledgeItem: async (knowledgeId: string): Promise<{ status: string; message: string }> => {
     const res = await api.delete<{ status: string; message: string }>(`/knowledge/${knowledgeId}`);
+    return res.data;
+  },
+
+  // Projects Management
+  getProjects: async (spaceId?: string): Promise<ProjectData[]> => {
+    const res = await api.get<ProjectData[]>(`/projects${spaceId ? `?space_id=${spaceId}` : ""}`);
+    return res.data;
+  },
+  getProject: async (projectId: string): Promise<ProjectData> => {
+    const res = await api.get<ProjectData>(`/projects/${projectId}`);
+    return res.data;
+  },
+  createProject: async (data: { space_id: string; name: string }): Promise<ProjectData> => {
+    const res = await api.post<ProjectData>("/projects", data);
+    return res.data;
+  },
+  updateProject: async (projectId: string, data: { name?: string; status?: string }): Promise<ProjectData> => {
+    const res = await api.patch<ProjectData>(`/projects/${projectId}`, data);
+    return res.data;
+  },
+  deleteProject: async (projectId: string): Promise<{ status: string; message: string }> => {
+    const res = await api.delete<{ status: string; message: string }>(`/projects/${projectId}`);
+    return res.data;
+  },
+
+  // Goals Management
+  getGoals: async (projectId?: string): Promise<GoalData[]> => {
+    const res = await api.get<GoalData[]>(`/goals${projectId ? `?project_id=${projectId}` : ""}`);
+    return res.data;
+  },
+  getGoal: async (goalId: string): Promise<GoalData> => {
+    const res = await api.get<GoalData>(`/goals/${goalId}`);
+    return res.data;
+  },
+  createGoal: async (data: { description: string; project_id?: string }): Promise<GoalData> => {
+    const res = await api.post<GoalData>("/goals", data);
+    return res.data;
+  },
+  updateGoal: async (goalId: string, data: { description?: string; status?: string }): Promise<GoalData> => {
+    const res = await api.patch<GoalData>(`/goals/${goalId}`, data);
+    return res.data;
+  },
+  deleteGoal: async (goalId: string): Promise<{ status: string; message: string }> => {
+    const res = await api.delete<{ status: string; message: string }>(`/goals/${goalId}`);
+    return res.data;
+  },
+
+  // Memories Management
+  getMemories: async (memoryType?: string): Promise<MemoryData[]> => {
+    const res = await api.get<MemoryData[]>(`/memories${memoryType ? `?memory_type=${memoryType}` : ""}`);
+    return res.data;
+  },
+  getMemory: async (memoryId: string): Promise<MemoryData> => {
+    const res = await api.get<MemoryData>(`/memories/${memoryId}`);
+    return res.data;
+  },
+  createMemory: async (data: { memory_type: string; content: string; importance?: string }): Promise<MemoryData> => {
+    const res = await api.post<MemoryData>("/memories", data);
+    return res.data;
+  },
+  updateMemory: async (memoryId: string, data: { content?: string; status?: string; importance?: string }): Promise<MemoryData> => {
+    const res = await api.patch<MemoryData>(`/memories/${memoryId}`, data);
+    return res.data;
+  },
+  deleteMemory: async (memoryId: string): Promise<{ status: string; message: string }> => {
+    const res = await api.delete<{ status: string; message: string }>(`/memories/${memoryId}`);
     return res.data;
   },
 
@@ -167,7 +266,34 @@ export const queryMindApi = {
     return res.data;
   },
 
-  // LangGraph Multi-Agent Orchestrator
+  // Conversations & SSE Streaming
+  createConversation: async (spaceId: string, title?: string) => {
+    const res = await api.post("/conversations", { space_id: spaceId, title });
+    return res.data;
+  },
+  
+  getConversations: async (spaceId: string) => {
+    const res = await api.get(`/conversations?space_id=${spaceId}`);
+    return res.data;
+  },
+  
+  getConversation: async (conversationId: string) => {
+    const res = await api.get(`/conversations/${conversationId}`);
+    return res.data;
+  },
+  
+  getConversationMessages: async (conversationId: string) => {
+    const res = await api.get(`/conversations/${conversationId}/messages`);
+    return res.data;
+  },
+
+  deleteConversation: async (conversationId: string) => {
+    const res = await api.delete(`/conversations/${conversationId}`);
+    return res.data;
+  },
+
+  // Note: Streaming SSE logic will be handled directly in the component using fetch or EventSource
+  // but we keep the old orchestrator endpoint just in case until it's fully deprecated
   chatWithOrchestrator: async (
     query: string,
     spaceId?: string

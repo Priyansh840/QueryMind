@@ -38,11 +38,16 @@ api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(objectives.router, prefix="/objectives", tags=["Objectives"])
 
 # Future route includes:
-# from api.v1 import users, documents, chat, search, memories, timeline, reflections, tags, dashboard
+from api.v1 import projects, goals, memories, conversations
+
+api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
+api_router.include_router(goals.router, prefix="/goals", tags=["Goals"])
+api_router.include_router(memories.router, prefix="/memories", tags=["Memories"])
+api_router.include_router(conversations.router, prefix="/conversations", tags=["Conversations"])
+
+# from api.v1 import users, search, timeline, reflections, tags, dashboard
 # api_router.include_router(users.router, prefix="/users", tags=["Users"])
-# api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 # api_router.include_router(search.router, prefix="/search", tags=["Search"])
-# api_router.include_router(memories.router, prefix="/memories", tags=["Memories"])
 # api_router.include_router(timeline.router, prefix="/timeline", tags=["Timeline"])
 # api_router.include_router(reflections.router, prefix="/reflections", tags=["Reflections"])
 # api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])

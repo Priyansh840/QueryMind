@@ -18,7 +18,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from core.config import settings
-from ingestion.embeddings import embedding_service
+from llm.embeddings import get_embeddings
 from models.knowledge import Document, DocumentChunk
 from database.postgres import async_session
 
@@ -35,7 +35,8 @@ class IngestionEngine:
         filename: str,
         content_type: str,
         user_id: str,
-        space_id: str
+        space_id: str,
+        fail_at_stage: str = None
     ):
         """
         Main decoupled ingestion pipeline.
@@ -138,6 +139,9 @@ class IngestionEngine:
                     
                     for record in new_chunk_records:
                         record.embedding_status = "completed"
+                        
+                if fail_at_stage == "after_qdrant_upsert":
+                    raise Exception("Simulated failure after Qdrant upsert")
                 
                 # 8. Success: Safely cleanup old working version
                 if old_chunk_ids:
@@ -230,3 +234,40 @@ class IngestionEngine:
         except Exception as e:
             logger.error(f"Error loading document {file_path}: {e}")
             return []
+
+async def process_document(
+    file_path: str,
+    filename: str,
+    content_type: str,
+    user_id: str,
+    space_id: str,
+    db: AsyncSession,
+    fail_at_stage: str = None
+) -> Document:
+    """Wrapper that creates the document and triggers the IngestionEngine."""
+    document = Document(
+        id=uuid.uuid4(),
+        space_id=uuid.UUID(space_id),
+        title=filename,
+        file_url=file_path,
+        type=content_type or "unknown",
+        status="pending"
+    )
+    db.add(document)
+    await db.commit()
+    
+    engine = IngestionEngine()
+    # In an actual deployment, you might dispatch run_ingestion to a background task
+    # For now, we await it or run it in the background if we don't want to block
+    await engine.run_ingestion(
+        document_id=str(document.id),
+        file_path=file_path,
+        filename=filename,
+        content_type=content_type,
+        user_id=user_id,
+        space_id=space_id,
+        fail_at_stage=fail_at_stage
+    )
+    
+    return document
+

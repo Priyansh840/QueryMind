@@ -15,7 +15,6 @@ except ImportError:
         from langchain_ollama import ChatOllama
     except ImportError:
         ChatOllama = None
-
 from core.config import settings
 import logging
 

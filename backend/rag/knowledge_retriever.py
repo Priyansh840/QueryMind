@@ -74,12 +74,13 @@ async def retrieve_knowledge(
                 url=settings.qdrant_client_url,
                 api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
             )
-            hits = await qdrant.search(
+            response = await qdrant.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=qmodels.Filter(must=must_conditions),
                 limit=top_k,
             )
+            hits = response.points
         except Exception as e:
             logger.error(f"Qdrant Knowledge search error: {e}")
             return []

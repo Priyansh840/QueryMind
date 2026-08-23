@@ -38,9 +38,50 @@ markdown
 # ----- Utilities -----
 python-dotenv==1.0.1
 aiofiles==24.1.0
+# QueryMind Backend Dependencies
+
+# ----- Core Framework -----
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+pydantic==2.9.0
+pydantic-settings==2.5.0
+python-multipart==0.0.9
+
+# ----- Database -----
+sqlalchemy[asyncio]==2.0.35
+asyncpg
+alembic==1.13.0
+greenlet
+
+# ----- Authentication -----
+supabase==2.9.0
+python-jose[cryptography]==3.3.0
+
+# ----- AI & LLM -----
+langchain
+langchain-google-genai
+langchain-community
+langgraph
+google-generativeai
+sentence-transformers
+
+# ----- Vector Database -----
+qdrant-client==1.11.0
+
+# ----- Document Parsing -----
+pypdf
+python-docx
+pytesseract
+Pillow
+markdown
+
+# ----- Utilities -----
+python-dotenv==1.0.1
+aiofiles==24.1.0
 httpx>=0.27.0
 
 # ----- Testing -----
 pytest==8.3.0
 pytest-asyncio==0.24.0
 httpx>=0.27.0
+langchain-ollama  
