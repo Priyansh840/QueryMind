@@ -28,6 +28,12 @@ class ResearchResult(TypedDict):
     error: Optional[str]
     evidence: List[Evidence]
 
+class WorkspaceContext(TypedDict):
+    space: Optional[dict]
+    goals: List[dict]
+    projects: List[dict]
+    memories: List[dict]
+
 class AgentState(TypedDict):
     """
     The state dictionary passed between LangGraph nodes during Orchestration.
@@ -41,12 +47,16 @@ class AgentState(TypedDict):
     # Inputs
     raw_query: str
     chat_history: List[BaseMessage]
+    # Step 6 Phase 1: Workspace injection
+    workspace_context: dict
+    workspace_summary: dict
     
-    # Workflow State
+    # Planner/Critic/Decision outputs
     planner_output: Optional[dict]
     research_tasks: List[ResearchTask]
     research_results: List[ResearchResult]
     critic_output: Optional[dict]
+    decision_output: Optional[dict]
     
     # Budgets & Counters
     workflow_iteration: int

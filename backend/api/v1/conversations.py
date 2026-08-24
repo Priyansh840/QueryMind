@@ -136,6 +136,7 @@ import json
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 from orchestrator.graph import get_orchestrator
+from orchestrator.schemas import DecisionAnalysis
 from models.orchestrator import Objective
 from schemas.conversation import MessageCreate
 
@@ -201,9 +202,9 @@ async def send_message(
             # Yield workflow.started
             yield f"data: {json.dumps({'event': 'workflow.started', 'data': {'objective_id': str(objective_id)}})}\n\n"
             
-            # Yield initial step and agent.status
-            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
-            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
+            # Start context gatherer
+            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'context_gatherer', 'iteration': 1}})}\n\n"
+            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'context_gatherer', 'status': 'Gathering workspace context...'}})}\n\n"
             
             final_text = ""
             citations = []
@@ -219,7 +220,15 @@ async def send_message(
                 elif event_type == "updates":
                     for node_name, node_state in event_data.items():
                         
-                        if node_name == "planner":
+                        if node_name == "context_gatherer":
+                            summary = node_state.get("workspace_summary", {})
+                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'context_gatherer', 'output': summary}})}\n\n"
+                            
+                            # Now start planner
+                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
+                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
+
+                        elif node_name == "planner":
                             # Planner finished
                             out = node_state.get("planner_output", {})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'planner', 'output': out}})}\n\n"
@@ -232,8 +241,8 @@ async def send_message(
                                 status_msg = f"Executing {task_count} research tasks..."
                                 yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': status_msg}})}\n\n"
                             else:
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer', 'iteration': 1}})}\n\n"
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing response...'}})}\n\n"
+                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing context...'}})}\n\n"
                                 
                         elif node_name == "researcher":
                             iter_num = node_state.get("workflow_iteration", 1)
@@ -253,8 +262,29 @@ async def send_message(
                                 yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': next_iter}})}\n\n"
                                 yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': 'Retrieving additional evidence...'}})}\n\n"
                             else:
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer', 'iteration': iter_num}})}\n\n"
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing final response...'}})}\n\n"
+                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing evidence...'}})}\n\n"
+                                
+                        elif node_name == "decision_analyzer":
+                            d_out = node_state.get("decision_output", {})
+                            
+                            # Safely validate and sanitize the output for the frontend
+                            try:
+                                sanitized_da = DecisionAnalysis.model_validate(d_out)
+                                # Explicitly dump to get only the defined fields, dropping extra data
+                                sanitized_payload = sanitized_da.model_dump()
+                            except Exception as e:
+                                logger.error(f"Failed to sanitize decision output for SSE: {e}")
+                                sanitized_payload = {
+                                    "blockers": [],
+                                    "recommendations": [],
+                                    "uncertainties": ["Decision analysis result was malformed and safely dropped."]
+                                }
+                                
+                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'decision_analyzer', 'output': sanitized_payload}})}\n\n"
+                            
+                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
+                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing final response...'}})}\n\n"
                                 
                         elif node_name == "synthesizer":
                             final_text = node_state.get("final_synthesis", "")

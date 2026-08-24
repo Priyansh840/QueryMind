@@ -74,8 +74,15 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
             "Analyze the user's query and the chat history to determine if we need to search the user's uploaded knowledge vault.\n"
             "If the user asks a general question (e.g. math, coding, general facts) or is just chatting, set needs_research to false.\n"
             "If the user asks about their specific documents, personal data, or topics that require their vault, set needs_research to true and formulate specific search tasks.\n"
+            "You may use the provided WORKSPACE CONTEXT (active goals, projects, memories) to inform your plan if relevant. "
+            "Do NOT force irrelevant goals into your plan if the user's query is unrelated to the workspace.\n"
             "Return a structured plan."
         )
+        
+        from orchestrator.context_formatter import format_workspace_context
+        ctx_str = format_workspace_context(state.get("workspace_context"))
+        if ctx_str:
+            system_prompt += f"\n\n{ctx_str}"
         
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(state.get("chat_history", []))

@@ -43,8 +43,27 @@ interface Message {
   timestamp: string;
   citations?: string[];
   objectiveId?: string;
-  traceEvents?: TraceEvent[];
   isError?: boolean;
+}
+
+interface DecisionEvidence {
+  source_type: "workspace" | "document" | "conversation";
+  content: string;
+  is_fact: boolean;
+  source_id?: string;
+}
+
+interface Recommendation {
+  action: string;
+  reason: string;
+  evidence: DecisionEvidence[];
+  confidence: "high" | "medium" | "low";
+}
+
+interface DecisionAnalysis {
+  blockers: string[];
+  recommendations: Recommendation[];
+  uncertainties: string[];
 }
 
 /* ─── quick chips ─────────────────────────────────────────────── */
@@ -79,6 +98,7 @@ export default function ConversationPage() {
   const [activeTrace, setActiveTrace] = useState<ObjectiveTraceData | null>(null);
   const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string>("");
+  const [decisionInsight, setDecisionInsight] = useState<DecisionAnalysis | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -155,6 +175,7 @@ export default function ConversationPage() {
     setIsOrchestrating(true);
     setWorkflowSteps([]);
     setAgentStatus("Initializing...");
+    setDecisionInsight(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -206,6 +227,23 @@ export default function ConversationPage() {
                       ? { ...s, status: "completed", ...data.data } 
                       : s
                   ));
+                  
+                  if (data.data.step === "decision_analyzer" && data.data.output) {
+                    try {
+                      const output = data.data.output;
+                      if (Array.isArray(output.recommendations) && Array.isArray(output.blockers) && Array.isArray(output.uncertainties)) {
+                        const validRecs = output.recommendations.filter((r: any) => 
+                          ["high", "medium", "low"].includes(r.confidence) && Array.isArray(r.evidence)
+                        ).map((r: any) => ({
+                          ...r,
+                          evidence: r.evidence.filter((e: any) => ["workspace", "document", "conversation"].includes(e.source_type))
+                        }));
+                        setDecisionInsight({ ...output, recommendations: validRecs });
+                      }
+                    } catch (err) {
+                      console.error("Invalid decision insight payload", err);
+                    }
+                  }
                 } else if (data.event === "agent.status") {
                   setAgentStatus(data.data.status);
                 } else if (data.event === "token") {
@@ -698,9 +736,11 @@ export default function ConversationPage() {
                   const isActive = step.status === "running";
                   
                   let label = "Processing...";
+                  if (step.step === "context_gatherer") label = "Gathering workspace context";
                   if (step.step === "planner") label = "Planner — Analyzing query";
                   if (step.step === "researcher") label = `Researcher Iteration ${step.iteration} — Searching knowledge base`;
                   if (step.step === "critic") label = `Critic Iteration ${step.iteration} — Evaluating evidence`;
+                  if (step.step === "decision_analyzer") label = "Analyzing evidence";
                   if (step.step === "synthesizer") label = "Synthesizer — Drafting final response";
 
                   return (
@@ -743,7 +783,96 @@ export default function ConversationPage() {
             </div>
           </div>
         )}
-
+        
+        {/* Decision Insight Card */}
+        {decisionInsight && (
+          <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", width: "100%" }}>
+            <div style={{ width: "32px", flexShrink: 0 }} />
+            <div style={{
+              width: "100%", background: "var(--surface)", border: "1px solid var(--border)",
+              borderRadius: "16px", padding: "20px 24px", display: "flex", flexDirection: "column",
+              gap: "24px", boxShadow: "var(--shadow-sm)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--border)", paddingBottom: "12px" }}>
+                <Activity style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                  Decision Insight
+                </span>
+              </div>
+              
+              {/* Recommendations */}
+              {decisionInsight.recommendations.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Recommended Next Steps</div>
+                  {decisionInsight.recommendations.map((rec, idx) => (
+                    <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)" }}>
+                          {idx + 1}. {rec.action}
+                        </div>
+                        <div style={{ 
+                          fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "12px",
+                          background: rec.confidence === "high" ? "#D1FAE5" : rec.confidence === "medium" ? "#FEF3C7" : "#FEE2E2",
+                          color: rec.confidence === "high" ? "#065F46" : rec.confidence === "medium" ? "#92400E" : "#991B1B"
+                        }}>
+                          {rec.confidence.charAt(0).toUpperCase() + rec.confidence.slice(1)} Confidence
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "14px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 600 }}>Why:</span> {rec.reason}
+                      </div>
+                      
+                      {rec.evidence.length > 0 && (
+                        <div style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "12px", borderLeft: "2px solid var(--border)" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Evidence</div>
+                          {rec.evidence.map((ev, eIdx) => (
+                            <div key={eIdx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", background: "var(--surface-subtle)", color: "var(--text-secondary)" }}>
+                                  {ev.source_type.toUpperCase()}
+                                </span>
+                                <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", background: ev.is_fact ? "#DBEAFE" : "#F3E8FF", color: ev.is_fact ? "#1E40AF" : "#6B21A8" }}>
+                                  {ev.is_fact ? "FACT" : "INFERENCE"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontStyle: "italic", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                "{ev.content}"
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: "14px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
+                  No grounded recommendation can be made from the available evidence.
+                </div>
+              )}
+              
+              {/* Blockers */}
+              {decisionInsight.blockers.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Blockers</div>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                    {decisionInsight.blockers.map((b, idx) => <li key={idx}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Uncertainties */}
+              {decisionInsight.uncertainties.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Uncertainties</div>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                    {decisionInsight.uncertainties.map((u, idx) => <li key={idx}>{u}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>

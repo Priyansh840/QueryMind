@@ -15,3 +15,20 @@ class CriticOutput(BaseModel):
     decision: Literal["accept", "research_more"] = Field(description="Whether the retrieved evidence is sufficient to answer the query")
     reason: str = Field(description="A concise summary of why the evidence was accepted or rejected")
     missing_tasks: List[TaskDefinition] = Field(default_factory=list, description="List of new research tasks to execute if decision is 'research_more'")
+
+class DecisionEvidence(BaseModel):
+    source_type: Literal["workspace", "document", "conversation"] = Field(description="The source of the evidence")
+    content: str = Field(description="The direct quote or factual summary from the source")
+    is_fact: bool = Field(description="Whether this is a stated fact (True) or an inferred assumption (False)")
+    source_id: Optional[str] = Field(default=None, description="The chunk_id or workspace item ID if available")
+
+class Recommendation(BaseModel):
+    action: str = Field(description="The recommended next step or action")
+    reason: str = Field(description="The reasoning behind the recommendation")
+    evidence: List[DecisionEvidence] = Field(default_factory=list, description="The evidence grounding this recommendation")
+    confidence: Literal["high", "medium", "low"] = Field(description="The confidence level of this recommendation")
+
+class DecisionAnalysis(BaseModel):
+    blockers: List[str] = Field(default_factory=list, description="What is preventing progress")
+    recommendations: List[Recommendation] = Field(default_factory=list, description="Proposed next steps grounded in evidence")
+    uncertainties: List[str] = Field(default_factory=list, description="Missing information or ambiguity")

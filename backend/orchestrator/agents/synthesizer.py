@@ -71,8 +71,21 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
             "2. If research was performed, use the provided evidence to thoroughly answer the query.\n"
             "3. If evidence is marked as NO_EVIDENCE, explicitly state that the information was not found in the vault. Do NOT hallucinate citations.\n"
             "4. If evidence is marked as RESEARCH_FAILED, mention that there was a technical issue retrieving some documents.\n"
-            "5. Tone should be friendly, clear, and professional. Format with clean, beautiful Markdown."
+            "5. Tone should be friendly, clear, and professional. Format with clean, beautiful Markdown.\n"
+            "6. You may use the provided WORKSPACE CONTEXT to personalize your answer (e.g. connecting evidence to an active goal), but ONLY if it is directly relevant.\n\n"
+            "DECISION ANALYSIS RULES:\n"
+            "1. Do not invent recommendations that are not present in the decision analysis unless independently supported by the available evidence.\n"
+            "2. Do not present inference as fact.\n"
+            "3. Do not present low-confidence recommendations as certain.\n"
+            "4. If uncertainties exist, acknowledge important uncertainty when relevant.\n"
+            "5. If there are no recommendations, do not manufacture one merely to make the answer more actionable.\n"
+            "6. Remain conversational. Do not dump raw JSON into the user's response."
         )
+        
+        from orchestrator.context_formatter import format_workspace_context
+        ctx_str = format_workspace_context(state.get("workspace_context"))
+        if ctx_str:
+            system_prompt += f"\n\n{ctx_str}"
         
         planner_out = state.get("planner_output", {})
         results = state.get("research_results", [])
@@ -90,6 +103,10 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
                 elif res["status"] == "failed":
                     context_blocks.append(f"Task: {res['query']}\nEvidence: [RESEARCH_FAILED]")
                     
+        decision_out = state.get("decision_output")
+        if decision_out:
+            context_blocks.append("DECISION ANALYSIS START\n" + json.dumps(decision_out, indent=2) + "\nDECISION ANALYSIS END")
+            
         human_prompt = (
             f"Original Query: {state.get('raw_query')}\n\n"
             f"Research Context:\n" + "\n\n".join(context_blocks)
