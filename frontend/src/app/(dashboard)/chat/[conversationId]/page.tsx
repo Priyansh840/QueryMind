@@ -142,7 +142,6 @@ export default function ConversationPage() {
     }
   }, [input]);
 
-  const router = useRouter();
 
   /* ─── send ────────────────────────────────────────────────── */
   const handleSend = async (queryText?: string) => {
@@ -286,13 +285,13 @@ export default function ConversationPage() {
   };
 
   const openTraceModal = (msg: Message) => {
-    if (!msg.objectiveId && (!msg.traceEvents || msg.traceEvents.length === 0)) return;
+    if (!msg.objectiveId) return;
     setActiveTrace({
       objective_id: msg.objectiveId || "local",
       raw_input: msg.content,
       status: "completed",
       created_at: msg.timestamp,
-      trace: msg.traceEvents || [],
+      trace: [],
     });
     setIsTraceModalOpen(true);
   };
