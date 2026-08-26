@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from orchestrator.state import AgentState
 from models.core import Space, Project, Goal
 from models.memory import Memory
+from models.knowledge import Document
 from models.orchestrator import AgentRun, WorkflowStep, Workflow
 from sqlalchemy.dialects.postgresql import insert
 import datetime
@@ -148,11 +149,29 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             for m in memories
         ]
 
+        # 5. Fetch Documents in this Space (Limit 15)
+        doc_stmt = select(Document).where(
+            Document.space_id == space_uuid
+        ).order_by(Document.created_at.desc()).limit(15)
+        doc_result = await db.execute(doc_stmt)
+        docs = doc_result.scalars().all()
+
+        documents_data = [
+            {
+                "id": str(d.id),
+                "title": d.title,
+                "type": d.type,
+                "status": d.status,
+            }
+            for d in docs
+        ]
+
         state["workspace_context"] = {
             "space": space_data,
             "goals": goals_data,
             "projects": projects_data,
-            "memories": memories_data
+            "memories": memories_data,
+            "documents": documents_data,
         }
 
         summary = {
@@ -160,7 +179,8 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             "space_found": True,
             "goals_count": len(goals_data),
             "projects_count": len(projects_data),
-            "memories_count": len(memories_data)
+            "memories_count": len(memories_data),
+            "documents_count": len(documents_data),
         }
         state["workspace_summary"] = summary
 

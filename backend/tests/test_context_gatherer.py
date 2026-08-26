@@ -230,7 +230,10 @@ async def test_i_telemetry_and_safe_summary(db_session: AsyncSession):
     from sqlalchemy import select
     from models.orchestrator import AgentRun, WorkflowStep
     
-    stmt = select(AgentRun).where(AgentRun.agent_type == "context_gatherer")
+    workflow_id = uuid.uuid5(obj.id, "workflow")
+    step_id = uuid.uuid5(workflow_id, "context_gatherer_1")
+
+    stmt = select(AgentRun).where(AgentRun.workflow_step_id == step_id)
     db_res = await db_session.execute(stmt)
     run = db_res.scalars().first()
     

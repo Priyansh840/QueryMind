@@ -21,10 +21,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 GEMINI_MODELS = [
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
 ]
 
 
@@ -82,6 +81,30 @@ class FallbackGeminiChatModel(BaseChatModel):
                 last_error = e
                 continue
         raise last_error or RuntimeError("All Gemini models failed.")
+
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> Any:
+        from langchain_core.runnables import RunnableLambda
+        import json
+
+        async def _run_structured(input_data: Any, config: Any = None):
+            last_err = None
+            for model_name in self.models:
+                try:
+                    llm = ChatGoogleGenerativeAI(
+                        model=model_name,
+                        google_api_key=self.google_api_key,
+                        temperature=self.temperature,
+                        convert_system_message_to_human=True,
+                    )
+                    structured = llm.with_structured_output(schema, **kwargs)
+                    return await structured.ainvoke(input_data, config=config)
+                except Exception as e:
+                    logger.warning(f"Model {model_name} structured output failed ({e}). Falling back...")
+                    last_err = e
+                    continue
+            raise last_err or RuntimeError("All Gemini models failed structured output.")
+
+        return RunnableLambda(_run_structured)
 
 
 def get_llm(model_name: str = "gemini-3.5-flash-lite", temperature: float = 0.2) -> BaseChatModel:

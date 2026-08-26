@@ -51,12 +51,13 @@ class AgentState(TypedDict):
     workspace_context: dict
     workspace_summary: dict
     
-    # Planner/Critic/Decision outputs
+    # Planner/Critic/Decision/Action outputs
     planner_output: Optional[dict]
     research_tasks: List[ResearchTask]
     research_results: List[ResearchResult]
     critic_output: Optional[dict]
     decision_output: Optional[dict]
+    action_proposals: Optional[List[dict]]
     
     # Budgets & Counters
     workflow_iteration: int

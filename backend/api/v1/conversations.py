@@ -136,9 +136,10 @@ import json
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 from orchestrator.graph import get_orchestrator
-from orchestrator.schemas import DecisionAnalysis
+from orchestrator.schemas import DecisionAnalysis, ActionProposal
 from models.orchestrator import Objective
 from schemas.conversation import MessageCreate
+from repositories.action_proposals import ActionProposalRepository
 
 @router.post("/{conversation_id}/messages")
 async def send_message(
@@ -208,6 +209,7 @@ async def send_message(
             
             final_text = ""
             citations = []
+            action_proposals_collected = []
             
             # Using stream_mode=["updates", "messages"]
             async for event_type, event_data in graph.astream(inputs, config=config, stream_mode=["updates", "messages"]):
@@ -283,6 +285,18 @@ async def send_message(
                                 
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'decision_analyzer', 'output': sanitized_payload}})}\n\n"
                             
+                        elif node_name == "action_proposer":
+                            raw_proposals = node_state.get("action_proposals", [])
+                            # Safely ensure all proposals match ActionProposal schema
+                            safe_proposals = []
+                            for p in raw_proposals:
+                                try:
+                                    validated_p = ActionProposal.model_validate(p)
+                                    safe_proposals.append(validated_p.model_dump())
+                                except Exception as p_err:
+                                    logger.warning(f"Discarding invalid proposal for SSE/persistence: {p_err}")
+                            action_proposals_collected = safe_proposals
+                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'action_proposer', 'output': {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}}})}\n\n"
                             yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
                             yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing final response...'}})}\n\n"
                                 
@@ -295,17 +309,43 @@ async def send_message(
             for c in citations:
                 yield f"data: {json.dumps({'event': 'citation', 'data': c})}\n\n"
             
-            # Save Assistant Message
+            # Save Assistant Message with historical JSONB snapshot
             asst_msg_id = uuid.uuid4()
+            metadata_dict = {
+                "objective_id": str(objective_id),
+                "action_proposals": action_proposals_collected
+            }
             asst_msg = Message(
                 id=asst_msg_id,
                 conversation_id=conversation.id,
                 role="assistant",
                 content=final_text,
                 citations=citations,
-                metadata_json={"objective_id": str(objective_id)}
+                metadata_json=metadata_dict
             )
             db.add(asst_msg)
+
+            # Persist authoritative ActionProposal database rows (Step 9 Phase 3)
+            for p_dict in action_proposals_collected:
+                await ActionProposalRepository.create(
+                    db,
+                    proposal_id=p_dict.get("proposal_id", f"prop-{uuid.uuid4().hex[:6]}"),
+                    user_id=current_user.id,
+                    space_id=conversation.space_id,
+                    conversation_id=conversation.id,
+                    message_id=asst_msg_id,
+                    objective_id=objective_id,
+                    action_type=p_dict.get("action_type", "create_goal"),
+                    target_id=p_dict.get("target_id"),
+                    parameters=p_dict.get("parameters", {}),
+                    reason=p_dict.get("reason", ""),
+                    source_recommendation=p_dict.get("source_recommendation"),
+                    confidence=p_dict.get("confidence", "medium"),
+                    status="pending",
+                    auto_commit=False
+                )
+
+            # Atomically commit Message + ActionProposal rows
             await db.commit()
             
             # Yield message.completed

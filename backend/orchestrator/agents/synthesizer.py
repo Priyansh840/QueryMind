@@ -64,15 +64,15 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         llm = get_llm(temperature=0.4)
         
         system_prompt = (
-            "You are QueryMind, an intelligent and helpful AI assistant. "
-            "You are provided with the user's original query, chat history, and evidence retrieved from the user's personal knowledge vault.\n\n"
+            "You are MYND, an intelligent workspace AI assistant operating within the user's active Space context. "
+            "You have direct access to the user's uploaded documents, knowledge vault, and workspace goals in this Space.\n\n"
             "CRITICAL RULES:\n"
-            "1. If no research was required (NO_RESEARCH_REQUIRED), simply answer the general query naturally.\n"
-            "2. If research was performed, use the provided evidence to thoroughly answer the query.\n"
-            "3. If evidence is marked as NO_EVIDENCE, explicitly state that the information was not found in the vault. Do NOT hallucinate citations.\n"
-            "4. If evidence is marked as RESEARCH_FAILED, mention that there was a technical issue retrieving some documents.\n"
-            "5. Tone should be friendly, clear, and professional. Format with clean, beautiful Markdown.\n"
-            "6. You may use the provided WORKSPACE CONTEXT to personalize your answer (e.g. connecting evidence to an active goal), but ONLY if it is directly relevant.\n\n"
+            "1. You are NOT an isolated language model that cannot see files. You CAN access documents and information in this workspace through your RAG retrieval engine.\n"
+            "2. If uploaded documents exist in the WORKSPACE CONTEXT and the user asks about them, confirm that they are present and describe or cite their contents.\n"
+            "3. If research was performed, use the retrieved evidence to thoroughly answer the query.\n"
+            "4. If evidence is marked as NO_EVIDENCE, state that specific details were not found in the indexed chunks of the uploaded files.\n"
+            "5. If no research was required, answer naturally without claiming you cannot access files.\n"
+            "6. Tone must be calm, intelligent, concise, and professional. Format with clean Markdown.\n\n"
             "DECISION ANALYSIS RULES:\n"
             "1. Do not invent recommendations that are not present in the decision analysis unless independently supported by the available evidence.\n"
             "2. Do not present inference as fact.\n"
@@ -122,13 +122,23 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         response = await llm.ainvoke(messages, config=config)
         final_text = response.content.strip()
         
-        # Extract unique citations (document titles)
+        # Extract unique citations with rich metadata
         citations = []
+        seen_keys = set()
         for res in results:
-            if res["status"] == "completed":
-                for e in res["evidence"]:
-                    if e["document_title"] not in citations:
-                        citations.append(e["document_title"])
+            if res.get("status") == "completed":
+                for e in res.get("evidence", []):
+                    title = e.get("document_title") or "Unknown"
+                    chunk_id = e.get("chunk_id")
+                    key = f"{title}_{chunk_id}"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        citations.append({
+                            "document_title": title,
+                            "chunk_id": chunk_id,
+                            "page_number": e.get("page_number"),
+                            "snippet": e.get("content", "")[:200] if e.get("content") else None
+                        })
         
         state["final_synthesis"] = final_text
         state["citations"] = citations

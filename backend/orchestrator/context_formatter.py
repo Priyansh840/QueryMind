@@ -10,7 +10,13 @@ def format_workspace_context(workspace_context: Optional[Dict[str, Any]]) -> str
         return ""
     
     # Check if context is effectively empty
-    if not workspace_context.get("space") and not workspace_context.get("goals") and not workspace_context.get("projects") and not workspace_context.get("memories"):
+    if (
+        not workspace_context.get("space")
+        and not workspace_context.get("goals")
+        and not workspace_context.get("projects")
+        and not workspace_context.get("memories")
+        and not workspace_context.get("documents")
+    ):
         return ""
 
     context_str = "WORKSPACE CONTEXT START\n\n"
@@ -20,6 +26,11 @@ def format_workspace_context(workspace_context: Optional[Dict[str, Any]]) -> str
         context_str += "<space>\n"
         context_str += json.dumps(workspace_context["space"], indent=2)
         context_str += "\n</space>\n\n"
+
+    if workspace_context.get("documents"):
+        context_str += "<uploaded_documents_in_space>\n"
+        context_str += json.dumps(workspace_context["documents"], indent=2)
+        context_str += "\n</uploaded_documents_in_space>\n\n"
         
     if workspace_context.get("goals"):
         context_str += "<active_goals>\n"

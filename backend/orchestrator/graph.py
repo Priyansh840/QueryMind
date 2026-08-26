@@ -10,6 +10,7 @@ from orchestrator.agents.planner import planner_node
 from orchestrator.agents.researcher import research_node
 from orchestrator.agents.critic import critic_node
 from orchestrator.agents.decision_analyzer import decision_analyzer_node
+from orchestrator.agents.action_proposer import action_proposer_node
 from orchestrator.agents.synthesizer import synthesis_node
 import logging
 
@@ -60,6 +61,7 @@ def get_orchestrator():
     workflow.add_node("researcher", research_node)
     workflow.add_node("critic", critic_node)
     workflow.add_node("decision_analyzer", decision_analyzer_node)
+    workflow.add_node("action_proposer", action_proposer_node)
     workflow.add_node("synthesizer", synthesis_node)
     
     # Edges
@@ -88,7 +90,8 @@ def get_orchestrator():
         }
     )
     
-    workflow.add_edge("decision_analyzer", "synthesizer")
+    workflow.add_edge("decision_analyzer", "action_proposer")
+    workflow.add_edge("action_proposer", "synthesizer")
     workflow.add_edge("synthesizer", END)
     
     app = workflow.compile()

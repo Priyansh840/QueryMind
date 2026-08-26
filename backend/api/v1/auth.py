@@ -7,7 +7,7 @@ Identity is strictly derived from the validated Supabase JWT token.
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 from pydantic import BaseModel
 
 from api.deps import get_current_supabase_user, get_current_user, get_db
@@ -75,6 +75,15 @@ async def sync_user(
         if avatar_url is not None:
             user.avatar_url = avatar_url
     else:
+        # In local Postgres with simulated auth schema, ensure auth.users contains the id
+        try:
+            await db.execute(
+                text("INSERT INTO auth.users (id) VALUES (:uid) ON CONFLICT DO NOTHING"),
+                {"uid": user_uuid},
+            )
+        except Exception:
+            pass
+
         user = User(
             id=user_uuid,
             email=email,

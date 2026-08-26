@@ -1,25 +1,34 @@
 """
 QueryMind - Documents Router
-Authenticated document management endpoints.
+Authenticated document management endpoints with strict Space authorization and RAG integration.
 Identity is strictly derived from the validated Supabase JWT token.
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 import uuid
 import os
 import shutil
+import logging
 
 from api.deps import get_db, get_current_user
 from models.knowledge import Document, DocumentChunk
 from models.core import Space
 from models.user import User
 from rag.ingestion import process_document
+from rag.retriever import retrieve_context
+from schemas.document import (
+    DocumentResponse,
+    DocumentDetailResponse,
+    DocumentChunkResponse,
+    DocumentSearchRequest,
+    DocumentSearchResult,
+)
 from qdrant_client import AsyncQdrantClient
 from core.config import settings
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -27,8 +36,18 @@ router = APIRouter()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+MAX_UPLOAD_BYTES = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+}
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".doc"}
 
-@router.post("/upload")
+
+@router.post("/upload", response_model=dict)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -38,9 +57,9 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Uploads a document, saves it temporarily, and runs the ingestion pipeline
-    to extract, chunk, embed, and store vectors into Qdrant.
-    User identity is derived strictly from the authenticated JWT session.
+    Uploads a document, verifies file extensions and MIME types, saves it temporarily,
+    and executes the ingestion pipeline (extraction -> chunking -> vector embedding).
+    User identity and space isolation are strictly enforced.
     """
     try:
         # Validate space_id format
@@ -54,21 +73,40 @@ async def upload_document(
         res_space = await db.execute(stmt_space)
         space = res_space.scalar_one_or_none()
         if not space:
-            raise HTTPException(status_code=404, detail="Space not found")
+            raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+
+        # Validate file extension and content type
+        filename = file.filename or "uploaded_document"
+        file_ext = os.path.splitext(filename)[1].lower()
+        if file_ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file extension '{file_ext}'. Supported: {', '.join(ALLOWED_EXTENSIONS)}",
+            )
 
         # Save file to disk temporarily
-        file_ext = os.path.splitext(file.filename or "")[1]
         temp_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, temp_filename)
 
+        file_size = 0
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            for chunk in iter(lambda: file.file.read(1024 * 1024), b""):
+                file_size += len(chunk)
+                if file_size > MAX_UPLOAD_BYTES:
+                    buffer.close()
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB",
+                    )
+                buffer.write(chunk)
 
         # Run ingestion with authenticated user_id
         document = await process_document(
             file_path=file_path,
-            filename=file.filename or "uploaded_document",
-            content_type=file.content_type,
+            filename=filename,
+            content_type=file.content_type or "application/octet-stream",
             user_id=str(current_user.id),
             space_id=str(space_uuid),
             db=db,
@@ -79,6 +117,7 @@ async def upload_document(
             "status": "success",
             "document_id": str(document.id),
             "filename": document.title,
+            "ingestion_status": document.status,
         }
 
     except HTTPException:
@@ -88,7 +127,8 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/")
+@router.get("", response_model=List[DocumentResponse])
+@router.get("/", response_model=List[DocumentResponse])
 async def list_documents(
     space_id: str,
     current_user: User = Depends(get_current_user),
@@ -107,13 +147,129 @@ async def list_documents(
     res_space = await db.execute(stmt_space)
     space = res_space.scalar_one_or_none()
     if not space:
-        raise HTTPException(status_code=404, detail="Space not found")
+        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
 
     result = await db.execute(
-        select(Document).where(Document.space_id == space_uuid)
+        select(Document)
+        .where(Document.space_id == space_uuid)
+        .order_by(Document.created_at.desc())
     )
     docs = result.scalars().all()
-    return docs
+    return [
+        DocumentResponse(
+            id=str(d.id),
+            space_id=str(d.space_id),
+            title=d.title,
+            file_url=d.file_url,
+            type=d.type,
+            status=d.status,
+            error_message=d.error_message,
+            created_at=d.created_at,
+        )
+        for d in docs
+    ]
+
+
+@router.get("/{document_id}", response_model=DocumentDetailResponse)
+async def get_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieve single document details along with its parsed chunk status.
+    Verifies user ownership of the parent Space.
+    """
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document_id UUID format")
+
+    stmt = (
+        select(Document)
+        .options(selectinload(Document.chunks))
+        .where(Document.id == doc_uuid)
+    )
+    result = await db.execute(stmt)
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Verify Space ownership
+    stmt_space = select(Space).where(Space.id == doc.space_id, Space.user_id == current_user.id)
+    res_space = await db.execute(stmt_space)
+    if not res_space.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Document not found or unauthorized")
+
+    chunk_responses = [
+        DocumentChunkResponse(
+            id=str(c.id),
+            document_id=str(c.document_id),
+            chunk_index=c.chunk_index,
+            content_text=c.content_text,
+            page_number=c.page_number,
+            token_count=c.token_count,
+            embedding_status=c.embedding_status,
+            created_at=c.created_at,
+        )
+        for c in (doc.chunks or [])
+    ]
+
+    return DocumentDetailResponse(
+        id=str(doc.id),
+        space_id=str(doc.space_id),
+        title=doc.title,
+        file_url=doc.file_url,
+        type=doc.type,
+        status=doc.status,
+        error_message=doc.error_message,
+        created_at=doc.created_at,
+        chunks=chunk_responses,
+    )
+
+
+@router.post("/search", response_model=List[DocumentSearchResult])
+async def search_documents(
+    request: DocumentSearchRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Semantic RAG search over document vectors strictly scoped to user_id and space_id.
+    """
+    try:
+        space_uuid = uuid.UUID(request.space_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+
+    # Verify Space ownership
+    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
+    res_space = await db.execute(stmt_space)
+    if not res_space.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+
+    results = await retrieve_context(
+        query=request.query,
+        user_id=str(current_user.id),
+        space_id=str(space_uuid),
+        top_k=request.top_k,
+    )
+
+    formatted_results = []
+    for r in results:
+        formatted_results.append(
+            DocumentSearchResult(
+                chunk_id=r.get("chunk_id", ""),
+                document_id=r.get("document_id", ""),
+                content=r.get("content", ""),
+                score=float(r.get("score", 0.0)),
+                page_number=r.get("page_number"),
+                document_title=r.get("document_title"),
+                source_type=r.get("source_type", "document"),
+            )
+        )
+
+    return formatted_results
 
 
 @router.delete("/{document_id}")
@@ -123,8 +279,8 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Deletes a document from PostgreSQL and Qdrant.
-    Identity is derived strictly from JWT.
+    Deletes a document from PostgreSQL and purges corresponding Qdrant vectors.
+    Identity and space ownership are strictly verified.
     """
     try:
         doc_uuid = uuid.UUID(document_id)
@@ -134,6 +290,12 @@ async def delete_document(
     doc = await db.get(Document, doc_uuid)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Verify Space ownership
+    stmt_space = select(Space).where(Space.id == doc.space_id, Space.user_id == current_user.id)
+    res_space = await db.execute(stmt_space)
+    if not res_space.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Document not found or unauthorized")
 
     # Delete from Qdrant
     if settings.qdrant_client_url:

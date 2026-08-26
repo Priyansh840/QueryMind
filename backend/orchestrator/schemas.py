@@ -32,3 +32,90 @@ class DecisionAnalysis(BaseModel):
     blockers: List[str] = Field(default_factory=list, description="What is preventing progress")
     recommendations: List[Recommendation] = Field(default_factory=list, description="Proposed next steps grounded in evidence")
     uncertainties: List[str] = Field(default_factory=list, description="Missing information or ambiguity")
+
+
+# ==============================================================================
+# Step 8 Phase 1: Action Proposal Schemas (Read -> Analyze -> Propose)
+# ==============================================================================
+
+class CreateGoalParams(BaseModel):
+    description: str = Field(..., min_length=1, description="Description of the goal to create")
+    project_id: Optional[str] = Field(None, description="Optional UUID of the project this goal belongs to")
+
+
+class UpdateGoalStatusParams(BaseModel):
+    goal_id: str = Field(..., description="UUID of the goal to update")
+    status: Literal["active", "completed", "archived", "paused"] = Field(..., description="New status for the goal")
+
+
+class CreateProjectParams(BaseModel):
+    space_id: str = Field(..., description="UUID of the space where the project will be created")
+    name: str = Field(..., min_length=1, max_length=255, description="Name of the project")
+
+
+class UpdateProjectStatusParams(BaseModel):
+    project_id: str = Field(..., description="UUID of the project to update")
+    status: Literal["active", "completed", "archived", "on_hold"] = Field(..., description="New status for the project")
+
+
+class AddMemoryParams(BaseModel):
+    content: str = Field(..., min_length=1, description="Memory note content to store")
+    memory_type: str = Field(default="note", max_length=50, description="Category/type of memory, e.g. note, preference, constraint")
+    importance: Literal["high", "medium", "low"] = Field(default="medium", description="Importance rating")
+
+
+ActionType = Literal[
+    "create_goal",
+    "update_goal_status",
+    "create_project",
+    "update_project_status",
+    "add_memory"
+]
+
+
+class ActionProposal(BaseModel):
+    proposal_id: str = Field(description="Unique deterministic or random identifier for the proposal")
+    action_type: ActionType = Field(description="Strict allowlisted action type")
+    target_id: Optional[str] = Field(default=None, description="Target entity UUID if updating an existing record")
+    space_id: Optional[str] = Field(default=None, description="Target space UUID if space-scoped")
+    parameters: dict = Field(description="Strictly typed parameter dictionary matching action_type")
+    reason: str = Field(description="Why this action is proposed to advance workspace goals")
+    source_recommendation: Optional[str] = Field(default=None, description="Action or reference from the Recommendation that triggered this proposal")
+    confidence: Literal["high", "medium", "low"] = Field(default="medium", description="Confidence level in this proposed action")
+
+    def validate_parameters(self) -> BaseModel:
+        """
+        Validates that parameters match the strongly-typed schema for action_type.
+        Returns the parsed Pydantic parameter model.
+        """
+        if self.action_type == "create_goal":
+            return CreateGoalParams.model_validate(self.parameters)
+        elif self.action_type == "update_goal_status":
+            return UpdateGoalStatusParams.model_validate(self.parameters)
+        elif self.action_type == "create_project":
+            return CreateProjectParams.model_validate(self.parameters)
+        elif self.action_type == "update_project_status":
+            return UpdateProjectStatusParams.model_validate(self.parameters)
+        elif self.action_type == "add_memory":
+            return AddMemoryParams.model_validate(self.parameters)
+        else:
+            raise ValueError(f"Unsupported action type: {self.action_type}")
+
+
+class ActionProposalsOutput(BaseModel):
+    proposals: List[ActionProposal] = Field(default_factory=list, description="List of proposed actions grounded in recommendations and workspace context")
+
+
+class ActionExecutionResult(BaseModel):
+    success: bool = Field(description="Whether the action executed successfully")
+    proposal_id: str = Field(description="ID of the proposal that was executed")
+    action_type: ActionType = Field(description="The action type that was executed")
+    status: Literal["executed", "already_executed", "rejected", "failed"] = Field(description="Execution outcome status")
+    target_id: Optional[str] = Field(default=None, description="UUID of the created or updated entity")
+    message: str = Field(description="Safe user-facing summary of the execution outcome")
+    error_code: Optional[Literal["invalid_proposal", "unauthorized", "target_not_found", "invalid_parameters", "already_executed", "execution_failed"]] = Field(
+        default=None, description="Structured error category if not executed"
+    )
+
+
+

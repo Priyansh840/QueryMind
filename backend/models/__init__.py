@@ -4,3 +4,4 @@ from .knowledge import Document, DocumentChunk, Knowledge
 from .memory import Memory, Connection
 from .orchestrator import Objective, Workflow, WorkflowStep, AgentRun, Synthesis, WorkflowEvent
 from .conversation import Conversation, Message
+from .action_proposal import ActionProposal

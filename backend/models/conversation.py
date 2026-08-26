@@ -33,3 +33,4 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
     
     conversation = relationship("Conversation", back_populates="messages")
+    action_proposals = relationship("ActionProposal", back_populates="message", cascade="all, delete-orphan")

@@ -70,13 +70,12 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
         structured_llm = llm.with_structured_output(PlannerOutput)
         
         system_prompt = (
-            "You are the Planner Agent for QueryMind, an intelligent assistant. "
+            "You are the Planner Agent for MYND (QueryMind), an intelligent workspace assistant operating within a specific Space.\n\n"
             "Analyze the user's query and the chat history to determine if we need to search the user's uploaded knowledge vault.\n"
-            "If the user asks a general question (e.g. math, coding, general facts) or is just chatting, set needs_research to false.\n"
-            "If the user asks about their specific documents, personal data, or topics that require their vault, set needs_research to true and formulate specific search tasks.\n"
-            "You may use the provided WORKSPACE CONTEXT (active goals, projects, memories) to inform your plan if relevant. "
-            "Do NOT force irrelevant goals into your plan if the user's query is unrelated to the workspace.\n"
-            "Return a structured plan."
+            "- If the user asks about ANY document, file, CV, resume, notes, names, experiences, or project details uploaded to this space, set needs_research to true.\n"
+            "- When formulating search tasks, write effective semantic queries that will match content inside the document (e.g. for 'what is my name in the document' or 'in the document', create queries like 'name candidate personal details contact information resume summary' or 'profile overview').\n"
+            "- If the user asks a purely generic question (e.g. general math, generic coding theory, general chit-chat) unrelated to workspace documents, set needs_research to false.\n"
+            "- Return a structured plan with needs_research, reasoning_summary, and specific search tasks."
         )
         
         from orchestrator.context_formatter import format_workspace_context
