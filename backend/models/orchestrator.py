@@ -11,12 +11,14 @@ class Objective(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    space_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True)
     raw_input: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     user = relationship("User", back_populates="objectives")
+    space = relationship("Space")
     workflows = relationship("Workflow", back_populates="objective", cascade="all, delete-orphan")
     syntheses = relationship("Synthesis", back_populates="objective", cascade="all, delete-orphan")
 
@@ -26,11 +28,13 @@ class Workflow(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     objective_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("objectives.id", ondelete="CASCADE"), nullable=False)
+    space_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     objective = relationship("Objective", back_populates="workflows")
+    space = relationship("Space")
     steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
     events = relationship("WorkflowEvent", back_populates="workflow", cascade="all, delete-orphan")
 
@@ -44,6 +48,8 @@ class WorkflowStep(Base):
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     intent_type: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     workflow = relationship("Workflow", back_populates="steps")
     agent_runs = relationship("AgentRun", back_populates="workflow_step", cascade="all, delete-orphan")

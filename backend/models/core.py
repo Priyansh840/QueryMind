@@ -25,6 +25,8 @@ class Space(Base):
     projects = relationship("Project", back_populates="space", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="space", cascade="all, delete-orphan")
     knowledge = relationship("Knowledge", back_populates="space", cascade="all, delete-orphan")
+    memories = relationship("Memory", back_populates="space", cascade="all, delete-orphan")
+    connections = relationship("Connection", back_populates="space", cascade="all, delete-orphan")
 
 
 class Project(Base):

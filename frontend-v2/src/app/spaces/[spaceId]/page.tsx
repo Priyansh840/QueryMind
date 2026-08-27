@@ -11,12 +11,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiClient } from "@/lib/api/client";
-import { Space, DocumentItem, ConversationItem, ActionProposal } from "@/types/api";
+import { SpaceWorkspaceSummary, ActionProposal } from "@/types/api";
 import {
   Sparkles,
   FileText,
   MessageSquare,
-  CheckSquare,
   ShieldAlert,
   ArrowRight,
   AlertCircle,
@@ -26,8 +25,16 @@ import {
   Clock,
   Folder,
   Settings,
+  Activity,
+  CheckCircle2,
+  Cpu,
+  Layers,
+  RefreshCw,
 } from "lucide-react";
 import { SpaceSettingsModal } from "@/components/spaces/SpaceSettingsModal";
+import { ActionProposalCard } from "@/components/chat/ActionProposalCard";
+import { DecisionCard } from "@/components/decisions/DecisionCard";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface SpaceDetailPageProps {
   params: Promise<{ spaceId: string }>;
@@ -37,72 +44,49 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
   const resolvedParams = use(params);
   const spaceId = resolvedParams.spaceId;
 
-  const { spaces, currentSpace, setCurrentSpace } = useAuth();
-  const [space, setSpace] = useState<Space | null>(null);
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [proposals, setProposals] = useState<ActionProposal[]>([]);
+  const { currentSpace, setCurrentSpace } = useAuth();
+  const [workspace, setWorkspace] = useState<SpaceWorkspaceSummary | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadSpaceData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // 1. Fetch space details
-        const spaceData = await apiClient<Space>(`/api/v1/spaces/${spaceId}`);
-        setSpace(spaceData);
-        if (currentSpace?.id !== spaceData.id) {
-          setCurrentSpace(spaceData);
-        }
+  const loadWorkspaceData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
+    setError(null);
 
-        // 2. Fetch space-scoped documents
-        try {
-          const docRes = await apiClient<{ documents: DocumentItem[] } | DocumentItem[]>(
-            `/api/v1/documents/?space_id=${spaceId}`
-          );
-          const docs = Array.isArray(docRes) ? docRes : docRes?.documents || [];
-          setDocuments(docs);
-        } catch {
-          setDocuments([]);
-        }
-
-        // 3. Fetch space-scoped conversations
-        try {
-          const convRes = await apiClient<ConversationItem[]>(
-            `/api/v1/conversations?space_id=${spaceId}`
-          );
-          setConversations(convRes || []);
-        } catch {
-          setConversations([]);
-        }
-
-        // 4. Fetch space-scoped action proposals
-        try {
-          const actRes = await apiClient<{ items: ActionProposal[]; total: number }>(
-            `/api/v1/actions?space_id=${spaceId}&limit=5`
-          );
-          setProposals(actRes?.items || []);
-        } catch {
-          setProposals([]);
-        }
-      } catch (err: any) {
-        console.error("Failed to load space data:", err);
-        setError(err?.message || "Space not found or unauthorized.");
-      } finally {
-        setIsLoading(false);
+    try {
+      const summary = await apiClient<SpaceWorkspaceSummary>(`/api/v1/spaces/${spaceId}/workspace`);
+      setWorkspace(summary);
+      if (currentSpace?.id !== summary.space.id) {
+        setCurrentSpace(summary.space);
       }
+    } catch (err: any) {
+      console.error("Failed to load workspace data:", err);
+      setError(err?.message || "Space workspace not found or unauthorized.");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
 
-    loadSpaceData();
-  }, [spaceId, currentSpace?.id, setCurrentSpace]);
+  useEffect(() => {
+    loadWorkspaceData();
+  }, [spaceId]);
 
-  if (isLoading) {
+  const space = workspace?.space || currentSpace;
+  const pendingActions = workspace?.pending_actions || [];
+  const activeWork = workspace?.active_work || [];
+  const activity = workspace?.recent_activity || [];
+  const documents = workspace?.recent_documents || [];
+  const conversations = workspace?.recent_conversations || [];
+  const stats = workspace?.stats;
+
+  if (isLoading && !workspace) {
     return (
       <AppShell>
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-7xl mx-auto pb-12">
           <Skeleton className="h-28 w-full" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Skeleton className="h-24 w-full" />
@@ -115,7 +99,7 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
     );
   }
 
-  if (error || !space) {
+  if (error && !workspace) {
     return (
       <AppShell>
         <EmptyState
@@ -131,265 +115,424 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
     );
   }
 
-  const pendingProposals = proposals.filter((p) => p.status === "pending");
-
   return (
     <AppShell>
-      <SpaceSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => {
-          setIsSettingsOpen(false);
-          // Refresh space data on modal close
-          apiClient<Space>(`/api/v1/spaces/${spaceId}`).then(setSpace).catch(() => {});
-        }}
-        space={space}
-        onDeleted={() => {
-          window.location.href = "/spaces";
-        }}
-      />
-      <div className="space-y-8 pb-12">
-        {/* =========================================================================
-            1. Space Overview Header Brief
-            ========================================================================= */}
-        <section className="space-y-3 pt-2">
-          <div className="flex items-center gap-2.5">
+      <div className="space-y-8 pb-16 max-w-7xl mx-auto">
+        {/* Space Context Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-b border-[var(--border-subtle)] pb-6">
+          <div className="flex items-start gap-4">
             <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: space.color || "var(--accent-primary)" }}
-            />
-            <span className="text-xs font-semibold tracking-wider text-[var(--accent-text)] uppercase">
-              Workspace Overview
-            </span>
-            {space.is_default && (
-              <>
-                <span className="text-xs text-[var(--border-strong)]">•</span>
-                <Badge variant="outline" size="sm">
-                  Default Space
-                </Badge>
-              </>
+              className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center text-xl shrink-0 font-bold shadow-sm"
+              style={{
+                backgroundColor: space?.color ? `${space.color}20` : "var(--surface-secondary)",
+                color: space?.color || "var(--accent-primary)",
+                border: `1px solid ${space?.color ? `${space.color}40` : "var(--border-subtle)"}`,
+              }}
+            >
+              {space?.icon || "📁"}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+                  {space?.name || "Space Workspace"}
+                </h1>
+                {space?.is_default && (
+                  <Badge variant="outline" size="sm">
+                    Default Space
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-2xl leading-relaxed">
+                {space?.description || "Space-scoped intelligence, verified evidence, decisions, and multi-agent execution."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start sm:self-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadWorkspaceData(true)}
+              disabled={isLoading || isRefreshing}
+              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />}
+            >
+              Refresh
+            </Button>
+            <Link href={`/spaces/${spaceId}/conversations`}>
+              <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
+                Ask MYND
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsSettingsOpen(true)}
+              aria-label="Space Settings"
+            >
+              <Settings className="w-4 h-4 text-[var(--text-secondary)]" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Global Error Banner if silent refresh failed */}
+        {error && (
+          <Surface variant="primary" className="p-4 border-l-4 border-l-[var(--error-border)] bg-[var(--error-surface)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-[var(--error-text)]">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => loadWorkspaceData()}>
+                Retry
+              </Button>
+            </div>
+          </Surface>
+        )}
+
+        {/* SECTION 1: WHAT MATTERS NOW (High Priority Decisions & Attention) */}
+        <section aria-labelledby="what-matters-now-heading" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)] animate-pulse" />
+              <h2 id="what-matters-now-heading" className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                What Matters Now
+              </h2>
+            </div>
+            {pendingActions.length > 0 && (
+              <Badge variant="accent" size="sm">
+                {pendingActions.length} Pending {pendingActions.length === 1 ? "Decision" : "Decisions"}
+              </Badge>
             )}
           </div>
 
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-[var(--text-primary)]">
-                {space.name}
-              </h1>
-              <p className="text-sm text-[var(--text-secondary)] mt-1 max-w-2xl leading-relaxed">
-                {space.description || "Personal context space containing documents, conversations, and intelligence workflows."}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2.5 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Settings className="w-3.5 h-3.5" />}
-                onClick={() => setIsSettingsOpen(true)}
-              >
-                Space Settings
-              </Button>
-              <Link href={`/spaces/${space.id}/conversations`}>
-                <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
-                  Ask in Space
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* =========================================================================
-            2. High-Priority Attention / Pending Action Proposals
-            ========================================================================= */}
-        {pendingProposals.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Requires Attention
-              </h2>
-              <Badge variant="accent" size="sm">
-                {pendingProposals.length} proposal{pendingProposals.length > 1 ? "s" : ""} pending
-              </Badge>
-            </div>
-
+          {pendingActions.length > 0 ? (
             <div className="space-y-3">
-              {pendingProposals.map((proposal) => (
-                <Surface
-                  key={proposal.id}
-                  variant="primary"
-                  className="p-5 border-l-2 border-l-[var(--accent-primary)] hover:border-[var(--border-default)] transition-mynd"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="p-2 rounded-[var(--radius-xs)] bg-[var(--accent-surface)] text-[var(--accent-text)] shrink-0 mt-0.5">
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-[var(--text-primary)]">
-                            {proposal.action_type.replace(/_/g, " ").toUpperCase()}
-                          </span>
-                          <Badge variant="outline" size="sm">
-                            {proposal.confidence} confidence
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-2xl leading-relaxed">
-                          {proposal.reason}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                      <Link href={`/spaces/${space.id}/actions`}>
-                        <Button variant="secondary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                          Review Action
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </Surface>
+              {pendingActions.map((proposal) => (
+                <DecisionCard
+                  key={proposal.id || proposal.proposal_id}
+                  proposal={proposal}
+                  spaceId={spaceId}
+                />
               ))}
             </div>
-          </section>
-        )}
-
-        {/* =========================================================================
-            3. Space Metrics & Living Workspace Canvas (Real Data)
-            ========================================================================= */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href={`/spaces/${space.id}/documents`}>
-            <Surface variant="secondary" className="p-4 hover:bg-[var(--surface-hover)]/40 transition-mynd h-full">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
-                  <FileText className="w-4 h-4 text-[var(--info-text)]" />
-                  <span>Documents</span>
+          ) : (
+            <Surface variant="primary" className="p-4 flex items-center justify-between gap-4 border border-[var(--border-subtle)]">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-[var(--radius-sm)] bg-[var(--surface-secondary)] text-[var(--text-muted)]">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
-                <Badge variant="default" size="sm">
-                  {documents.length}
-                </Badge>
-              </div>
-              <p className="text-xs text-[var(--text-muted)] mt-2">
-                Knowledge sources indexed for RAG vector search in this space.
-              </p>
-            </Surface>
-          </Link>
-
-          <Link href={`/spaces/${space.id}/conversations`}>
-            <Surface variant="secondary" className="p-4 hover:bg-[var(--surface-hover)]/40 transition-mynd h-full">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
-                  <MessageSquare className="w-4 h-4 text-[var(--accent-text)]" />
-                  <span>Conversations</span>
+                <div>
+                  <h3 className="text-xs font-semibold text-[var(--text-primary)]">All decisions up to date</h3>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    No pending action approvals or blocked workflows in this workspace.
+                  </p>
                 </div>
-                <Badge variant="default" size="sm">
-                  {conversations.length}
-                </Badge>
               </div>
-              <p className="text-xs text-[var(--text-muted)] mt-2">
-                Contextual chat sessions with LangGraph multi-agent synthesis.
-              </p>
+              <Link href={`/spaces/${spaceId}/conversations`}>
+                <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                  Start Conversation
+                </Button>
+              </Link>
             </Surface>
-          </Link>
-
-          <Link href={`/spaces/${space.id}/actions`}>
-            <Surface variant="secondary" className="p-4 hover:bg-[var(--surface-hover)]/40 transition-mynd h-full">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)]">
-                  <ShieldAlert className="w-4 h-4 text-[var(--warning-text)]" />
-                  <span>Action Center</span>
-                </div>
-                <Badge variant="default" size="sm">
-                  {proposals.length}
-                </Badge>
-              </div>
-              <p className="text-xs text-[var(--text-muted)] mt-2">
-                Proposals with row-level locking and user authorization.
-              </p>
-            </Surface>
-          </Link>
+          )}
         </section>
 
-        {/* =========================================================================
-            4. Recent Space Activity & Documents Quick Access
-            ========================================================================= */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Documents */}
-          <div className="space-y-3">
+        {/* SECTION 2 & 3: TWO-COLUMN DECISION & AGENT WORKSPACE */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column (7 cols): What Changed? (Chronological Real Audit Stream) */}
+          <div className="lg:col-span-7 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Recent Documents
-              </h2>
-              <Link
-                href={`/spaces/${space.id}/documents`}
-                className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1"
-              >
-                <span>View all ({documents.length})</span>
-                <ArrowUpRight className="w-3 h-3" />
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[var(--text-secondary)]" />
+                <h2 className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                  What Changed
+                </h2>
+              </div>
+              <Link href={`/spaces/${spaceId}/activity`}>
+                <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
+                  View Full Audit <ArrowRight className="w-3 h-3" />
+                </span>
               </Link>
             </div>
 
-            {documents.length > 0 ? (
-              <Surface variant="primary" className="divide-y divide-[var(--border-subtle)]">
-                {documents.slice(0, 4).map((doc) => (
-                  <div key={doc.id} className="p-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText className="w-4 h-4 text-[var(--info-text)] shrink-0" />
-                      <span className="font-medium text-[var(--text-primary)] truncate">{doc.title}</span>
+            {activity.length > 0 ? (
+              <Surface variant="primary" className="p-2 divide-y divide-[var(--border-subtle)]">
+                {activity.map((item) => (
+                  <div key={item.id} className="p-3 hover:bg-[var(--surface-secondary)]/40 transition-mynd rounded-[var(--radius-sm)] flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="p-1.5 rounded-[var(--radius-xs)] bg-[var(--surface-secondary)] text-[var(--accent-text)] mt-0.5 shrink-0">
+                        {item.type.includes("doc") ? (
+                          <FileText className="w-3.5 h-3.5" />
+                        ) : item.type.includes("action") ? (
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                        ) : (
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                            {item.title}
+                          </span>
+                          {item.status && (
+                            <Badge variant={item.status === "completed" || item.status === "approved" ? "default" : "outline"} size="sm">
+                              {item.status}
+                            </Badge>
+                          )}
+                        </div>
+                        {item.description && (
+                          <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <Badge variant="outline" size="sm">
-                      {doc.status}
-                    </Badge>
+                    <div className="shrink-0 text-[11px] text-[var(--text-muted)] whitespace-nowrap">
+                      {formatRelativeTime(item.created_at)}
+                    </div>
                   </div>
                 ))}
               </Surface>
             ) : (
-              <EmptyState
-                icon={<FileText className="w-6 h-6" />}
-                title="No documents uploaded yet"
-                description="Upload research notes or PDFs to ground MYND intelligence in this space."
-              />
+              <Surface variant="primary" className="p-8 text-center border border-dashed border-[var(--border-subtle)]">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  No activity recorded yet in this workspace. Upload documents or initiate conversations to begin.
+                </p>
+              </Surface>
+            )}
+          </div>
+
+          {/* Right Column (5 cols): What is MYND Working On? + Active Work */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-[var(--text-secondary)]" />
+                <h2 className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                  Active MYND Work
+                </h2>
+              </div>
+            </div>
+
+            {activeWork.length > 0 ? (
+              <Surface variant="primary" className="p-4 space-y-3 border-l-2 border-l-[var(--accent-primary)]">
+                {activeWork.map((work) => (
+                  <div key={work.id} className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+                          {work.agent_type} Agent
+                        </span>
+                        <StatusIndicator status="running" label={work.status} size="sm" />
+                      </div>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1 font-mono">
+                        Task: {work.task_id || "Orchestration Pipeline"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </Surface>
+            ) : (
+              <Surface variant="primary" className="p-6 text-center border border-[var(--border-subtle)]">
+                <div className="w-8 h-8 rounded-full bg-[var(--surface-secondary)] flex items-center justify-center mx-auto mb-2 text-[var(--text-muted)]">
+                  <Cpu className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs font-semibold text-[var(--text-primary)]">No active background tasks</h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
+                  MYND executes tasks on-demand during chat and document ingestion.
+                </p>
+              </Surface>
+            )}
+
+            {/* Quick Workspace Stats Box */}
+            <Surface variant="secondary" className="p-4 space-y-3 border border-[var(--border-subtle)]">
+              <div className="text-xs font-semibold text-[var(--text-primary)] tracking-wider uppercase">
+                Workspace Scope Summary
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="p-2.5 rounded-[var(--radius-xs)] bg-[var(--surface-primary)] border border-[var(--border-subtle)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">Indexed Documents</div>
+                  <div className="text-base font-bold text-[var(--text-primary)] mt-0.5">
+                    {stats?.documents_count ?? 0}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-[var(--radius-xs)] bg-[var(--surface-primary)] border border-[var(--border-subtle)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">Vector Chunks</div>
+                  <div className="text-base font-bold text-[var(--text-primary)] mt-0.5">
+                    {stats?.chunks_count ?? 0}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-[var(--radius-xs)] bg-[var(--surface-primary)] border border-[var(--border-subtle)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">Conversations</div>
+                  <div className="text-base font-bold text-[var(--text-primary)] mt-0.5">
+                    {stats?.conversations_count ?? 0}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-[var(--radius-xs)] bg-[var(--surface-primary)] border border-[var(--border-subtle)]">
+                  <div className="text-[11px] text-[var(--text-muted)]">Decisions Needed</div>
+                  <div className="text-base font-bold text-[var(--accent-text)] mt-0.5">
+                    {stats?.pending_actions_count ?? 0}
+                  </div>
+                </div>
+              </div>
+            </Surface>
+          </div>
+        </div>
+
+        {/* SECTION 4: CONTEXTUAL EVIDENCE & KNOWLEDGE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Knowledge Context */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[var(--text-secondary)]" />
+                <h2 className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                  Grounding Knowledge
+                </h2>
+              </div>
+              <Link href={`/spaces/${spaceId}/documents`}>
+                <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
+                  All Documents ({stats?.documents_count ?? 0}) <ArrowRight className="w-3 h-3" />
+                </span>
+              </Link>
+            </div>
+
+            {documents.length > 0 ? (
+              <Surface variant="primary" className="p-2 divide-y divide-[var(--border-subtle)]">
+                {documents.map((doc) => (
+                  <Link
+                    key={doc.id}
+                    href={`/spaces/${spaceId}/documents`}
+                    className="p-3 hover:bg-[var(--surface-secondary)]/50 transition-mynd rounded-[var(--radius-sm)] flex items-center justify-between gap-3 block"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                        {doc.title}
+                      </span>
+                    </div>
+                    <Badge variant={doc.status === "completed" ? "default" : "outline"} size="sm">
+                      {doc.type}
+                    </Badge>
+                  </Link>
+                ))}
+              </Surface>
+            ) : (
+              <Surface variant="primary" className="p-6 text-center border border-dashed border-[var(--border-subtle)]">
+                <p className="text-xs text-[var(--text-secondary)] mb-3">
+                  No documents ingested into this Space yet.
+                </p>
+                <Link href={`/spaces/${spaceId}/documents`}>
+                  <Button variant="outline" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />}>
+                    Upload Knowledge
+                  </Button>
+                </Link>
+              </Surface>
             )}
           </div>
 
           {/* Recent Conversations */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Recent Conversations
-              </h2>
-              <Link
-                href={`/spaces/${space.id}/conversations`}
-                className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1"
-              >
-                <span>View all ({conversations.length})</span>
-                <ArrowUpRight className="w-3 h-3" />
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-[var(--text-secondary)]" />
+                <h2 className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                  Recent Conversations
+                </h2>
+              </div>
+              <Link href={`/spaces/${spaceId}/conversations`}>
+                <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
+                  All Threads <ArrowRight className="w-3 h-3" />
+                </span>
               </Link>
             </div>
 
             {conversations.length > 0 ? (
-              <Surface variant="primary" className="divide-y divide-[var(--border-subtle)]">
-                {conversations.slice(0, 4).map((conv) => (
-                  <div key={conv.id} className="p-3 flex items-center justify-between text-xs">
+              <Surface variant="primary" className="p-2 divide-y divide-[var(--border-subtle)]">
+                {conversations.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/spaces/${spaceId}/conversations/${c.id}`}
+                    className="p-3 hover:bg-[var(--surface-secondary)]/50 transition-mynd rounded-[var(--radius-sm)] flex items-center justify-between gap-3 block"
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <MessageSquare className="w-4 h-4 text-[var(--accent-text)] shrink-0" />
-                      <span className="font-medium text-[var(--text-primary)] truncate">{conv.title}</span>
+                      <MessageSquare className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                      <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                        {c.title || "Untitled Conversation"}
+                      </span>
                     </div>
                     <span className="text-[11px] text-[var(--text-muted)] shrink-0">
-                      {conv.created_at ? new Date(conv.created_at).toLocaleDateString() : ""}
+                      {formatRelativeTime(c.created_at)}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </Surface>
             ) : (
-              <EmptyState
-                icon={<MessageSquare className="w-6 h-6" />}
-                title="No conversations yet"
-                description="Start a multi-agent contextual thread to ask questions about this space."
-              />
+              <Surface variant="primary" className="p-6 text-center border border-dashed border-[var(--border-subtle)]">
+                <p className="text-xs text-[var(--text-secondary)] mb-3">
+                  No conversation threads in this Space.
+                </p>
+                <Link href={`/spaces/${spaceId}/conversations`}>
+                  <Button variant="outline" size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
+                    New Conversation
+                  </Button>
+                </Link>
+              </Surface>
             )}
           </div>
+        </div>
+
+        {/* SECTION 5: WHAT MYND IS LEARNING (Space Memory & Cross-Session Insights) */}
+        <section aria-labelledby="learning-heading" className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[var(--accent-text)]" />
+              <h2 id="learning-heading" className="text-sm font-semibold tracking-wider text-[var(--text-primary)] uppercase">
+                What MYND is Learning
+              </h2>
+            </div>
+            <Link href={`/spaces/${spaceId}/memory`}>
+              <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
+                Explore Memory & Connections <ArrowRight className="w-3 h-3" />
+              </span>
+            </Link>
+          </div>
+
+          <Surface variant="primary" className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-l-[var(--accent-primary)]">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-[var(--text-primary)]">
+                  Cross-Session Pattern Synthesis Active
+                </span>
+                <Badge variant="outline" size="sm">
+                  Durable Space Memory
+                </Badge>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] max-w-2xl leading-relaxed">
+                MYND continuously synthesizes persistent facts, recurring patterns, and decision linkages across your uploaded documents and conversations.
+              </p>
+            </div>
+            <Link href={`/spaces/${spaceId}/memory`}>
+              <Button variant="outline" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                View Space Memory
+              </Button>
+            </Link>
+          </Surface>
         </section>
       </div>
+
+      {space && (
+        <SpaceSettingsModal
+          isOpen={isSettingsOpen}
+          space={space}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            loadWorkspaceData(true);
+          }}
+          onDeleted={() => {
+            window.location.href = "/spaces";
+          }}
+        />
+      )}
     </AppShell>
   );
 }

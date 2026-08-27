@@ -50,19 +50,19 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
     # Start Telemetry
     obj_uuid_str = state.get("objective_id")
     if obj_uuid_str:
-        obj_uuid = uuid.UUID(obj_uuid_str)
-        workflow_id = uuid.uuid5(obj_uuid, "workflow")
-        step_id = uuid.uuid5(workflow_id, "context_gatherer_1")
-        
         try:
+            obj_uuid = uuid.UUID(obj_uuid_str)
+            workflow_id = uuid.uuid5(obj_uuid, "workflow")
+            step_id = uuid.uuid5(workflow_id, "context_gatherer_1")
+            
             workflow_stmt = insert(Workflow).values(
-                id=workflow_id, objective_id=obj_uuid
+                id=workflow_id, objective_id=obj_uuid, space_id=space_uuid, status="running"
             ).on_conflict_do_nothing()
             await db.execute(workflow_stmt)
             
             step_stmt = insert(WorkflowStep).values(
-                id=step_id, workflow_id=workflow_id, step_order=5, 
-                iteration=1, intent_type="context_gathering"
+                id=step_id, workflow_id=workflow_id, step_order=1, 
+                iteration=1, intent_type="context_gathering", status="running"
             ).on_conflict_do_nothing()
             await db.execute(step_stmt)
             
@@ -77,9 +77,8 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             db.add(run)
             await db.commit()
         except Exception as e:
-            logger.error(f"Error creating DB records for context gatherer: {e}")
+            logger.warning(f"Telemetry recording notice for context gatherer: {e}")
             await db.rollback()
-            raise
 
     try:
         # 1. Fetch Space (Ensure it belongs to user)

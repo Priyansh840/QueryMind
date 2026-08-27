@@ -56,6 +56,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: "Overview", href: `/spaces/${spaceId}`, icon: Compass },
     { label: "Documents", href: `/spaces/${spaceId}/documents`, icon: FileText },
     { label: "Conversations", href: `/spaces/${spaceId}/conversations`, icon: MessageSquare },
+    { label: "Memory & Insights", href: `/spaces/${spaceId}/memory`, icon: Sparkles },
     { label: "Tasks & Workflows", href: `/spaces/${spaceId}/tasks`, icon: CheckSquare },
     { label: "Actions", href: `/spaces/${spaceId}/actions`, icon: ShieldAlert },
     { label: "Activity", href: `/spaces/${spaceId}/activity`, icon: Activity },
@@ -305,7 +306,19 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <span className="font-semibold text-[var(--text-primary)]">{activeSpace.name}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsCommandOpen(true)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--radius-sm)] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-mynd cursor-pointer"
+            >
+              <Search className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+              <span>Search workspace...</span>
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.2 text-[9px] font-mono text-[var(--text-muted)] bg-[var(--surface-primary)] border border-[var(--border-subtle)] rounded select-none">
+                ⌘K
+              </kbd>
+            </button>
+
             <Button
               variant="outline"
               size="sm"

@@ -18,8 +18,13 @@ from qdrant_client.http import models as qmodels
 
 from api.deps import get_db, get_current_user
 from core.config import settings
-from models.core import Space
+from models.core import Space, Project, Goal
 from models.user import User
+from models.knowledge import Document, DocumentChunk
+from models.conversation import Conversation, Message
+from models.action_proposal import ActionProposal
+from models.orchestrator import Objective, Workflow, WorkflowStep, AgentRun
+from models.memory import Memory
 
 logger = logging.getLogger(__name__)
 
@@ -352,3 +357,334 @@ async def delete_space(
     await db.commit()
 
     return {"status": "success", "message": f"Space {space_id} deleted successfully"}
+
+
+# -------------------------------------------------------------
+# Space Intelligence & Workspace Summary Endpoint
+# -------------------------------------------------------------
+class SpaceActivityItem(BaseModel):
+    id: str
+    type: str  # "document_uploaded", "conversation_created", "action_proposed", "action_approved", "action_rejected", "project_created", "goal_created"
+    title: str
+    description: Optional[str] = None
+    target_id: Optional[str] = None
+    target_route: Optional[str] = None
+    status: Optional[str] = None
+    created_at: datetime
+
+
+class SpaceActiveWorkItem(BaseModel):
+    id: str
+    agent_type: str
+    task_id: Optional[str] = None
+    status: str
+    started_at: Optional[datetime] = None
+    summary: Optional[dict] = None
+
+
+class SpaceWorkspaceSummary(BaseModel):
+    space: SpaceResponse
+    stats: dict
+    pending_actions: List[dict]
+    recent_activity: List[SpaceActivityItem]
+    active_work: List[SpaceActiveWorkItem]
+    recent_documents: List[dict]
+    recent_conversations: List[dict]
+    active_projects: List[dict]
+    active_goals: List[dict]
+
+
+@router.get("/{space_id}/workspace", response_model=SpaceWorkspaceSummary)
+async def get_space_workspace(
+    space_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unified, strictly Space-isolated Intelligence & Decision Workspace aggregator.
+    Returns:
+    1. Space metadata
+    2. Pending decisions / actions requiring attention
+    3. Real chronological activity derived from DB events
+    4. Active agent / workflow work
+    5. Recent knowledge documents & conversation threads
+    6. Active projects and goals
+    """
+    try:
+        space_uuid = uuid.UUID(space_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+
+    # 1. Verify Space Ownership
+    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
+    res_space = await db.execute(stmt_space)
+    space = res_space.scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+
+    space_response = SpaceResponse(
+        id=str(space.id),
+        user_id=str(space.user_id),
+        name=space.name,
+        slug=space.slug,
+        description=space.description,
+        icon=space.icon,
+        color=space.color,
+        is_default=space.is_default,
+        created_at=space.created_at,
+        updated_at=space.updated_at,
+    )
+
+    # 2. Fetch Documents (Recent 5)
+    stmt_docs = (
+        select(Document)
+        .where(Document.space_id == space_uuid)
+        .order_by(Document.created_at.desc())
+        .limit(5)
+    )
+    res_docs = await db.execute(stmt_docs)
+    docs = res_docs.scalars().all()
+    docs_list = [
+        {
+            "id": str(d.id),
+            "title": d.title,
+            "type": d.type,
+            "status": d.status,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in docs
+    ]
+
+    # 3. Fetch Total Document & Chunk counts for Stats
+    total_docs_res = await db.execute(
+        select(Document.id).where(Document.space_id == space_uuid)
+    )
+    total_doc_ids = total_docs_res.scalars().all()
+    total_docs_count = len(total_doc_ids)
+
+    total_chunks_count = 0
+    if total_doc_ids:
+        stmt_chunks = select(DocumentChunk.id).where(DocumentChunk.document_id.in_(total_doc_ids))
+        res_chunks = await db.execute(stmt_chunks)
+        total_chunks_count = len(res_chunks.scalars().all())
+
+    # 4. Fetch Conversations (Recent 5)
+    stmt_convs = (
+        select(Conversation)
+        .where(Conversation.space_id == space_uuid, Conversation.user_id == current_user.id)
+        .order_by(Conversation.created_at.desc())
+        .limit(5)
+    )
+    res_convs = await db.execute(stmt_convs)
+    convs = res_convs.scalars().all()
+    convs_list = [
+        {
+            "id": str(c.id),
+            "title": c.title or "Untitled Thread",
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        }
+        for c in convs
+    ]
+
+    # 5. Fetch Action Proposals (Pending and Recent)
+    stmt_pending_actions = (
+        select(ActionProposal)
+        .where(
+            ActionProposal.space_id == space_uuid,
+            ActionProposal.user_id == current_user.id,
+            ActionProposal.status == "pending",
+        )
+        .order_by(ActionProposal.created_at.desc())
+        .limit(10)
+    )
+    res_pending = await db.execute(stmt_pending_actions)
+    pending_actions = res_pending.scalars().all()
+    pending_list = [
+        {
+            "id": str(a.id),
+            "proposal_id": a.proposal_id,
+            "action_type": a.action_type,
+            "reason": a.reason,
+            "parameters": a.parameters or {},
+            "confidence": a.confidence,
+            "status": a.status,
+            "conversation_id": str(a.conversation_id),
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in pending_actions
+    ]
+
+    # Fetch recent non-pending actions for activity
+    stmt_recent_actions = (
+        select(ActionProposal)
+        .where(
+            ActionProposal.space_id == space_uuid,
+            ActionProposal.user_id == current_user.id,
+            ActionProposal.status != "pending",
+        )
+        .order_by(ActionProposal.created_at.desc())
+        .limit(5)
+    )
+    res_recent_act = await db.execute(stmt_recent_actions)
+    recent_actions = res_recent_act.scalars().all()
+
+    # 6. Fetch Projects and Goals
+    stmt_projs = (
+        select(Project)
+        .where(Project.space_id == space_uuid)
+        .order_by(Project.created_at.desc())
+        .limit(5)
+    )
+    res_projs = await db.execute(stmt_projs)
+    projects = res_projs.scalars().all()
+    projects_list = [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "status": p.status,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in projects
+    ]
+
+    proj_ids = [p.id for p in projects]
+    goals_list = []
+    if proj_ids:
+        stmt_goals = (
+            select(Goal)
+            .where(Goal.project_id.in_(proj_ids), Goal.user_id == current_user.id)
+            .order_by(Goal.created_at.desc())
+            .limit(5)
+        )
+        res_goals = await db.execute(stmt_goals)
+        goals = res_goals.scalars().all()
+        goals_list = [
+            {
+                "id": str(g.id),
+                "project_id": str(g.project_id) if g.project_id else None,
+                "description": g.description,
+                "status": g.status,
+                "created_at": g.created_at.isoformat() if g.created_at else None,
+            }
+            for g in goals
+        ]
+
+    # 7. Check for Active / In-Progress Agent Runs in this Space
+    active_work_list = []
+    # Query AgentRuns joined with WorkflowStep -> Workflow -> Objective
+    # Find active or recently running agent runs for conversations in this space
+    space_conv_ids = [c.id for c in convs]
+    if space_conv_ids:
+        stmt_active_runs = (
+            select(AgentRun)
+            .where(AgentRun.status == "running")
+            .order_by(AgentRun.started_at.desc())
+            .limit(5)
+        )
+        res_active_runs = await db.execute(stmt_active_runs)
+        active_runs = res_active_runs.scalars().all()
+        for r in active_runs:
+            active_work_list.append(
+                SpaceActiveWorkItem(
+                    id=str(r.id),
+                    agent_type=r.agent_type,
+                    task_id=r.task_id,
+                    status=r.status,
+                    started_at=r.started_at,
+                    summary=r.output_summary,
+                )
+            )
+
+    # 8. Assemble Unified Activity Stream from Real Database Entities
+    activity_items: List[SpaceActivityItem] = []
+
+    # A. Document uploads
+    for d in docs:
+        if d.created_at:
+            activity_items.append(
+                SpaceActivityItem(
+                    id=f"doc-{d.id}",
+                    type="document_uploaded",
+                    title=f"Uploaded '{d.title}'",
+                    description=f"Indexed format {d.type} with status '{d.status}'",
+                    target_id=str(d.id),
+                    target_route=f"/spaces/{space_id}/documents",
+                    status=d.status,
+                    created_at=d.created_at,
+                )
+            )
+
+    # B. Conversation threads
+    for c in convs:
+        if c.created_at:
+            activity_items.append(
+                SpaceActivityItem(
+                    id=f"conv-{c.id}",
+                    type="conversation_created",
+                    title=f"Started Thread '{c.title or 'Contextual Thread'}'",
+                    description="Multi-agent reasoning and RAG session",
+                    target_id=str(c.id),
+                    target_route=f"/spaces/{space_id}/conversations/{c.id}",
+                    status="active",
+                    created_at=c.created_at,
+                )
+            )
+
+    # C. Actions approved or executed
+    for a in recent_actions:
+        if a.created_at:
+            activity_items.append(
+                SpaceActivityItem(
+                    id=f"action-{a.id}",
+                    type=f"action_{a.status}",
+                    title=f"Action {a.status.capitalize()}: {a.action_type.replace('_', ' ')}",
+                    description=a.reason,
+                    target_id=str(a.id),
+                    target_route=f"/spaces/{space_id}/actions",
+                    status=a.status,
+                    created_at=a.executed_at or a.approved_at or a.created_at,
+                )
+            )
+
+    # D. Projects created
+    for p in projects:
+        if p.created_at:
+            activity_items.append(
+                SpaceActivityItem(
+                    id=f"proj-{p.id}",
+                    type="project_created",
+                    title=f"Created Project '{p.name}'",
+                    description=f"Status: {p.status}",
+                    target_id=str(p.id),
+                    target_route=f"/spaces/{space_id}/tasks",
+                    status=p.status,
+                    created_at=p.created_at,
+                )
+            )
+
+    # Sort combined activities descending by timestamp
+    activity_items.sort(key=lambda x: x.created_at, reverse=True)
+    activity_items = activity_items[:10]
+
+    stats = {
+        "documents_count": total_docs_count,
+        "chunks_count": total_chunks_count,
+        "conversations_count": len(convs),
+        "pending_actions_count": len(pending_actions),
+        "projects_count": len(projects),
+        "goals_count": len(goals_list),
+        "active_work_count": len(active_work_list),
+    }
+
+    return SpaceWorkspaceSummary(
+        space=space_response,
+        stats=stats,
+        pending_actions=pending_list,
+        recent_activity=activity_items,
+        active_work=active_work_list,
+        recent_documents=docs_list,
+        recent_conversations=convs_list,
+        active_projects=projects_list,
+        active_goals=goals_list,
+    )
