@@ -4,13 +4,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 class MessageBase(BaseModel):
-    role: str
+    role: str = "user"
     content: str
     citations: Optional[List[dict]] = None
     metadata_json: Optional[dict] = None
 
-class MessageCreate(MessageBase):
-    pass
+class MessageCreate(BaseModel):
+    role: Optional[str] = "user"
+    content: str
 
 class MessageResponse(MessageBase):
     id: uuid.UUID

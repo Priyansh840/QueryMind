@@ -22,6 +22,7 @@ class Space(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = relationship("User", back_populates="spaces")
+    members = relationship("SpaceMember", back_populates="space", cascade="all, delete-orphan")
     projects = relationship("Project", back_populates="space", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="space", cascade="all, delete-orphan")
     knowledge = relationship("Knowledge", back_populates="space", cascade="all, delete-orphan")

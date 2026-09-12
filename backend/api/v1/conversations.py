@@ -1,44 +1,47 @@
 import uuid
 import logging
 from typing import List, Optional
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from api.deps import get_db, get_current_user
 from models.conversation import Conversation, Message
 from models.core import Space
+from models.orchestrator import Objective
 from models.user import User
 from schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
     ConversationWithMessagesResponse,
+    MessageCreate,
     MessageResponse
 )
+from orchestrator.schemas import DecisionAnalysis, ActionProposal
+from orchestrator.graph import get_orchestrator
+from repositories.action_proposals import ActionProposalRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-async def verify_space_ownership(space_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession):
-    stmt = select(Space).where(Space.id == space_id, Space.user_id == user_id)
-    result = await db.execute(stmt)
-    space = result.scalar_one_or_none()
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
-    return space
-
-async def get_user_conversation(conversation_id: str, user_id: uuid.UUID, db: AsyncSession) -> Conversation:
+async def get_space_conversation(conversation_id: str, current_user: User, db: AsyncSession, min_role: str = "viewer") -> Conversation:
     try:
         c_uuid = uuid.UUID(conversation_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid conversation_id UUID format")
-        
-    stmt = select(Conversation).where(Conversation.id == c_uuid, Conversation.user_id == user_id)
+
+    stmt = select(Conversation).where(Conversation.id == c_uuid)
     result = await db.execute(stmt)
     conversation = result.scalar_one_or_none()
-    
+
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    from api.deps import get_space_membership
+    await get_space_membership(str(conversation.space_id), current_user, db, min_role=min_role)
     return conversation
 
 
@@ -49,8 +52,9 @@ async def create_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_space_ownership(request.space_id, current_user.id, db)
-    
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(request.space_id), current_user, db, min_role="member")
+
     new_conv = Conversation(
         id=uuid.uuid4(),
         user_id=current_user.id,
@@ -58,7 +62,7 @@ async def create_conversation(
         title=request.title or "New Conversation"
     )
     db.add(new_conv)
-    
+
     try:
         await db.commit()
         await db.refresh(new_conv)
@@ -66,7 +70,7 @@ async def create_conversation(
         await db.rollback()
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=400, detail="Failed to create conversation")
-        
+
     return ConversationResponse.model_validate(new_conv)
 
 
@@ -77,19 +81,17 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Conversation).where(Conversation.user_id == current_user.id)
-    
     if space_id:
-        try:
-            s_uuid = uuid.UUID(space_id)
-            stmt = stmt.where(Conversation.space_id == s_uuid)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-            
-    stmt = stmt.order_by(Conversation.created_at.desc())
+        from api.deps import get_space_membership
+        space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+        stmt = select(Conversation).where(Conversation.space_id == space.id).order_by(Conversation.created_at.desc())
+    else:
+        # If no space filter, return user conversations
+        stmt = select(Conversation).where(Conversation.user_id == current_user.id).order_by(Conversation.created_at.desc())
+
     result = await db.execute(stmt)
     conversations = result.scalars().all()
-    
+
     return [ConversationResponse.model_validate(c) for c in conversations]
 
 
@@ -99,7 +101,7 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    conversation = await get_user_conversation(conversation_id, current_user.id, db)
+    conversation = await get_space_conversation(conversation_id, current_user, db, min_role="viewer")
     return ConversationResponse.model_validate(conversation)
 
 
@@ -109,11 +111,11 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    conversation = await get_user_conversation(conversation_id, current_user.id, db)
-    
+    conversation = await get_space_conversation(conversation_id, current_user, db, min_role="admin")
+
     await db.delete(conversation)
     await db.commit()
-    
+
     return {"status": "success", "message": f"Conversation {conversation_id} deleted"}
 
 
@@ -123,23 +125,15 @@ async def get_conversation_messages(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify ownership
-    conversation = await get_user_conversation(conversation_id, current_user.id, db)
-    
+    # Verify viewer access
+    conversation = await get_space_conversation(conversation_id, current_user, db, min_role="viewer")
+
     stmt = select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.asc())
     result = await db.execute(stmt)
     messages = result.scalars().all()
-    
+
     return [MessageResponse.model_validate(m) for m in messages]
 
-import json
-from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage, AIMessage
-from orchestrator.graph import get_orchestrator
-from orchestrator.schemas import DecisionAnalysis, ActionProposal
-from models.orchestrator import Objective
-from schemas.conversation import MessageCreate
-from repositories.action_proposals import ActionProposalRepository
 
 @router.post("/{conversation_id}/messages")
 async def send_message(
@@ -148,8 +142,8 @@ async def send_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify ownership
-    conversation = await get_user_conversation(conversation_id, current_user.id, db)
+    # Verify member access to send messages
+    conversation = await get_space_conversation(conversation_id, current_user, db, min_role="member")
     
     # 1. Save user message to DB
     user_msg_id = uuid.uuid4()

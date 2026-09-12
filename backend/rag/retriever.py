@@ -25,24 +25,24 @@ logger = logging.getLogger(__name__)
 
 async def retrieve_context(
     query: str,
-    user_id: str,
-    space_id: str,
+    user_id: Optional[str] = None,
+    space_id: Optional[str] = None,
     top_k: int = 8,
     score_threshold: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """
     1. Embeds query dynamically.
-    2. Searches Qdrant with strict user_id and space_id filters.
+    2. Searches Qdrant strictly scoped to space_id (primary collaboration boundary).
     3. Fetches actual text from PostgreSQL using chunk_id from payload.
     """
-    logger.info(f"Retrieving context for query: '{query}' (user={user_id}, space={space_id})")
+    logger.info(f"Retrieving context for query: '{query}' (space={space_id})")
 
     if not settings.qdrant_client_url:
         logger.warning("Qdrant URL missing. Skipping retrieval.")
         return []
 
-    if not user_id or not space_id:
-        logger.error("user_id and space_id are strictly required for retrieval.")
+    if not space_id:
+        logger.error("space_id is strictly required for retrieval.")
         return []
 
     client = AsyncQdrantClient(
@@ -50,19 +50,18 @@ async def retrieve_context(
         api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
     )
 
-    # 1. Strict Tenant Isolation Filter
-    tenant_filter = models.Filter(
-        must=[
-            models.FieldCondition(
-                key="user_id",
-                match=models.MatchValue(value=str(user_id))
-            ),
-            models.FieldCondition(
-                key="space_id",
-                match=models.MatchValue(value=str(space_id))
-            )
-        ]
-    )
+    # 1. Strict Space Isolation Filter (Collaborative Space Boundary)
+    filter_conditions = [
+        models.FieldCondition(
+            key="space_id",
+            match=models.MatchValue(value=str(space_id))
+        )
+    ]
+    if user_id:
+        # Optional user constraint if personal scoping is requested
+        pass
+
+    tenant_filter = models.Filter(must=filter_conditions)
 
     collection_name = settings.QDRANT_COLLECTION_DOCUMENTS
     raw_results = []

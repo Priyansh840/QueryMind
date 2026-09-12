@@ -5,6 +5,34 @@ export interface UserProfile {
   avatar_url: string | null;
 }
 
+export type SpaceRole = "owner" | "admin" | "member" | "viewer";
+
+export interface SpaceMember {
+  id: string;
+  space_id: string;
+  user_id: string;
+  role: SpaceRole;
+  email?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  invited_by_user_id?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface InviteMemberRequest {
+  email: string;
+  role: "admin" | "member" | "viewer";
+}
+
+export interface UpdateMemberRoleRequest {
+  role: "admin" | "member" | "viewer" | "owner";
+}
+
+export interface TransferOwnershipRequest {
+  new_owner_user_id: string;
+}
+
 export interface Space {
   id: string;
   user_id: string;
@@ -14,6 +42,8 @@ export interface Space {
   icon?: string | null;
   color?: string | null;
   is_default: boolean;
+  role?: SpaceRole;
+  members_count?: number;
   created_at?: string;
   updated_at?: string;
 }

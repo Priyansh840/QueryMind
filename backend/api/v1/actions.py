@@ -58,25 +58,14 @@ async def list_actions(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List action proposals belonging to the authenticated user with optional space and status filters.
+    List action proposals with optional space and status filters.
+    Requires at least 'viewer' role in the requested space.
     """
     space_uuid = None
     if space_id:
-        try:
-            space_uuid = uuid.UUID(space_id)
-        except (ValueError, TypeError):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid space_id UUID format."
-            )
-        # Verify that the requested space belongs to current_user
-        stmt = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-        res = await db.execute(stmt)
-        if not res.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Space not found or unauthorized."
-            )
+        from api.deps import get_space_membership
+        space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+        space_uuid = space.id
 
     if status_filter:
         clean_status = status_filter.strip().lower()
@@ -89,7 +78,7 @@ async def list_actions(
 
     items, total = await ActionProposalRepository.list_proposals(
         db,
-        user_id=current_user.id,
+        user_id=current_user.id if not space_uuid else None,
         space_id=space_uuid,
         status=status_filter,
         limit=limit,
@@ -114,18 +103,22 @@ async def get_action_proposal(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Retrieve an action proposal by either primary key UUID or proposal_id, scoped to the user.
+    Retrieve an action proposal by either primary key UUID or proposal_id.
+    Requires at least 'viewer' role in the proposal's space.
     """
     proposal = await ActionProposalRepository.get_by_identifier(
         db,
         identifier=proposal_id,
-        user_id=current_user.id,
     )
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Action proposal not found or unauthorized."
+            detail="Action proposal not found."
         )
+
+    # Verify Space membership (viewer role)
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="viewer")
 
     return ActionProposalResponse.model_validate(proposal)
 
@@ -141,23 +134,21 @@ async def reject_action_proposal(
 ):
     """
     Explicitly reject an action proposal.
-    
-    Lifecycle rules:
-    - pending -> rejected (allowed)
-    - failed -> rejected (allowed)
-    - rejected -> rejected (idempotent no-op)
-    - executed -> rejected (forbidden, 400 bad request)
+    Requires 'admin' or 'owner' role in the proposal's space.
     """
     proposal = await ActionProposalRepository.get_for_update_by_identifier(
         db,
         identifier=proposal_id,
-        user_id=current_user.id,
     )
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Action proposal not found or unauthorized."
+            detail="Action proposal not found."
         )
+
+    # Verify Space admin/owner membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="admin")
 
     if proposal.status == "executed":
         raise HTTPException(
@@ -188,18 +179,21 @@ async def approve_action_by_id(
 ):
     """
     1-Click Approval & Execution endpoint using proposal identifier directly.
-    Acquires row-level lock and atomically executes the proposal via ActionExecutionService.
+    Requires 'admin' or 'owner' role in the proposal's space.
     """
     proposal = await ActionProposalRepository.get_for_update_by_identifier(
         db,
         identifier=proposal_id,
-        user_id=current_user.id,
     )
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Action proposal not found or unauthorized."
+            detail="Action proposal not found."
         )
+
+    # Verify Space admin/owner membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="admin")
 
     if proposal.status == "executed":
         return ActionExecutionResult(
@@ -298,13 +292,16 @@ async def get_decision_detail(
     proposal = await ActionProposalRepository.get_by_identifier(
         db,
         identifier=proposal_id,
-        user_id=current_user.id,
     )
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Decision / Action proposal not found or unauthorized."
+            detail="Decision / Action proposal not found."
         )
+
+    # Verify Space membership (viewer role)
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="viewer")
 
     # 1. Fetch originating message to extract authoritative RAG citations
     stmt_msg = select(Message).where(Message.id == proposal.message_id)
@@ -497,14 +494,17 @@ async def approve_and_execute_action(
         db,
         message_id=msg_uuid,
         proposal_id=request.proposal_id,
-        user_id=current_user.id
     )
 
     if not proposal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Action proposal not found or unauthorized."
+            detail="Action proposal not found."
         )
+
+    # Verify Space admin/owner membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="admin")
 
     # 3. Check lifecycle status (Server-controlled lifecycle)
     if proposal.status == "executed":

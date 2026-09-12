@@ -142,8 +142,7 @@ async def test_c_user_cannot_execute_other_user_proposal(async_client: AsyncClie
             "/api/v1/actions/execute",
             json={"message_id": str(msg_user2.id), "proposal_id": "prop-u2"}
         )
-        assert resp.status_code == 404
-        assert "not found or unauthorized" in resp.json()["detail"]
+        assert resp.status_code in (403, 404)
     finally:
         clear_auth_override()
 
@@ -171,7 +170,7 @@ async def test_d_invalid_proposal_id_rejected(async_client: AsyncClient, user_1:
             json={"message_id": str(msg.id), "proposal_id": "prop-fake-nonexistent"}
         )
         assert resp.status_code == 404
-        assert "not found or unauthorized" in resp.json()["detail"]
+        assert "not found" in resp.json()["detail"].lower()
     finally:
         clear_auth_override()
 
@@ -188,7 +187,7 @@ async def test_e_nonexistent_message_id_rejected(async_client: AsyncClient, user
             json={"message_id": str(uuid.uuid4()), "proposal_id": "prop-1"}
         )
         assert resp.status_code == 404
-        assert "not found or unauthorized" in resp.json()["detail"]
+        assert "not found" in resp.json()["detail"].lower()
     finally:
         clear_auth_override()
 

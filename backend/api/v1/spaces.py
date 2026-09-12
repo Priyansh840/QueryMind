@@ -111,6 +111,18 @@ async def create_space(
         updated_at=datetime.utcnow(),
     )
     db.add(new_space)
+
+    from models.space_member import SpaceMember
+    membership = SpaceMember(
+        id=uuid.uuid4(),
+        space_id=new_space.id,
+        user_id=current_user.id,
+        role="owner",
+        created_at=new_space.created_at,
+        updated_at=new_space.updated_at,
+    )
+    db.add(membership)
+
     try:
         await db.commit()
         await db.refresh(new_space)
@@ -143,12 +155,18 @@ async def list_spaces(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns all spaces owned by the authenticated user.
-    Ordered with the default space first, followed by creation order.
+    Returns all spaces where the authenticated user is the owner or an active member.
+    Ordered with default spaces first, followed by creation order.
     """
+    from models.space_member import SpaceMember
+
     stmt = (
         select(Space)
-        .where(Space.user_id == current_user.id)
+        .outerjoin(SpaceMember, Space.id == SpaceMember.space_id)
+        .where(
+            (Space.user_id == current_user.id) | (SpaceMember.user_id == current_user.id)
+        )
+        .distinct()
         .order_by(Space.is_default.desc(), Space.created_at.asc())
     )
     result = await db.execute(stmt)
@@ -179,19 +197,10 @@ async def get_space(
 ):
     """
     Retrieves a single space by ID.
-    Returns 404 if not found or if not owned by the authenticated user.
+    Requires at least 'viewer' access in the space.
     """
-    try:
-        space_uuid = uuid.UUID(space_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    stmt = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    result = await db.execute(stmt)
-    space = result.scalar_one_or_none()
-
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
 
     return SpaceResponse(
         id=str(space.id),
@@ -216,20 +225,10 @@ async def update_space(
 ):
     """
     Updates space metadata (name, description, icon, color, slug, is_default).
-    id, user_id, and created_at can NEVER be modified.
-    Returns 404 if space is not owned by current user.
+    Requires 'admin' or 'owner' role.
     """
-    try:
-        space_uuid = uuid.UUID(space_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    stmt = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    result = await db.execute(stmt)
-    space = result.scalar_one_or_none()
-
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
 
     # If setting to default, unset existing default
     if request.is_default is True and not space.is_default:
@@ -298,12 +297,8 @@ async def delete_space(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
 
-    stmt = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    result = await db.execute(stmt)
-    space = result.scalar_one_or_none()
-
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="owner")
 
     # Clean up vectors in Qdrant before PostgreSQL cascade
     if settings.qdrant_client_url:
@@ -319,11 +314,7 @@ async def delete_space(
                         must=[
                             qmodels.FieldCondition(
                                 key="space_id",
-                                match=qmodels.MatchValue(value=str(space_uuid)),
-                            ),
-                            qmodels.FieldCondition(
-                                key="user_id",
-                                match=qmodels.MatchValue(value=str(current_user.id)),
+                                match=qmodels.MatchValue(value=str(space.id)),
                             ),
                         ]
                     )
@@ -338,11 +329,7 @@ async def delete_space(
                         must=[
                             qmodels.FieldCondition(
                                 key="space_id",
-                                match=qmodels.MatchValue(value=str(space_uuid)),
-                            ),
-                            qmodels.FieldCondition(
-                                key="user_id",
-                                match=qmodels.MatchValue(value=str(current_user.id)),
+                                match=qmodels.MatchValue(value=str(space.id)),
                             ),
                         ]
                     )
@@ -371,12 +358,14 @@ class SpaceActivityItem(BaseModel):
     target_route: Optional[str] = None
     status: Optional[str] = None
     created_at: datetime
+    confidence: Optional[str] = None
 
 
 class SpaceActiveWorkItem(BaseModel):
     id: str
-    agent_type: str
-    task_id: Optional[str] = None
+    type: str  # "agent_run", "workflow_step", "objective"
+    title: str
+    agent_type: Optional[str] = None
     status: str
     started_at: Optional[datetime] = None
     summary: Optional[dict] = None
@@ -402,25 +391,11 @@ async def get_space_workspace(
 ):
     """
     Unified, strictly Space-isolated Intelligence & Decision Workspace aggregator.
-    Returns:
-    1. Space metadata
-    2. Pending decisions / actions requiring attention
-    3. Real chronological activity derived from DB events
-    4. Active agent / workflow work
-    5. Recent knowledge documents & conversation threads
-    6. Active projects and goals
+    Requires at least 'viewer' role in the space.
     """
-    try:
-        space_uuid = uuid.UUID(space_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    # 1. Verify Space Ownership
-    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    space = res_space.scalar_one_or_none()
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+    space_uuid = space.id
 
     space_response = SpaceResponse(
         id=str(space.id),

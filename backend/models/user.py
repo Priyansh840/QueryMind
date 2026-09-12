@@ -35,6 +35,7 @@ class User(Base):
 
     # Relationships
     spaces = relationship("Space", back_populates="user", cascade="all, delete-orphan")
+    space_memberships = relationship("SpaceMember", foreign_keys="SpaceMember.user_id", back_populates="user", cascade="all, delete-orphan")
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     knowledge = relationship("Knowledge", back_populates="user", cascade="all, delete-orphan")
     memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan")

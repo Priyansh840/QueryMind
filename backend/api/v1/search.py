@@ -69,12 +69,10 @@ async def global_space_search(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
 
-    # 1. Verify Space Ownership
-    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    space = res_space.scalar_one_or_none()
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+    # 1. Verify Space Membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+    space_uuid = space.id
 
     type_filter = set([t.strip().lower() for t in types.split(",")]) if types else None
     results: List[SearchResultItem] = []
@@ -87,7 +85,6 @@ async def global_space_search(
             select(Document)
             .where(
                 Document.space_id == space_uuid,
-                Document.user_id == current_user.id,
                 Document.title.ilike(search_pattern),
             )
             .limit(limit)
@@ -114,7 +111,6 @@ async def global_space_search(
             select(Conversation)
             .where(
                 Conversation.space_id == space_uuid,
-                Conversation.user_id == current_user.id,
                 Conversation.title.ilike(search_pattern),
             )
             .limit(limit)
@@ -141,7 +137,6 @@ async def global_space_search(
             select(ActionProposal)
             .where(
                 ActionProposal.space_id == space_uuid,
-                ActionProposal.user_id == current_user.id,
                 or_(
                     ActionProposal.action_type.ilike(search_pattern),
                     ActionProposal.reason.ilike(search_pattern),
@@ -171,7 +166,6 @@ async def global_space_search(
             select(Memory)
             .where(
                 Memory.space_id == space_uuid,
-                Memory.user_id == current_user.id,
                 Memory.content.ilike(search_pattern),
             )
             .limit(limit)

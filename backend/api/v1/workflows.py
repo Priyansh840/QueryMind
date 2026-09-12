@@ -170,19 +170,12 @@ async def create_workflow(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Creates and plans an autonomous multi-agent workflow for the authenticated Space.
+    Creates and plans an autonomous multi-agent workflow for the Space.
+    Requires at least 'admin' role in the space.
     """
-    try:
-        space_uuid = uuid.UUID(request.space_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    # 1. Verify Space Ownership
-    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    space = res_space.scalar_one_or_none()
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(request.space_id, current_user, db, min_role="admin")
+    space_uuid = space.id
 
     # 2. Create Objective & Workflow
     obj_id = uuid.uuid4()
@@ -248,7 +241,7 @@ async def create_workflow(
         objective_id=str(objective.id),
         space_id=str(space_uuid),
         goal=objective.raw_input,
-        status="planning",
+        status=workflow.status,
         created_at=workflow.created_at,
         steps=[
             WorkflowStepResponse(
@@ -277,18 +270,18 @@ async def list_workflows(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List workflows scoped to the authenticated space.
+    List all workflows for the specified space.
+    Requires at least 'viewer' role in the space.
     """
-    try:
-        space_uuid = uuid.UUID(space_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+    space_uuid = space.id
 
     stmt = (
         select(Workflow, Objective.raw_input)
         .join(Objective, Objective.id == Workflow.objective_id)
         .options(selectinload(Workflow.steps))
-        .where(Workflow.space_id == space_uuid, Objective.user_id == current_user.id)
+        .where(Workflow.space_id == space_uuid)
         .order_by(desc(Workflow.created_at))
     )
 
@@ -326,6 +319,7 @@ async def get_workflow(
 ):
     """
     Get detailed execution state of a specific workflow.
+    Requires at least 'viewer' role in the workflow's space.
     """
     try:
         wf_uuid = uuid.UUID(workflow_id)
@@ -338,20 +332,23 @@ async def get_workflow(
         .options(
             selectinload(Workflow.steps).selectinload(WorkflowStep.agent_runs)
         )
-        .where(Workflow.id == wf_uuid, Objective.user_id == current_user.id)
+        .where(Workflow.id == wf_uuid)
     )
     res = await db.execute(stmt)
     row = res.first()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Workflow not found or unauthorized")
+        raise HTTPException(status_code=404, detail="Workflow not found")
 
     wf, goal_text, space_uuid = row
+
+    # Verify Space membership (viewer role)
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(space_uuid), current_user, db, min_role="viewer")
 
     # Fetch synthesis or pending actions in space
     stmt_act = select(ActionProposal).where(
         ActionProposal.space_id == space_uuid,
-        ActionProposal.user_id == current_user.id,
         ActionProposal.status == "pending"
     )
     res_act = await db.execute(stmt_act)
@@ -419,6 +416,7 @@ async def retry_workflow(
 ):
     """
     Retries execution of a failed workflow safely.
+    Requires at least 'admin' role in the space.
     """
     try:
         wf_uuid = uuid.UUID(workflow_id)
@@ -429,15 +427,20 @@ async def retry_workflow(
         select(Workflow, Objective)
         .join(Objective, Objective.id == Workflow.objective_id)
         .options(selectinload(Workflow.steps))
-        .where(Workflow.id == wf_uuid, Objective.user_id == current_user.id)
+        .where(Workflow.id == wf_uuid)
     )
     res = await db.execute(stmt)
     row = res.first()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Workflow not found or unauthorized")
+        raise HTTPException(status_code=404, detail="Workflow not found")
 
     wf, obj = row
+
+    # Verify Space admin membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(wf.space_id), current_user, db, min_role="admin")
+
     wf.status = "running"
     for s in wf.steps:
         if s.status == "failed":
@@ -465,24 +468,29 @@ async def cancel_workflow(
 ):
     """
     Safely cancels a running workflow.
+    Requires at least 'admin' role in the space.
     """
     try:
         wf_uuid = uuid.UUID(workflow_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid workflow_id UUID format")
 
-    stmt = (
-        select(Workflow)
-        .join(Objective, Objective.id == Workflow.objective_id)
-        .where(Workflow.id == wf_uuid, Objective.user_id == current_user.id)
-    )
+    stmt = select(Workflow).options(selectinload(Workflow.steps)).where(Workflow.id == wf_uuid)
     res = await db.execute(stmt)
     wf = res.scalar_one_or_none()
 
     if not wf:
-        raise HTTPException(status_code=404, detail="Workflow not found or unauthorized")
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Verify Space admin membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(wf.space_id), current_user, db, min_role="admin")
 
     wf.status = "cancelled"
+    for s in wf.steps:
+        if s.status == "running" or s.status == "pending":
+            s.status = "cancelled"
+
     await db.commit()
 
-    return {"status": "success", "message": f"Workflow {workflow_id} cancelled"}
+    return {"status": "success", "message": f"Workflow {workflow_id} has been cancelled."}

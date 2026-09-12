@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from api.deps import get_db, get_current_user
+from api.deps import get_db, get_current_user, get_space_membership
 from models.memory import Memory
 from models.user import User
 
@@ -88,6 +88,7 @@ async def create_memory(
 ):
     """
     Creates a new Memory record with Space scoping.
+    Requires member role if creating inside a Space.
     """
     space_uuid = None
     if request.space_id:
@@ -95,6 +96,9 @@ async def create_memory(
             space_uuid = uuid.UUID(request.space_id)
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+        
+        # Enforce member role
+        await get_space_membership(space_uuid, current_user, db, min_role="member")
 
     new_memory = Memory(
         id=uuid.uuid4(),
@@ -137,16 +141,19 @@ async def list_memories(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List memories for the authenticated user with optional space_id filter.
+    List memories. If space_id is provided, checks space membership (viewer) and returns shared space memories.
+    Otherwise returns user-specific personal memories.
     """
-    stmt = select(Memory).where(Memory.user_id == current_user.id)
-    
     if space_id:
         try:
             space_uuid = uuid.UUID(space_id)
-            stmt = stmt.where(Memory.space_id == space_uuid)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+        
+        await get_space_membership(space_uuid, current_user, db, min_role="viewer")
+        stmt = select(Memory).where(Memory.space_id == space_uuid)
+    else:
+        stmt = select(Memory).where(Memory.user_id == current_user.id, Memory.space_id.is_(None))
 
     if memory_type:
         stmt = stmt.where(Memory.memory_type == memory_type.strip())
@@ -165,18 +172,24 @@ async def reinforce_memory(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Reinforce an existing memory when an independent conversation, document, or decision supports it.
+    Reinforce an existing memory.
     """
     try:
         m_uuid = uuid.UUID(memory_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid memory_id UUID format")
 
-    stmt = select(Memory).where(Memory.id == m_uuid, Memory.user_id == current_user.id)
+    stmt = select(Memory).where(Memory.id == m_uuid)
     res = await db.execute(stmt)
     memory = res.scalar_one_or_none()
     if not memory:
-        raise HTTPException(status_code=404, detail="Memory not found or unauthorized")
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    if memory.space_id:
+        await get_space_membership(memory.space_id, current_user, db, min_role="member")
+    else:
+        if memory.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Unauthorized")
 
     memory.reinforcement_count += 1
     memory.source_count += 1
@@ -198,16 +211,19 @@ async def get_space_memory_summary(
 ):
     """
     Aggregates Space-scoped Memory, explicit Connections, and Grounded Insight synthesis.
+    Requires viewer membership.
     """
     try:
         space_uuid = uuid.UUID(space_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
 
+    await get_space_membership(space_uuid, current_user, db, min_role="viewer")
+
     # 1. Fetch space memories
     stmt_mem = (
         select(Memory)
-        .where(Memory.space_id == space_uuid, Memory.user_id == current_user.id)
+        .where(Memory.space_id == space_uuid)
         .order_by(Memory.last_reinforced_at.desc())
     )
     res_mem = await db.execute(stmt_mem)
@@ -217,9 +233,11 @@ async def get_space_memory_summary(
     from models.memory import Connection
     stmt_conn = (
         select(Connection)
-        .where(Connection.space_id == space_uuid, Connection.user_id == current_user.id)
+        .where(Connection.space_id == space_uuid)
         .order_by(Connection.created_at.desc())
     )
+    res_conn = await db.execute(stmt_conn)
+    connections = res_conn.scalars().all()
     res_conn = await db.execute(stmt_conn)
     connections = res_conn.scalars().all()
 

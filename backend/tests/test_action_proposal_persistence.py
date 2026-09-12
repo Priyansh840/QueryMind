@@ -415,6 +415,6 @@ async def test_cross_user_proposal_rejected(async_client: AsyncClient, user_1: U
             "/api/v1/actions/execute",
             json={"message_id": str(asst_msg_u2.id), "proposal_id": "prop-u2-secret"}
         )
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
     finally:
         clear_auth_override()

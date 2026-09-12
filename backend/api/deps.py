@@ -181,3 +181,90 @@ async def get_current_user(
         )
 
     return user
+
+
+ROLE_HIERARCHY = {
+    "owner": 4,
+    "admin": 3,
+    "member": 2,
+    "viewer": 1,
+}
+
+
+def check_role_permission(user_role: str, min_role: str) -> bool:
+    """Returns True if user_role satisfies or exceeds min_role in the hierarchy."""
+    user_level = ROLE_HIERARCHY.get(user_role.lower(), 0)
+    min_level = ROLE_HIERARCHY.get(min_role.lower(), 0)
+    return user_level >= min_level
+
+
+async def get_space_membership(
+    space_id: uuid.UUID | str,
+    current_user: User,
+    db: AsyncSession,
+    min_role: str = "viewer",
+):
+    """
+    Validates that the Space exists and that current_user has at least `min_role` access.
+    Handles legacy spaces gracefully by granting 'owner' if current_user == space.user_id.
+    """
+    from models.core import Space
+    from models.space_member import SpaceMember
+
+    # 1. Fetch space by UUID or slug
+    space = None
+    try:
+        space_uuid = uuid.UUID(str(space_id))
+        stmt_space = select(Space).where(Space.id == space_uuid)
+        res_space = await db.execute(stmt_space)
+        space = res_space.scalar_one_or_none()
+    except (ValueError, TypeError):
+        # Fallback to slug matching
+        stmt_slug = select(Space).where(Space.slug == str(space_id))
+        res_slug = await db.execute(stmt_slug)
+        space = res_slug.scalar_one_or_none()
+
+    if not space:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Space not found or unauthorized",
+        )
+
+    space_uuid = space.id
+
+    # 2. Check membership table
+    stmt_member = select(SpaceMember).where(
+        SpaceMember.space_id == space_uuid,
+        SpaceMember.user_id == current_user.id,
+    )
+    res_member = await db.execute(stmt_member)
+    membership = res_member.scalar_one_or_none()
+
+    # 3. Fallback for space creator if migration row wasn't present
+    if not membership and space.user_id == current_user.id:
+        membership = SpaceMember(
+            id=uuid.uuid4(),
+            space_id=space.id,
+            user_id=current_user.id,
+            role="owner",
+            created_at=space.created_at,
+            updated_at=space.updated_at,
+        )
+        db.add(membership)
+        await db.flush()
+
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this Space.",
+        )
+
+    # 4. Enforce role hierarchy
+    if not check_role_permission(membership.role, min_role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Insufficient permissions: requires {min_role} role (current: {membership.role})",
+        )
+
+    return space, membership
+

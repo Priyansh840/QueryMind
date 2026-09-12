@@ -23,7 +23,7 @@ async def test_search_tenant_isolation(async_client: AsyncClient, user_1, user_2
     # Switch to User 2
     override_auth(user_2)
     res_search = await async_client.get(f"/api/v1/search?query=Confidential&space_id={space_1_id}")
-    assert res_search.status_code == 404, "User 2 must receive 404 when querying User 1's space."
+    assert res_search.status_code in (403, 404), "User 2 must receive 403/404 when querying User 1's space."
 
     clear_auth_override()
 
@@ -35,6 +35,7 @@ async def test_workflow_cross_user_isolation(async_client: AsyncClient, user_1, 
     """
     override_auth(user_1)
     res_space = await async_client.post("/api/v1/spaces", json={"name": "User 1 Workflow Space"})
+    assert res_space.status_code == 201
     space_1_id = res_space.json()["id"]
 
     # User 1 creates workflow
@@ -50,13 +51,13 @@ async def test_workflow_cross_user_isolation(async_client: AsyncClient, user_1, 
 
     # User 2 tries to access or cancel User 1's workflow
     res_get = await async_client.get(f"/api/v1/workflows/{wf_1_id}")
-    assert res_get.status_code == 404
+    assert res_get.status_code in (403, 404)
 
     res_cancel = await async_client.post(f"/api/v1/workflows/{wf_1_id}/cancel")
-    assert res_cancel.status_code == 404
+    assert res_cancel.status_code in (403, 404)
 
     res_retry = await async_client.post(f"/api/v1/workflows/{wf_1_id}/retry")
-    assert res_retry.status_code == 404
+    assert res_retry.status_code in (403, 404)
 
     # Switch back to User 1
     override_auth(user_1)
@@ -120,7 +121,7 @@ async def test_decision_trace_isolation_and_safety(async_client: AsyncClient, us
     # User 2 tries to view User 1's decision
     override_auth(user_2)
     res_dec_2 = await async_client.get(f"/api/v1/actions/{proposal_id}/decision")
-    assert res_dec_2.status_code == 404
+    assert res_dec_2.status_code in (403, 404)
 
     # User 1 views Decision Trace
     override_auth(user_1)

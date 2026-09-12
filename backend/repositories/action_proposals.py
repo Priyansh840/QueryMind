@@ -64,13 +64,12 @@ class ActionProposalRepository:
         db: AsyncSession,
         *,
         proposal_pk: uuid.UUID,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[ActionProposal]:
-        """Retrieve proposal by primary key UUID scoped to authenticated user."""
-        stmt = select(ActionProposal).where(
-            ActionProposal.id == proposal_pk,
-            ActionProposal.user_id == user_id,
-        )
+        """Retrieve proposal by primary key UUID."""
+        stmt = select(ActionProposal).where(ActionProposal.id == proposal_pk)
+        if user_id:
+            stmt = stmt.where(ActionProposal.user_id == user_id)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -79,23 +78,20 @@ class ActionProposalRepository:
         db: AsyncSession,
         *,
         identifier: str,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[ActionProposal]:
         """
-        Retrieve proposal by either primary key UUID string or turn-level proposal_id,
-        strictly scoped to authenticated user.
+        Retrieve proposal by either primary key UUID string or turn-level proposal_id.
         """
         try:
             pk_uuid = uuid.UUID(identifier)
-            stmt = select(ActionProposal).where(
-                ActionProposal.id == pk_uuid,
-                ActionProposal.user_id == user_id,
-            )
+            stmt = select(ActionProposal).where(ActionProposal.id == pk_uuid)
         except (ValueError, TypeError):
-            stmt = select(ActionProposal).where(
-                ActionProposal.proposal_id == identifier,
-                ActionProposal.user_id == user_id,
-            )
+            stmt = select(ActionProposal).where(ActionProposal.proposal_id == identifier)
+
+        if user_id:
+            stmt = stmt.where(ActionProposal.user_id == user_id)
+
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -104,31 +100,21 @@ class ActionProposalRepository:
         db: AsyncSession,
         *,
         identifier: str,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[ActionProposal]:
         """
         Retrieve proposal with row-level lock (SELECT ... FOR UPDATE)
-        by primary key UUID string or turn-level proposal_id, strictly scoped to user.
+        by primary key UUID string or turn-level proposal_id.
         """
         try:
             pk_uuid = uuid.UUID(identifier)
-            stmt = (
-                select(ActionProposal)
-                .where(
-                    ActionProposal.id == pk_uuid,
-                    ActionProposal.user_id == user_id,
-                )
-                .with_for_update()
-            )
+            stmt = select(ActionProposal).where(ActionProposal.id == pk_uuid).with_for_update()
         except (ValueError, TypeError):
-            stmt = (
-                select(ActionProposal)
-                .where(
-                    ActionProposal.proposal_id == identifier,
-                    ActionProposal.user_id == user_id,
-                )
-                .with_for_update()
-            )
+            stmt = select(ActionProposal).where(ActionProposal.proposal_id == identifier).with_for_update()
+
+        if user_id:
+            stmt = stmt.where(ActionProposal.user_id == user_id)
+
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -138,14 +124,15 @@ class ActionProposalRepository:
         *,
         message_id: uuid.UUID,
         proposal_id: str,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[ActionProposal]:
-        """Retrieve proposal by (message_id, proposal_id) scoped to authenticated user."""
+        """Retrieve proposal by (message_id, proposal_id)."""
         stmt = select(ActionProposal).where(
             ActionProposal.message_id == message_id,
             ActionProposal.proposal_id == proposal_id,
-            ActionProposal.user_id == user_id,
         )
+        if user_id:
+            stmt = stmt.where(ActionProposal.user_id == user_id)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -155,7 +142,7 @@ class ActionProposalRepository:
         *,
         message_id: uuid.UUID,
         proposal_id: str,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
     ) -> Optional[ActionProposal]:
         """
         Retrieve proposal with row-level lock (SELECT ... FOR UPDATE)
@@ -166,10 +153,11 @@ class ActionProposalRepository:
             .where(
                 ActionProposal.message_id == message_id,
                 ActionProposal.proposal_id == proposal_id,
-                ActionProposal.user_id == user_id,
             )
             .with_for_update()
         )
+        if user_id:
+            stmt = stmt.where(ActionProposal.user_id == user_id)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -177,32 +165,33 @@ class ActionProposalRepository:
     async def list_proposals(
         db: AsyncSession,
         *,
-        user_id: uuid.UUID,
+        user_id: Optional[uuid.UUID] = None,
         space_id: Optional[uuid.UUID] = None,
         status: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[ActionProposal], int]:
-        """List proposals filtered by user, optional space, and optional status with total count."""
-        base_filter = [ActionProposal.user_id == user_id]
+        """List proposals filtered by optional user, optional space, and optional status with total count."""
+        base_filter = []
+        if user_id and not space_id:
+            base_filter.append(ActionProposal.user_id == user_id)
         if space_id:
             base_filter.append(ActionProposal.space_id == space_id)
         if status:
             base_filter.append(ActionProposal.status == status)
 
         # Count total
-        count_stmt = select(func.count(ActionProposal.id)).where(*base_filter)
+        count_stmt = select(func.count(ActionProposal.id))
+        if base_filter:
+            count_stmt = count_stmt.where(*base_filter)
         count_res = await db.execute(count_stmt)
         total = count_res.scalar() or 0
 
         # Query paginated rows
-        stmt = (
-            select(ActionProposal)
-            .where(*base_filter)
-            .order_by(ActionProposal.created_at.desc(), ActionProposal.id.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = select(ActionProposal)
+        if base_filter:
+            stmt = stmt.where(*base_filter)
+        stmt = stmt.order_by(ActionProposal.created_at.desc(), ActionProposal.id.desc()).limit(limit).offset(offset)
         result = await db.execute(stmt)
         items = list(result.scalars().all())
         return items, total

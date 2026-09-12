@@ -60,6 +60,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: "Tasks & Workflows", href: `/spaces/${spaceId}/tasks`, icon: CheckSquare },
     { label: "Actions", href: `/spaces/${spaceId}/actions`, icon: ShieldAlert },
     { label: "Activity", href: `/spaces/${spaceId}/activity`, icon: Activity },
+    { label: "Team & Settings", href: `/spaces/${spaceId}/settings`, icon: Settings },
   ];
 
   const globalNav = [

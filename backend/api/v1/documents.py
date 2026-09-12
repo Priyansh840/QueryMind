@@ -62,18 +62,10 @@ async def upload_document(
     User identity and space isolation are strictly enforced.
     """
     try:
-        # Validate space_id format
-        try:
-            space_uuid = uuid.UUID(space_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-        # Verify Space ownership
-        stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-        res_space = await db.execute(stmt_space)
-        space = res_space.scalar_one_or_none()
-        if not space:
-            raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+        # Verify Space ownership and permissions (Requires at least 'admin' to upload)
+        from api.deps import get_space_membership
+        space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
+        space_uuid = space.id
 
         # Validate file extension and content type
         filename = file.filename or "uploaded_document"
@@ -135,23 +127,14 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List all documents for a specific space owned by current user.
+    List all documents for a specific space. Requires at least 'viewer' role.
     """
-    try:
-        space_uuid = uuid.UUID(space_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    # Verify Space ownership
-    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    space = res_space.scalar_one_or_none()
-    if not space:
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
 
     result = await db.execute(
         select(Document)
-        .where(Document.space_id == space_uuid)
+        .where(Document.space_id == space.id)
         .order_by(Document.created_at.desc())
     )
     docs = result.scalars().all()
@@ -178,7 +161,7 @@ async def get_document(
 ):
     """
     Retrieve single document details along with its parsed chunk status.
-    Verifies user ownership of the parent Space.
+    Requires at least 'viewer' role in the parent Space.
     """
     try:
         doc_uuid = uuid.UUID(document_id)
@@ -195,11 +178,9 @@ async def get_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Verify Space ownership
-    stmt_space = select(Space).where(Space.id == doc.space_id, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    if not res_space.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Document not found or unauthorized")
+    # Verify Space membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(doc.space_id), current_user, db, min_role="viewer")
 
     chunk_responses = [
         DocumentChunkResponse(
@@ -235,23 +216,16 @@ async def search_documents(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Semantic RAG search over document vectors strictly scoped to user_id and space_id.
+    Semantic RAG search over document vectors strictly scoped to space_id.
+    Requires at least 'viewer' role in the space.
     """
-    try:
-        space_uuid = uuid.UUID(request.space_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
-
-    # Verify Space ownership
-    stmt_space = select(Space).where(Space.id == space_uuid, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    if not res_space.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Space not found or unauthorized")
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(request.space_id, current_user, db, min_role="viewer")
 
     results = await retrieve_context(
         query=request.query,
         user_id=str(current_user.id),
-        space_id=str(space_uuid),
+        space_id=str(space.id),
         top_k=request.top_k,
     )
 
@@ -280,7 +254,7 @@ async def delete_document(
 ):
     """
     Deletes a document from PostgreSQL and purges corresponding Qdrant vectors.
-    Identity and space ownership are strictly verified.
+    Requires 'admin' or 'owner' role in the space.
     """
     try:
         doc_uuid = uuid.UUID(document_id)
@@ -291,11 +265,9 @@ async def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Verify Space ownership
-    stmt_space = select(Space).where(Space.id == doc.space_id, Space.user_id == current_user.id)
-    res_space = await db.execute(stmt_space)
-    if not res_space.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Document not found or unauthorized")
+    # Verify Space admin/owner membership
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(doc.space_id), current_user, db, min_role="admin")
 
     # Delete from Qdrant
     if settings.qdrant_client_url:

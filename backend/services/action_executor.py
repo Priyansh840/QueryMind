@@ -146,10 +146,16 @@ async def _execute_create_goal(
                 error_code="invalid_parameters"
             )
 
-        # Verify project belongs to a space owned by the authenticated user
-        stmt = select(Project).join(Space, Project.space_id == Space.id).where(
-            Project.id == project_uuid,
-            Space.user_id == user_id
+        # Verify project belongs to a space where user is owner or member
+        from models.space_member import SpaceMember
+        stmt = (
+            select(Project)
+            .join(Space, Project.space_id == Space.id)
+            .outerjoin(SpaceMember, Space.id == SpaceMember.space_id)
+            .where(
+                Project.id == project_uuid,
+                (Space.user_id == user_id) | (SpaceMember.user_id == user_id),
+            )
         )
         result = await db.execute(stmt)
         project = result.scalar_one_or_none()
@@ -303,8 +309,16 @@ async def _execute_create_project(
             error_code="invalid_parameters"
         )
 
-    # Verify Space ownership
-    stmt = select(Space).where(Space.id == space_uuid, Space.user_id == user_id)
+    # Verify Space membership (owner or member)
+    from models.space_member import SpaceMember
+    stmt = (
+        select(Space)
+        .outerjoin(SpaceMember, Space.id == SpaceMember.space_id)
+        .where(
+            Space.id == space_uuid,
+            (Space.user_id == user_id) | (SpaceMember.user_id == user_id),
+        )
+    )
     result = await db.execute(stmt)
     space = result.scalar_one_or_none()
 

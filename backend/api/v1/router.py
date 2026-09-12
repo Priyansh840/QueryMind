@@ -37,9 +37,9 @@ api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 # Objectives/Trace endpoint
 api_router.include_router(objectives.router, prefix="/objectives", tags=["Objectives"])
 
-# Future route includes:
-from api.v1 import projects, goals, memories, conversations, actions, search, workflows
+from api.v1 import projects, goals, memories, conversations, actions, search, workflows, space_members
 
+api_router.include_router(space_members.router, tags=["Space Members"])
 api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
 api_router.include_router(goals.router, prefix="/goals", tags=["Goals"])
 api_router.include_router(memories.router, prefix="/memories", tags=["Memories"])
