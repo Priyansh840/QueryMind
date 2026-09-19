@@ -6,9 +6,27 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiClient } from "@/lib/api/client";
 import { CommandSidebar } from "@/components/layout/CommandSidebar";
-import { ConstellationRadar, ConstellationNode } from "@/components/studio/ConstellationRadar";
-import { ArrowLeft, Sparkles, Filter, ExternalLink } from "lucide-react";
-import { DocumentItem, MemoryItem, KnowledgeItem, ProjectItem, ActionProposal } from "@/types/api";
+import { NeuralGraphCanvas, GraphNode } from "@/components/studio/NeuralGraphCanvas";
+import {
+  ArrowLeft,
+  Sparkles,
+  ExternalLink,
+  X,
+  FileText,
+  Brain,
+  FolderGit2,
+  Check,
+  Layers,
+  ChevronRight,
+} from "lucide-react";
+import {
+  DocumentItem,
+  MemoryItem,
+  KnowledgeItem,
+  ProjectItem,
+  ActionProposal,
+  Space,
+} from "@/types/api";
 
 export default function SpaceKnowledgeMapPage({
   params,
@@ -25,7 +43,8 @@ export default function SpaceKnowledgeMapPage({
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [proposals, setProposals] = useState<ActionProposal[]>([]);
-  const [selectedNode, setSelectedNode] = useState<ConstellationNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [isReinforcing, setIsReinforcing] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -51,99 +70,185 @@ export default function SpaceKnowledgeMapPage({
 
   const space = spaces.find((s) => s.id === spaceId) || currentSpace;
 
+  const handleReinforce = async (memoryId: string) => {
+    if (isReinforcing) return;
+    setIsReinforcing(true);
+    try {
+      await apiClient(`/api/v1/memories/${memoryId}/reinforce`, { method: "POST" });
+      setMemories((prev) =>
+        prev.map((m) =>
+          m.id === memoryId
+            ? { ...m, confidence: Math.min(1.0, (Number(m.confidence) || 0.8) + 0.05) }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("Failed to reinforce memory:", err);
+    } finally {
+      setIsReinforcing(false);
+    }
+  };
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#07070a] text-slate-100">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#07070a] text-slate-100 antialiased font-sans select-none">
       <CommandSidebar spaceId={spaceId} space={space} />
 
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Header */}
-        <div className="h-14 px-6 border-b border-white/[0.06] bg-[#0c0d12] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
+        {/* Top Header Bar */}
+        <header className="h-14 px-6 border-b border-white/[0.07] bg-[#0c0d14]/90 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-3.5">
             <Link
               href={`/spaces/${spaceId}`}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors flex items-center gap-1 text-xs"
+              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Canvas</span>
+              <span>Back to Overview</span>
             </Link>
+
             <div className="h-4 w-px bg-white/10" />
+
             <div>
-              <h1 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#38bdf8]" />
+              <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Neural Knowledge Map</span>
+                <span className="px-2 py-0.2 rounded text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold">
+                  FORCE-DIRECTED PHYSICS
+                </span>
               </h1>
-              <div className="text-[10px] text-slate-400">
-                Full-canvas vector space representation of grounded intelligence & retained memory
-              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
-            <span>{documents.length} Docs</span>
+          <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
+            <span className="text-sky-400 font-medium">{documents.length} Documents</span>
             <span>•</span>
-            <span>{knowledgeItems.length} Concepts</span>
+            <span className="text-purple-400 font-medium">{memories.length} Axioms</span>
             <span>•</span>
-            <span>{memories.length} Memories</span>
+            <span className="text-emerald-400 font-medium">{projects.length} Initiatives</span>
             <span>•</span>
-            <span>{projects.length} Initiatives</span>
+            <span className="text-indigo-400 font-medium">{knowledgeItems.length} Concepts</span>
           </div>
-        </div>
+        </header>
 
-        {/* Full Canvas View */}
-        <div className="flex-1 relative overflow-hidden flex flex-col">
-          <ConstellationRadar
+        {/* 100% Full-Canvas Viewport with Force Physics */}
+        <div className="flex-1 relative w-full h-full overflow-hidden">
+          <NeuralGraphCanvas
             documents={documents}
-            memories={memories.map((m) => ({
-              id: m.id,
-              title: m.content.length > 30 ? `${m.content.slice(0, 30)}...` : m.content,
-              confidence: `${Math.round(m.confidence * 100)}%`,
-            }))}
+            memories={memories}
             knowledgeItems={knowledgeItems}
             projects={projects}
             proposals={proposals.map((p) => ({
               id: p.proposal_id || p.id,
-              title: p.reason || p.action_type,
+              reason: p.reason,
+              action_type: p.action_type,
             }))}
+            selectedNodeId={selectedNode?.id}
             onSelectNode={(node) => setSelectedNode(node)}
           />
 
-          {/* Selected Node Inspector Tray */}
+          {/* Slide-over Node Inspector Drawer */}
           {selectedNode && (
-            <div className="p-4 border-t border-white/[0.08] bg-[#0b0c10]/95 backdrop-blur-md flex items-center justify-between text-xs animate-in slide-in-from-bottom duration-200">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: selectedNode.color }}
-                />
-                <div>
-                  <div className="font-semibold text-white text-sm">{selectedNode.title}</div>
-                  <div className="text-xs text-slate-400">
-                    Type: <span className="capitalize">{selectedNode.type}</span> · {selectedNode.subtitle}
+            <div className="absolute top-4 bottom-4 right-6 w-96 bg-[#0c0d15]/95 backdrop-blur-xl border border-white/[0.1] rounded-2xl shadow-2xl p-6 z-30 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
+              <div className="space-y-5">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.07]">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
+                      style={{ backgroundColor: selectedNode.color }}
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
+                        {selectedNode.type} Node
+                      </span>
+                      <h2 className="text-sm font-bold text-white leading-tight truncate">
+                        {selectedNode.title}
+                      </h2>
+                    </div>
                   </div>
+
+                  <button
+                    onClick={() => setSelectedNode(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors shrink-0 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Subtitle & Confidence */}
+                {selectedNode.subtitle && (
+                  <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.05] text-[11px] font-mono text-slate-300">
+                    {selectedNode.subtitle}
+                  </div>
+                )}
+
+                {/* Content Details */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+                    Grounded Content & Excerpt
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.04] text-xs text-slate-200 leading-relaxed max-h-56 overflow-y-auto font-sans">
+                    {selectedNode.content || selectedNode.subtitle || "No additional excerpt recorded."}
+                  </div>
+                </div>
+
+                {/* Direct Action triggers based on Node Type */}
+                <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+                  {selectedNode.type === "document" && (
+                    <Link
+                      href={`/spaces/${spaceId}/knowledge/documents/${selectedNode.id}`}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Inspect Vector Chunks</span>
+                      <ExternalLink className="w-3 h-3 ml-1" />
+                    </Link>
+                  )}
+
+                  {selectedNode.type === "memory" && (
+                    <button
+                      type="button"
+                      onClick={() => handleReinforce(selectedNode.id)}
+                      disabled={isReinforcing}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span>{isReinforcing ? "Reinforcing..." : "Reinforce Axiom (+5%)"}</span>
+                    </button>
+                  )}
+
+                  {selectedNode.type === "project" && (
+                    <Link
+                      href={`/spaces/${spaceId}/work/projects/${selectedNode.id}`}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                      <FolderGit2 className="w-3.5 h-3.5" />
+                      <span>Inspect Initiative in Work Hub</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+
+                  {selectedNode.type === "concept" && (
+                    <Link
+                      href={`/spaces/${spaceId}/knowledge`}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>View in Knowledge Vault</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {selectedNode.type === "document" && (
-                  <Link
-                    href={`/spaces/${spaceId}/knowledge/documents/${selectedNode.id}`}
-                    className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white transition-colors flex items-center gap-1.5"
-                  >
-                    <span>Inspect Chunks</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
-                )}
-                <button
-                  onClick={() => setSelectedNode(null)}
-                  className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white"
-                >
-                  Dismiss
-                </button>
+              {/* Footer */}
+              <div className="pt-4 border-t border-white/[0.06] text-[11px] font-mono text-slate-500 flex items-center justify-between">
+                <span>NODE: {selectedNode.id.slice(0, 14)}...</span>
+                <span>PHYSICS ACTIVE</span>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
