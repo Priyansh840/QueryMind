@@ -11,6 +11,8 @@ export default function WorkspaceHeader() {
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const openSettings = useMyndStore((state) => state.openSettings);
   const toggleTheme = useMyndStore((state) => state.toggleTheme);
+  const isFocusMode = useMyndStore((state) => state.isFocusMode);
+  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
   const userProfile = useMyndStore((state) => state.userProfile);
 
   return (
@@ -52,6 +54,35 @@ export default function WorkspaceHeader() {
 
       {/* Header Right Actions */}
       <div className="workspace-header-actions">
+        <button
+          className="workspace-notification-btn"
+          onClick={toggleFocusMode}
+          title={isFocusMode ? "Exit Focus Mode (Esc or ⌘⇧F)" : "Enter Focus Mode (⌘⇧F)"}
+          style={{
+            background: isFocusMode ? "#FFFFFF" : undefined,
+            color: isFocusMode ? "#000000" : "var(--text-primary)",
+            borderColor: isFocusMode ? "#FFFFFF" : undefined,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: isFocusMode ? "0 10px" : undefined,
+            width: isFocusMode ? "auto" : undefined,
+            fontSize: "12px",
+            fontWeight: 600,
+          }}
+        >
+          {isFocusMode ? (
+            <>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#000000" }} />
+              <span>Focus On</span>
+            </>
+          ) : (
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" strokeWidth="2.2" fill="none">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+            </svg>
+          )}
+        </button>
+
         <button
           className="workspace-notification-btn"
           title="Notifications"

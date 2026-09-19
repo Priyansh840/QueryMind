@@ -86,13 +86,14 @@ export default function DashboardPage() {
             gap: "8px",
             padding: "8px 16px",
             borderRadius: "9999px",
-            background: isFocusMode ? "var(--accent-soft)" : "var(--surface)",
-            border: "1px solid var(--border)",
+            background: isFocusMode ? "#FFFFFF" : "var(--surface)",
+            border: isFocusMode ? "1px solid #FFFFFF" : "1px solid var(--border)",
             fontSize: "13px",
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: isFocusMode ? "#000000" : "var(--text-primary)",
             boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
             cursor: "pointer",
+            transition: "all 0.15s ease",
           }}
         >
           <span
@@ -100,10 +101,10 @@ export default function DashboardPage() {
               width: "8px",
               height: "8px",
               borderRadius: "50%",
-              background: isFocusMode ? "#FFFFFF" : "#737373",
+              background: isFocusMode ? "#000000" : "#737373",
             }}
           />
-          <span>Focus Mode</span>
+          <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
         </button>
       </div>
 

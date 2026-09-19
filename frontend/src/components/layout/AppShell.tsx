@@ -18,6 +18,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isChat = pathname === "/chat" || pathname?.startsWith("/chat/");
 
   const isFocusMode = useMyndStore((state) => state.isFocusMode);
+  const isZenMode = useMyndStore((state) => state.isZenMode);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const closeSpotlight = useMyndStore((state) => state.closeSpotlight);
   const closeSettings = useMyndStore((state) => state.closeSettings);
@@ -32,6 +33,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const setSpaces = useMyndStore((state) => state.setSpaces);
   const setActiveSpaceId = useMyndStore((state) => state.setActiveSpaceId);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+
+  // Sync body class for focus mode and zen mode
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("focus-mode-active", Boolean(isFocusMode));
+      document.body.classList.toggle("zen-mode-active", Boolean(isZenMode));
+    }
+  }, [isFocusMode, isZenMode]);
 
   // Sync real spaces from backend while preserving rich personas & milestones
   useEffect(() => {
@@ -137,14 +146,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   ]);
 
   return (
-    <div id="app-root">
+    <div
+      id="app-root"
+      style={isFocusMode || isZenMode ? { gridTemplateColumns: "1fr" } : undefined}
+      className={`${isFocusMode ? "focus-mode-active" : ""} ${isZenMode ? "zen-mode-active" : ""}`.trim()}
+    >
       {/* 1. Left Sidebar */}
-      {!isFocusMode && <AppSidebar />}
+      {!isFocusMode && !isZenMode && <AppSidebar />}
 
       {/* 2. Main Body Grid */}
       <div
         className="app-body"
-        style={isFocusMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
+        style={isFocusMode || isZenMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
       >
         <main
           className="app-workspace"
@@ -177,6 +190,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       display: "flex",
                       flexDirection: "column",
                     }
+                  : isFocusMode || isZenMode
+                  ? {
+                      maxWidth: "1200px",
+                      margin: "0 auto",
+                      width: "100%",
+                    }
                   : undefined
               }
             >
@@ -185,8 +204,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
 
-        {/* 3. Right Context Panel (hidden on chat & focus mode) */}
-        {!isFocusMode && !isChat && <ContextPanel />}
+        {/* 3. Right Context Panel (hidden on chat, focus mode & zen mode) */}
+        {!isFocusMode && !isZenMode && !isChat && <ContextPanel />}
       </div>
 
       {/* Modals & Drawers */}
@@ -195,6 +214,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <SettingsModal />
       <ObjectDetailModal />
       <CreateSpaceModal />
+
+      {/* Zen Mode Exit Button */}
+      {isZenMode && (
+        <button
+          onClick={toggleZenMode}
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 9999,
+            padding: "8px 18px",
+            borderRadius: "9999px",
+            background: "#FFFFFF",
+            color: "#000000",
+            border: "none",
+            fontSize: "12px",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.5)",
+          }}
+        >
+          Exit Zen Mode (Esc)
+        </button>
+      )}
     </div>
   );
 }
