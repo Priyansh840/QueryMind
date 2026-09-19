@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils";
 import { CreateSpaceDialog } from "@/components/modals/CreateSpaceDialog";
 import { SpotlightModal } from "@/components/modals/SpotlightModal";
+import { getSpaceArchetype } from "@/lib/spaces/spaceArchetypes";
 
 interface CommandSidebarProps {
   spaceId: string;
@@ -102,59 +103,74 @@ export const CommandSidebar: React.FC<CommandSidebarProps> = ({
         <div className="space-y-4">
           {/* Workspace Switcher */}
           <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsSpaceMenuOpen(!isSpaceMenuOpen)}
-              className="w-full flex items-center justify-between p-2 rounded-xl bg-[#0f1017] border border-white/[0.08] hover:border-white/[0.16] transition-all cursor-pointer text-left shadow-xs group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className="w-4.5 h-4.5 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
-                  style={{ backgroundColor: activeSpaceColor }}
+            {(() => {
+              const currentArchetype = getSpaceArchetype(activeSpace);
+              return (
+                <button
+                  type="button"
+                  onClick={() => setIsSpaceMenuOpen(!isSpaceMenuOpen)}
+                  className="w-full flex items-center justify-between p-2 rounded-xl bg-[#0f1017] border border-white/[0.08] hover:border-white/[0.16] transition-all cursor-pointer text-left shadow-xs group"
                 >
-                  {activeSpaceName.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-xs font-semibold text-white truncate">
-                  {activeSpaceName}
-                </span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 group-hover:text-white transition-colors" />
-            </button>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="w-5 h-5 rounded-md flex items-center justify-center text-xs shrink-0 shadow-sm border border-white/10"
+                      style={{ backgroundColor: `${activeSpaceColor}25` }}
+                    >
+                      {activeSpace?.icon || currentArchetype.icon}
+                    </div>
+                    <span className="text-xs font-semibold text-white truncate">
+                      {activeSpaceName}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 group-hover:text-white transition-colors" />
+                </button>
+              );
+            })()}
 
             {isSpaceMenuOpen && (
-              <div className="absolute top-full left-0 mt-1.5 w-full bg-[#12131d] border border-white/[0.12] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                  Spaces ({allSpaces.length || 1})
+              <div className="absolute top-full left-0 mt-1.5 w-60 bg-[#12131d] border border-white/[0.12] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center justify-between">
+                  <span>Domain Spaces ({allSpaces.length || 1})</span>
+                  <Link
+                    href="/spaces"
+                    onClick={() => setIsSpaceMenuOpen(false)}
+                    className="text-indigo-400 hover:text-indigo-300 font-normal normal-case"
+                  >
+                    Directory
+                  </Link>
                 </div>
                 <div className="max-h-48 overflow-y-auto space-y-0.5">
-                  {allSpaces.map((sp) => (
-                    <button
-                      key={sp.id}
-                      type="button"
-                      onClick={() => {
-                        setCurrentSpace(sp);
-                        setIsSpaceMenuOpen(false);
-                        router.push(`/spaces/${sp.id}`);
-                      }}
-                      className={cn(
-                        "w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors text-left cursor-pointer",
-                        sp.id === spaceId
-                          ? "bg-white/10 text-white font-medium"
-                          : "text-slate-300 hover:bg-white/5 hover:text-white"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: sp.color || "#6366f1" }}
-                        />
-                        <span className="truncate">{sp.name}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {allSpaces.map((sp) => {
+                    const arch = getSpaceArchetype(sp);
+                    return (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => {
+                          setCurrentSpace(sp);
+                          setIsSpaceMenuOpen(false);
+                          router.push(`/spaces/${sp.id}`);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors text-left cursor-pointer",
+                          sp.id === spaceId
+                            ? "bg-white/10 text-white font-medium"
+                            : "text-slate-300 hover:bg-white/5 hover:text-white"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-xs shrink-0">{sp.icon || arch.icon}</span>
+                          <span className="truncate">{sp.name}</span>
+                        </div>
+                        <span className="text-[9px] font-mono text-slate-500 uppercase shrink-0">
+                          {arch.id}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="pt-1 mt-1 border-t border-white/[0.08]">
+                <div className="pt-1 mt-1 border-t border-white/[0.08] space-y-0.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -164,7 +180,7 @@ export const CommandSidebar: React.FC<CommandSidebarProps> = ({
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Create New Space</span>
+                    <span>Create Domain Space</span>
                   </button>
                 </div>
               </div>

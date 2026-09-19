@@ -18,6 +18,7 @@ import {
 import { CommandSidebar } from "@/components/layout/CommandSidebar";
 import { DocumentUploadDialog } from "@/components/modals/DocumentUploadDialog";
 import { SpaceSettingsModal } from "@/components/modals/SpaceSettingsModal";
+import { getSpaceArchetype } from "@/lib/spaces/spaceArchetypes";
 import {
   Sparkles,
   Plus,
@@ -232,23 +233,37 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#0a0a0f]">
         {/* Top Header */}
         <header className="px-8 py-5 border-b border-white/[0.07] bg-[#0c0d14]/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: space?.color || "#6366f1" }}
-            />
-            <div className="min-w-0">
-              <h1 className="text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
-                <span>{space?.name || "Executive Workspace"}</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-white/[0.05] text-slate-400 border border-white/[0.08]">
-                  SOVEREIGN WORKSPACE
-                </span>
-              </h1>
-              <p className="text-xs text-slate-400 truncate mt-0.5">
-                {space?.description || "Grounded autonomous workspace reasoning over projects, evidence, and axioms."}
-              </p>
-            </div>
-          </div>
+          {(() => {
+            const currentArchetype = getSpaceArchetype(space);
+            return (
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base border border-white/10 shrink-0 shadow-sm"
+                  style={{ backgroundColor: `${space?.color || currentArchetype.color}20` }}
+                >
+                  {space?.icon || currentArchetype.icon}
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
+                    <span>{space?.name || "Executive Workspace"}</span>
+                    <span
+                      className="px-2 py-0.5 rounded text-[10px] font-mono uppercase border font-bold"
+                      style={{
+                        backgroundColor: `${currentArchetype.color}15`,
+                        color: currentArchetype.color,
+                        borderColor: `${currentArchetype.color}30`,
+                      }}
+                    >
+                      {currentArchetype.badge}
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">
+                    {space?.description || currentArchetype.description}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex items-center gap-2.5 shrink-0">
             <button
@@ -463,23 +478,27 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
               </button>
             </form>
 
-            <div className="flex items-center gap-2 pt-1 flex-wrap text-xs text-slate-400">
-              <span className="text-[11px] font-mono text-slate-500">SUGGESTIONS:</span>
-              {[
-                "Synthesize active initiatives and report critical blockers",
-                "Audit evidence for pending architectural decisions",
-                "Formulate milestone roadmap for next execution phase",
-              ].map((promptText, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleLaunchDirective(promptText)}
-                  className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 hover:text-white transition-colors text-[11px] cursor-pointer"
-                >
-                  {promptText}
-                </button>
-              ))}
-            </div>
+            {(() => {
+              const currentArchetype = getSpaceArchetype(space);
+              return (
+                <div className="flex items-center gap-2 pt-1 flex-wrap text-xs text-slate-400">
+                  <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+                    <span>{currentArchetype.icon}</span>
+                    <span>{currentArchetype.name.toUpperCase()} SUGGESTIONS:</span>
+                  </span>
+                  {currentArchetype.samplePrompts.map((promptText, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleLaunchDirective(promptText)}
+                      className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 hover:text-white transition-colors text-[11px] cursor-pointer"
+                    >
+                      {promptText}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* 2-COLUMN OPERATIONAL GRID */}
