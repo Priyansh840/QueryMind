@@ -79,18 +79,21 @@ export default function TasksPage({ params }: TasksPageProps) {
                   return (
                     <div
                       key={wf.id}
-                      className="rounded-2xl border border-white/[0.06] bg-[#0c0d12] p-5 flex items-center justify-between gap-4"
+                      className="rounded-2xl border border-white/[0.06] bg-[#0c0d12] hover:border-white/[0.14] p-5 flex items-center justify-between gap-4 transition-all"
                     >
                       <div className="space-y-1.5 min-w-0">
                         <div className="flex items-center gap-2">
                           <span
                             className={`w-2 h-2 rounded-full ${
-                              isCompleted ? "bg-emerald-400" : "bg-[#818cf8] animate-pulse"
+                              isCompleted ? "bg-emerald-400" : "bg-indigo-400 animate-pulse"
                             }`}
                           />
-                          <span className="text-sm font-semibold text-white truncate">
+                          <Link
+                            href={`/spaces/${spaceId}/tasks/${wf.id}`}
+                            className="text-sm font-semibold text-white hover:text-indigo-300 transition-colors truncate"
+                          >
                             {wf.goal}
-                          </span>
+                          </Link>
                         </div>
                         <div className="text-xs text-slate-400 flex items-center gap-2">
                           <span className="font-mono text-[11px]">
@@ -105,9 +108,18 @@ export default function TasksPage({ params }: TasksPageProps) {
                         </div>
                       </div>
 
-                      <span className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase bg-white/[0.04] text-slate-300 border border-white/[0.06]">
-                        {wf.status}
-                      </span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="px-2.5 py-1 rounded-md text-[10px] font-mono uppercase bg-white/[0.04] text-slate-300 border border-white/[0.06]">
+                          {wf.status}
+                        </span>
+                        <Link
+                          href={`/spaces/${spaceId}/tasks/${wf.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs text-white font-medium flex items-center gap-1.5 transition-colors"
+                        >
+                          <span>Inspect</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
                     </div>
                   );
                 })}

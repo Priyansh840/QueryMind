@@ -294,18 +294,28 @@ export default function WorkPage({ params }: WorkPageProps) {
                               <Circle className="w-4 h-4 text-slate-500 hover:text-[#818cf8]" />
                             )}
                           </button>
-                          <span
-                            className={`text-xs font-medium truncate ${
+                          <Link
+                            href={`/spaces/${spaceId}/work/goals/${goal.id}`}
+                            className={`text-xs font-medium truncate hover:text-indigo-300 transition-colors ${
                               isCompleted ? "line-through text-slate-500" : "text-slate-200"
                             }`}
                           >
                             {goal.description}
-                          </span>
+                          </Link>
                         </div>
 
-                        <span className="text-[10px] font-mono uppercase text-slate-500 shrink-0">
-                          {goal.status}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-mono uppercase text-slate-500">
+                            {goal.status}
+                          </span>
+                          <Link
+                            href={`/spaces/${spaceId}/work/goals/${goal.id}`}
+                            className="p-1 text-slate-500 hover:text-white transition-colors"
+                            title="Inspect milestone"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
                       </div>
                     );
                   })}
