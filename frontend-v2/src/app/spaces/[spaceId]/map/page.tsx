@@ -18,6 +18,8 @@ import {
   Check,
   Layers,
   ChevronRight,
+  Zap,
+  Cpu,
 } from "lucide-react";
 import {
   DocumentItem,
@@ -89,17 +91,32 @@ export default function SpaceKnowledgeMapPage({
     }
   };
 
+  const getNodeIcon = (type: string) => {
+    switch (type) {
+      case "document":
+        return <FileText className="w-4 h-4 text-sky-400" />;
+      case "memory":
+        return <Brain className="w-4 h-4 text-purple-400" />;
+      case "project":
+        return <FolderGit2 className="w-4 h-4 text-emerald-400" />;
+      case "proposal":
+        return <Zap className="w-4 h-4 text-amber-400" />;
+      default:
+        return <Cpu className="w-4 h-4 text-indigo-400" />;
+    }
+  };
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#07070a] text-slate-100 antialiased font-sans select-none">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#050508] text-slate-100 antialiased font-sans select-none">
       <CommandSidebar spaceId={spaceId} space={space} />
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         {/* Top Header Bar */}
-        <header className="h-14 px-6 border-b border-white/[0.07] bg-[#0c0d14]/90 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+        <header className="h-14 px-6 border-b border-white/[0.08] bg-[#0c0d16]/90 backdrop-blur-2xl flex items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-3.5">
             <Link
               href={`/spaces/${spaceId}`}
-              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+              className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back to Overview</span>
@@ -110,7 +127,7 @@ export default function SpaceKnowledgeMapPage({
             <div>
               <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Neural Knowledge Map</span>
+                <span>Neural Knowledge Graph</span>
                 <span className="px-2 py-0.2 rounded text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold">
                   FORCE-DIRECTED PHYSICS
                 </span>
@@ -119,7 +136,7 @@ export default function SpaceKnowledgeMapPage({
           </div>
 
           <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-            <span className="text-sky-400 font-medium">{documents.length} Documents</span>
+            <span className="text-sky-400 font-medium">{documents.length} Docs</span>
             <span>•</span>
             <span className="text-purple-400 font-medium">{memories.length} Axioms</span>
             <span>•</span>
@@ -145,19 +162,24 @@ export default function SpaceKnowledgeMapPage({
             onSelectNode={(node) => setSelectedNode(node)}
           />
 
-          {/* Slide-over Node Inspector Drawer */}
+          {/* Slide-over Frosted Glass Inspector Drawer */}
           {selectedNode && (
-            <div className="absolute top-4 bottom-4 right-6 w-96 bg-[#0c0d15]/95 backdrop-blur-xl border border-white/[0.1] rounded-2xl shadow-2xl p-6 z-30 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="absolute top-4 bottom-4 right-6 w-96 bg-[#0c0d16]/95 backdrop-blur-3xl border border-white/[0.12] rounded-3xl shadow-2xl p-6 z-30 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
               <div className="space-y-5">
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.07]">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.08]">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: selectedNode.color }}
-                    />
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-md"
+                      style={{
+                        backgroundColor: `${selectedNode.color}15`,
+                        borderColor: `${selectedNode.color}35`,
+                      }}
+                    >
+                      {getNodeIcon(selectedNode.type)}
+                    </div>
                     <div className="min-w-0">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
                         {selectedNode.type} Node
                       </span>
                       <h2 className="text-sm font-bold text-white leading-tight truncate">
@@ -176,17 +198,17 @@ export default function SpaceKnowledgeMapPage({
 
                 {/* Subtitle & Confidence */}
                 {selectedNode.subtitle && (
-                  <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.05] text-[11px] font-mono text-slate-300">
-                    {selectedNode.subtitle}
+                  <div className="px-3.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[11px] font-mono text-slate-300 flex items-center justify-between">
+                    <span>{selectedNode.subtitle}</span>
                   </div>
                 )}
 
                 {/* Content Details */}
                 <div className="space-y-2">
                   <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                    Grounded Content & Excerpt
+                    Vector Content & Lineage
                   </div>
-                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.04] text-xs text-slate-200 leading-relaxed max-h-56 overflow-y-auto font-sans">
+                  <div className="p-4 rounded-2xl bg-black/50 border border-white/[0.05] text-xs text-slate-200 leading-relaxed max-h-56 overflow-y-auto font-sans shadow-inner">
                     {selectedNode.content || selectedNode.subtitle || "No additional excerpt recorded."}
                   </div>
                 </div>
@@ -196,7 +218,7 @@ export default function SpaceKnowledgeMapPage({
                   {selectedNode.type === "document" && (
                     <Link
                       href={`/spaces/${spaceId}/knowledge/documents/${selectedNode.id}`}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 font-semibold text-xs transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 font-semibold text-xs transition-colors cursor-pointer shadow-md"
                     >
                       <FileText className="w-3.5 h-3.5" />
                       <span>Inspect Vector Chunks</span>
@@ -209,7 +231,7 @@ export default function SpaceKnowledgeMapPage({
                       type="button"
                       onClick={() => handleReinforce(selectedNode.id)}
                       disabled={isReinforcing}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50 shadow-md"
                     >
                       <Brain className="w-3.5 h-3.5" />
                       <span>{isReinforcing ? "Reinforcing..." : "Reinforce Axiom (+5%)"}</span>
@@ -219,18 +241,18 @@ export default function SpaceKnowledgeMapPage({
                   {selectedNode.type === "project" && (
                     <Link
                       href={`/spaces/${spaceId}/work/projects/${selectedNode.id}`}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-semibold text-xs transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 font-semibold text-xs transition-colors cursor-pointer shadow-md"
                     >
                       <FolderGit2 className="w-3.5 h-3.5" />
                       <span>Inspect Initiative in Work Hub</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3 h-3" />
                     </Link>
                   )}
 
                   {selectedNode.type === "concept" && (
                     <Link
                       href={`/spaces/${spaceId}/knowledge`}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold text-xs transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold text-xs transition-colors cursor-pointer shadow-md"
                     >
                       <Layers className="w-3.5 h-3.5" />
                       <span>View in Knowledge Vault</span>
@@ -243,7 +265,10 @@ export default function SpaceKnowledgeMapPage({
               {/* Footer */}
               <div className="pt-4 border-t border-white/[0.06] text-[11px] font-mono text-slate-500 flex items-center justify-between">
                 <span>NODE: {selectedNode.id.slice(0, 14)}...</span>
-                <span>PHYSICS ACTIVE</span>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  PHYSICS STABLE
+                </span>
               </div>
             </div>
           )}

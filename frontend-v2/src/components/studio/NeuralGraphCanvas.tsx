@@ -15,6 +15,8 @@ import {
   FolderGit2,
   Zap,
   Bookmark,
+  Compass,
+  Layers,
 } from "lucide-react";
 
 export interface GraphNode {
@@ -30,6 +32,7 @@ export interface GraphNode {
   vy: number;
   radius: number;
   color: string;
+  secondaryColor: string;
   glowColor: string;
   isDragging?: boolean;
 }
@@ -38,6 +41,15 @@ export interface GraphLink {
   source: string;
   target: string;
   strength: number;
+}
+
+interface Ripple {
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  color: string;
+  opacity: number;
 }
 
 interface NeuralGraphCanvasProps {
@@ -82,8 +94,9 @@ export function NeuralGraphCanvas({
   // Simulation Data
   const nodesRef = useRef<GraphNode[]>([]);
   const linksRef = useRef<GraphLink[]>([]);
+  const ripplesRef = useRef<Ripple[]>([]);
   const animationFrameRef = useRef<number | null>(null);
-  const particlePhaseRef = useRef<number>(0);
+  const timeRef = useRef<number>(0);
 
   // Build Graph Nodes & Links
   useEffect(() => {
@@ -95,63 +108,66 @@ export function NeuralGraphCanvas({
     const newNodes: GraphNode[] = [];
     const newLinks: GraphLink[] = [];
 
-    // 1. Central Core Hub
+    // 1. Central Core Hub (Celestial White & Indigo)
     const coreNode: GraphNode = {
       id: "core-hub",
-      title: "Workspace Neural Core",
+      title: "Workspace Sovereign Core",
       type: "core",
-      subtitle: "Sovereign Grounding Nexus",
+      subtitle: "Grounded Vector Matrix",
       content: "Central vector coordination hub connecting grounded documents, invariant principles, and active execution outcomes.",
       x: centerX,
       y: centerY,
       vx: 0,
       vy: 0,
-      radius: 12,
+      radius: 16,
       color: "#ffffff",
-      glowColor: "rgba(255, 255, 255, 0.6)",
+      secondaryColor: "#6366f1",
+      glowColor: "rgba(99, 102, 241, 0.7)",
     };
     newNodes.push(coreNode);
 
-    // 2. Documents (Electric Sky #38bdf8)
+    // 2. Documents (Electric Cyan #38bdf8 & Neon Azure)
     documents.forEach((doc, idx) => {
-      const angle = (idx / Math.max(documents.length, 1)) * Math.PI * 2;
-      const dist = 140 + (idx % 2) * 40;
+      const angle = (idx / Math.max(documents.length, 1)) * Math.PI * 2 + 0.2;
+      const dist = 150 + (idx % 2) * 45;
       const node: GraphNode = {
         id: doc.id,
         title: doc.title,
         type: "document",
-        subtitle: `${doc.chunks_count || 4} vector excerpts indexed`,
+        subtitle: `${doc.chunks_count || 4} vector chunks indexed`,
         content: `Document evidence item: "${doc.title}". Grounded and queryable by autonomous agents during reasoning sessions.`,
         x: centerX + Math.cos(angle) * dist,
         y: centerY + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 8,
+        radius: 10,
         color: "#38bdf8",
-        glowColor: "rgba(56, 189, 248, 0.5)",
+        secondaryColor: "#0284c7",
+        glowColor: "rgba(56, 189, 248, 0.6)",
       };
       newNodes.push(node);
       newLinks.push({ source: "core-hub", target: doc.id, strength: 0.85 });
     });
 
-    // 3. Invariant Memories (Neural Violet #a78bfa)
+    // 3. Invariant Memories (Neural Violet #a78bfa & Electric Purple)
     memories.forEach((mem, idx) => {
-      const angle = (idx / Math.max(memories.length, 1)) * Math.PI * 2 + 1.1;
-      const dist = 210 + (idx % 3) * 35;
+      const angle = (idx / Math.max(memories.length, 1)) * Math.PI * 2 + 1.2;
+      const dist = 220 + (idx % 3) * 40;
       const node: GraphNode = {
         id: mem.id,
-        title: mem.content.length > 36 ? `${mem.content.slice(0, 36)}...` : mem.content,
+        title: mem.content.length > 34 ? `${mem.content.slice(0, 34)}...` : mem.content,
         type: "memory",
-        subtitle: `${mem.memory_type || "Invariant"} · ${Math.round((Number(mem.confidence) || 0.95) * 100)}% conf`,
+        subtitle: `${mem.memory_type || "Invariant"} · ${Math.round((Number(mem.confidence) || 0.95) * 100)}% Conf`,
         content: mem.content,
         confidence: mem.confidence || 0.95,
         x: centerX + Math.cos(angle) * dist,
         y: centerY + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 7,
-        color: "#a78bfa",
-        glowColor: "rgba(167, 139, 250, 0.5)",
+        radius: 9,
+        color: "#c084fc",
+        secondaryColor: "#9333ea",
+        glowColor: "rgba(192, 132, 252, 0.6)",
       };
       newNodes.push(node);
       newLinks.push({ source: "core-hub", target: mem.id, strength: 0.6 });
@@ -159,37 +175,38 @@ export function NeuralGraphCanvas({
       // Link to nearest document
       if (documents.length > 0) {
         const targetDoc = documents[idx % documents.length];
-        newLinks.push({ source: mem.id, target: targetDoc.id, strength: 0.4 });
+        newLinks.push({ source: mem.id, target: targetDoc.id, strength: 0.45 });
       }
     });
 
-    // 4. Projects & Initiatives (Emerald #34d399)
+    // 4. Projects & Initiatives (Emerald Aurora #34d399)
     projects.forEach((proj, idx) => {
-      const angle = (idx / Math.max(projects.length, 1)) * Math.PI * 2 + 2.5;
-      const dist = 260 + (idx % 2) * 50;
+      const angle = (idx / Math.max(projects.length, 1)) * Math.PI * 2 + 2.6;
+      const dist = 280 + (idx % 2) * 50;
       const node: GraphNode = {
         id: proj.id,
         title: proj.name,
         type: "project",
         subtitle: `Initiative • Status: ${proj.status || "active"}`,
-        content: `Active initiative: ${proj.name}. Outcome tracked in the Work Hub.`,
+        content: `Active initiative: ${proj.name}. Tracked and governed in the Work Hub.`,
         x: centerX + Math.cos(angle) * dist,
         y: centerY + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 8.5,
+        radius: 11,
         color: "#34d399",
-        glowColor: "rgba(52, 211, 153, 0.5)",
+        secondaryColor: "#059669",
+        glowColor: "rgba(52, 211, 153, 0.6)",
       };
       newNodes.push(node);
       newLinks.push({ source: "core-hub", target: proj.id, strength: 0.7 });
     });
 
     // 5. Concepts / Knowledge Items (Indigo #818cf8)
-    knowledgeItems.slice(0, 14).forEach((k, idx) => {
-      const angle = (idx / Math.max(knowledgeItems.length, 1)) * Math.PI * 2 + 0.4;
-      const dist = 180 + (idx % 3) * 45;
-      const title = k.title || (k.content.length > 30 ? `${k.content.slice(0, 30)}...` : k.content);
+    knowledgeItems.slice(0, 16).forEach((k, idx) => {
+      const angle = (idx / Math.max(knowledgeItems.length, 1)) * Math.PI * 2 + 0.5;
+      const dist = 190 + (idx % 3) * 45;
+      const title = k.title || (k.content.length > 28 ? `${k.content.slice(0, 28)}...` : k.content);
       const node: GraphNode = {
         id: k.id,
         title,
@@ -201,17 +218,17 @@ export function NeuralGraphCanvas({
         y: centerY + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 6,
+        radius: 7.5,
         color: "#818cf8",
-        glowColor: "rgba(129, 140, 248, 0.5)",
+        secondaryColor: "#4f46e5",
+        glowColor: "rgba(129, 140, 248, 0.55)",
       };
       newNodes.push(node);
 
-      // Connect to parent document if available
       if (k.document_title) {
         const parentDoc = newNodes.find((n) => n.type === "document" && n.title === k.document_title);
         if (parentDoc) {
-          newLinks.push({ source: k.id, target: parentDoc.id, strength: 0.8 });
+          newLinks.push({ source: k.id, target: parentDoc.id, strength: 0.85 });
         } else {
           newLinks.push({ source: "core-hub", target: k.id, strength: 0.5 });
         }
@@ -220,23 +237,24 @@ export function NeuralGraphCanvas({
       }
     });
 
-    // 6. Action Proposals (Amber #fbbf24)
+    // 6. Action Proposals (Warm Amber #fbbf24)
     proposals.slice(0, 3).forEach((prop, idx) => {
-      const angle = idx * 1.8 - 0.7;
-      const dist = 110 + idx * 30;
+      const angle = idx * 1.9 - 0.6;
+      const dist = 120 + idx * 35;
       const node: GraphNode = {
         id: prop.id,
         title: prop.action_type ? prop.action_type.replace(/_/g, " ") : "Action Proposal",
         type: "proposal",
-        subtitle: "Pending Executive Approval",
+        subtitle: "Pending Executive Decision",
         content: prop.reason || "Autonomous action proposal awaiting executive approval.",
         x: centerX + Math.cos(angle) * dist,
         y: centerY + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 7.5,
+        radius: 9.5,
         color: "#fbbf24",
-        glowColor: "rgba(251, 191, 36, 0.6)",
+        secondaryColor: "#d97706",
+        glowColor: "rgba(251, 191, 36, 0.65)",
       };
       newNodes.push(node);
       newLinks.push({ source: "core-hub", target: prop.id, strength: 0.9 });
@@ -246,7 +264,7 @@ export function NeuralGraphCanvas({
     linksRef.current = newLinks;
   }, [documents, memories, knowledgeItems, projects, proposals]);
 
-  // Main Canvas Rendering Loop with Force Physics
+  // Main Canvas Rendering Loop with Force Physics & Cosmic Aesthetics
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -277,8 +295,10 @@ export function NeuralGraphCanvas({
       const centerX = width / 2;
       const centerY = height / 2;
 
+      timeRef.current += 0.018;
+
       if (isPhysicsRunning) {
-        // 1. Coulomb Repulsion between all nodes
+        // 1. Coulomb Repulsion
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const na = nodes[i];
@@ -286,10 +306,10 @@ export function NeuralGraphCanvas({
             const dx = nb.x - na.x;
             const dy = nb.y - na.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const minDist = (na.radius + nb.radius) * 3.5;
+            const minDist = (na.radius + nb.radius) * 3.8;
 
-            if (dist < 320) {
-              const force = (dist < minDist ? 220 : 70) / (dist * dist);
+            if (dist < 340) {
+              const force = (dist < minDist ? 240 : 75) / (dist * dist);
               const fx = (dx / dist) * force;
               const fy = (dy / dist) * force;
 
@@ -305,7 +325,7 @@ export function NeuralGraphCanvas({
           }
         }
 
-        // 2. Hooke Spring Attraction along links
+        // 2. Hooke Spring Attraction
         const nodeMap = new Map(nodes.map((n) => [n.id, n]));
         for (const link of links) {
           const source = nodeMap.get(link.source);
@@ -315,7 +335,7 @@ export function NeuralGraphCanvas({
           const dx = target.x - source.x;
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const targetDist = 120 / link.strength;
+          const targetDist = 130 / link.strength;
           const diff = dist - targetDist;
           const force = diff * 0.0035 * link.strength;
 
@@ -332,7 +352,7 @@ export function NeuralGraphCanvas({
           }
         }
 
-        // 3. Center Gravity & Integration with Damping
+        // 3. Center Gravity & Inertia
         for (const node of nodes) {
           if (node.type === "core") {
             node.x = centerX;
@@ -344,13 +364,11 @@ export function NeuralGraphCanvas({
 
           if (node.isDragging) continue;
 
-          // Gentle pull toward center
           const cdx = centerX - node.x;
           const cdy = centerY - node.y;
-          node.vx += cdx * 0.0006;
-          node.vy += cdy * 0.0006;
+          node.vx += cdx * 0.0005;
+          node.vy += cdy * 0.0005;
 
-          // Damping friction
           node.vx *= 0.88;
           node.vy *= 0.88;
 
@@ -359,7 +377,16 @@ export function NeuralGraphCanvas({
         }
       }
 
-      particlePhaseRef.current += 0.02;
+      // Update Shockwave Ripples
+      const ripples = ripplesRef.current;
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += 3.5;
+        r.opacity *= 0.94;
+        if (r.opacity < 0.02 || r.radius > r.maxRadius) {
+          ripples.splice(i, 1);
+        }
+      }
 
       // ---- RENDER PASS ----
       const dpr = window.devicePixelRatio || 1;
@@ -368,32 +395,76 @@ export function NeuralGraphCanvas({
 
       ctx.clearRect(0, 0, viewW, viewH);
 
+      // 1. Cosmic Atmosphere Background Gradient
+      const bgGrad = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        50,
+        centerX,
+        centerY,
+        Math.max(viewW, viewH) * 0.8
+      );
+      bgGrad.addColorStop(0, "rgba(22, 16, 38, 0.45)");
+      bgGrad.addColorStop(0.5, "rgba(11, 12, 20, 0.9)");
+      bgGrad.addColorStop(1, "rgba(5, 5, 8, 1)");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, viewW, viewH);
+
       ctx.save();
       // Apply pan & zoom
       const { x: panX, y: panY, scale } = transformRef.current;
       ctx.translate(panX, panY);
       ctx.scale(scale, scale);
 
-      // Draw subtle starry grid background
-      ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
-      const gridSize = 40;
-      const startX = -panX / scale - 100;
-      const startY = -panY / scale - 100;
-      const endX = startX + viewW / scale + 200;
-      const endY = startY + viewH / scale + 200;
+      // 2. Delicate Celestial Grid with Coordinate Crosses
+      const gridSize = 50;
+      const startX = -panX / scale - 200;
+      const startY = -panY / scale - 200;
+      const endX = startX + viewW / scale + 400;
+      const endY = startY + viewH / scale + 400;
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
+      ctx.lineWidth = 1;
 
       for (let gx = Math.floor(startX / gridSize) * gridSize; gx < endX; gx += gridSize) {
         for (let gy = Math.floor(startY / gridSize) * gridSize; gy < endY; gy += gridSize) {
+          // Delicate crosshair cross at grid intersections
           ctx.beginPath();
-          ctx.arc(gx, gy, 0.8, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.moveTo(gx - 3, gy);
+          ctx.lineTo(gx + 3, gy);
+          ctx.moveTo(gx, gy - 3);
+          ctx.lineTo(gx, gy + 3);
+          ctx.stroke();
         }
+      }
+
+      // 3. Animated Gravitational Waves radiating from Core
+      const coreNode = nodes.find((n) => n.type === "core");
+      if (coreNode) {
+        for (let ring = 1; ring <= 3; ring++) {
+          const waveRadius = ((timeRef.current * 25 + ring * 110) % 360) + 30;
+          const waveAlpha = Math.max(0, 0.15 * (1 - waveRadius / 360));
+          ctx.beginPath();
+          ctx.arc(coreNode.x, coreNode.y, waveRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(99, 102, 241, ${waveAlpha})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      // 4. Draw Shockwave Ripples
+      for (const r of ripples) {
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = r.color.replace(")", `, ${r.opacity})`).replace("rgb", "rgba");
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
 
       const q = searchQuery.toLowerCase().trim();
       const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-      // 1. Draw Links
+      // 5. Draw Multi-Stop Gradient Links with Flowing Comets
       for (const link of links) {
         const source = nodeMap.get(link.source);
         const target = nodeMap.get(link.target);
@@ -406,85 +477,167 @@ export function NeuralGraphCanvas({
           selectedNodeId &&
           (selectedNodeId === source.id || selectedNodeId === target.id);
 
+        const lineGrad = ctx.createLinearGradient(source.x, source.y, target.x, target.y);
+        lineGrad.addColorStop(0, source.color);
+        lineGrad.addColorStop(1, target.color);
+
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
         ctx.lineTo(target.x, target.y);
 
         if (isSelected) {
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = source.color;
+          ctx.shadowBlur = 12;
         } else if (isHovered) {
-          ctx.strokeStyle = "rgba(129, 140, 248, 0.4)";
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = lineGrad;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = target.color;
+          ctx.shadowBlur = 8;
         } else {
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
           ctx.lineWidth = 1;
         }
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
-        // Animated photon particle along connection
-        const particleT = (particlePhaseRef.current * link.strength * 0.5) % 1;
+        // Flowing Photon Comet with Trail
+        const particleT = (timeRef.current * 0.45 * link.strength) % 1;
         const px = source.x + (target.x - source.x) * particleT;
         const py = source.y + (target.y - source.y) * particleT;
 
+        // Comet Head
         ctx.beginPath();
-        ctx.arc(px, py, 1.2, 0, Math.PI * 2);
+        ctx.arc(px, py, 1.8, 0, Math.PI * 2);
         ctx.fillStyle = source.color;
         ctx.shadowColor = source.color;
-        ctx.shadowBlur = 4;
+        ctx.shadowBlur = 6;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
 
-      // 2. Draw Nodes
+      // 6. Draw Nodes as Tactile Glossy Orbs with Glassmorphic Badges
       for (const node of nodes) {
         const isSelected = selectedNodeId === node.id;
         const isHovered = hoveredNodeRef.current?.id === node.id;
-        const matchesQuery = !q || node.title.toLowerCase().includes(q) || (node.subtitle && node.subtitle.toLowerCase().includes(q));
-        const matchesFilter = activeFilter === "all" || node.type === activeFilter || node.type === "core";
+        const matchesQuery =
+          !q ||
+          node.title.toLowerCase().includes(q) ||
+          (node.subtitle && node.subtitle.toLowerCase().includes(q));
+        const matchesFilter =
+          activeFilter === "all" || node.type === activeFilter || node.type === "core";
 
         const isDimmed = (!matchesQuery || !matchesFilter) && !isSelected;
 
         ctx.save();
         if (isDimmed) {
-          ctx.globalAlpha = 0.15;
+          ctx.globalAlpha = 0.12;
         }
 
-        // Outer Glow halo
-        if (isSelected || isHovered || node.type === "core") {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + (isSelected ? 8 : 5), 0, Math.PI * 2);
-          ctx.fillStyle = node.glowColor;
-          ctx.fill();
-        }
+        // Layer A: Outer Diffuse Bloom
+        const bloomRadius = node.radius + (isSelected ? 16 : isHovered ? 12 : 8);
+        const bloomGrad = ctx.createRadialGradient(
+          node.x,
+          node.y,
+          node.radius * 0.4,
+          node.x,
+          node.y,
+          bloomRadius
+        );
+        bloomGrad.addColorStop(0, node.glowColor);
+        bloomGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, bloomRadius, 0, Math.PI * 2);
+        ctx.fillStyle = bloomGrad;
+        ctx.fill();
 
-        // Main Node Circle
+        // Layer B: Glass Orb Body with 3D Specular Shading
+        const sphereGrad = ctx.createRadialGradient(
+          node.x - node.radius * 0.35,
+          node.y - node.radius * 0.35,
+          node.radius * 0.1,
+          node.x,
+          node.y,
+          node.radius
+        );
+        sphereGrad.addColorStop(0, "#ffffff");
+        sphereGrad.addColorStop(0.35, node.color);
+        sphereGrad.addColorStop(1, node.secondaryColor);
+
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = node.color;
+        ctx.fillStyle = sphereGrad;
+        ctx.shadowColor = node.color;
+        ctx.shadowBlur = isSelected ? 18 : 8;
         ctx.fill();
+        ctx.shadowBlur = 0;
 
-        // Node Inner Core Dot
+        // Layer C: Specular Glass Rim Light Highlight
         ctx.beginPath();
-        ctx.arc(node.x, node.y, node.radius * 0.45, 0, Math.PI * 2);
-        ctx.fillStyle = "#0c0d14";
+        ctx.arc(
+          node.x - node.radius * 0.25,
+          node.y - node.radius * 0.25,
+          node.radius * 0.35,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
         ctx.fill();
 
-        // Node Label
+        // Layer D: Outer Selection Ring
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // Layer E: Frosted Glass Label Badge Pill
         if (!isDimmed || isSelected || isHovered) {
-          ctx.font = isSelected || isHovered ? "600 11px system-ui, sans-serif" : "500 10px system-ui, sans-serif";
+          const labelText =
+            node.title.length > 22 ? `${node.title.slice(0, 22)}...` : node.title;
+
+          ctx.font = isSelected || isHovered
+            ? "600 11px system-ui, -apple-system, sans-serif"
+            : "500 10px system-ui, -apple-system, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
 
-          const labelText = node.title.length > 24 ? `${node.title.slice(0, 24)}...` : node.title;
+          const textMetrics = ctx.measureText(labelText);
+          const badgeW = textMetrics.width + 18;
+          const badgeH = 20;
+          const badgeX = node.x - badgeW / 2;
+          const badgeY = node.y + node.radius + 8;
 
-          // Text halo for readability
-          ctx.strokeStyle = "rgba(10, 10, 15, 0.9)";
-          ctx.lineWidth = 3;
-          ctx.strokeText(labelText, node.x, node.y + node.radius + 11);
+          // Glass Badge Pill Background
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 10);
+          ctx.fillStyle = isSelected
+            ? "rgba(20, 22, 36, 0.95)"
+            : isHovered
+            ? "rgba(16, 18, 28, 0.9)"
+            : "rgba(10, 11, 18, 0.75)";
+          ctx.fill();
 
-          ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#38bdf8" : "rgba(226, 232, 240, 0.85)";
-          ctx.fillText(labelText, node.x, node.y + node.radius + 11);
+          ctx.strokeStyle = isSelected
+            ? "rgba(255, 255, 255, 0.35)"
+            : isHovered
+            ? node.color
+            : "rgba(255, 255, 255, 0.1)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Type Dot inside badge
+          ctx.beginPath();
+          ctx.arc(badgeX + 8, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = node.color;
+          ctx.fill();
+
+          // Label Text
+          ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#38bdf8" : "rgba(226, 232, 240, 0.9)";
+          ctx.fillText(labelText, node.x + 3, badgeY + badgeH / 2);
         }
 
         ctx.restore();
@@ -503,7 +656,7 @@ export function NeuralGraphCanvas({
     };
   }, [isPhysicsRunning, searchQuery, activeFilter, selectedNodeId]);
 
-  // Screen to Graph coordinate projection
+  // Coordinate projection
   const getGraphCoords = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -518,14 +671,13 @@ export function NeuralGraphCanvas({
     };
   }, []);
 
-  // Find node at coordinate
   const getNodeAt = useCallback((gx: number, gy: number): GraphNode | null => {
     const nodes = nodesRef.current;
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
       const dx = n.x - gx;
       const dy = n.y - gy;
-      if (Math.sqrt(dx * dx + dy * dy) <= n.radius + 6) {
+      if (Math.sqrt(dx * dx + dy * dy) <= n.radius + 8) {
         return n;
       }
     }
@@ -542,6 +694,16 @@ export function NeuralGraphCanvas({
       hit.isDragging = true;
       hit.vx = 0;
       hit.vy = 0;
+
+      // Trigger Shockwave ripple on click
+      ripplesRef.current.push({
+        x: hit.x,
+        y: hit.y,
+        radius: hit.radius,
+        maxRadius: 180,
+        color: hit.color,
+        opacity: 0.8,
+      });
     } else {
       isPanningRef.current = true;
       panStartRef.current = {
@@ -570,7 +732,6 @@ export function NeuralGraphCanvas({
       return;
     }
 
-    // Hover detection
     const { x, y } = getGraphCoords(e.clientX, e.clientY);
     const hit = getNodeAt(x, y);
     hoveredNodeRef.current = hit;
@@ -582,22 +743,16 @@ export function NeuralGraphCanvas({
       const hit = draggedNodeRef.current;
       hit.isDragging = false;
       draggedNodeRef.current = null;
-      if (onSelectNode) {
-        onSelectNode(hit);
-      }
+      if (onSelectNode) onSelectNode(hit);
     } else if (isPanningRef.current) {
       isPanningRef.current = false;
     } else {
-      // Click on canvas background deselects
       const { x, y } = getGraphCoords(e.clientX, e.clientY);
       const hit = getNodeAt(x, y);
-      if (onSelectNode) {
-        onSelectNode(hit);
-      }
+      if (onSelectNode) onSelectNode(hit);
     }
   };
 
-  // Zoom with Wheel
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -616,7 +771,6 @@ export function NeuralGraphCanvas({
     });
   };
 
-  // Zoom Controls
   const handleZoomIn = () => {
     setTransform((prev) => ({
       ...prev,
@@ -636,29 +790,32 @@ export function NeuralGraphCanvas({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-[#07070b] select-none overflow-hidden">
-      {/* Interactive Top HUD Overlay */}
+    <div ref={containerRef} className="relative w-full h-full bg-[#050508] select-none overflow-hidden">
+      {/* Interactive Top Glass HUD Overlay */}
       <div className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between gap-4 pointer-events-none">
-        {/* Left: Filter Pills */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#0e0f17]/90 backdrop-blur-md border border-white/[0.08] shadow-xl pointer-events-auto">
+        {/* Left: Frosted Filter Pills */}
+        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] shadow-2xl pointer-events-auto">
           {[
             { id: "all", label: "All Nodes", count: nodesRef.current.length },
             { id: "document", label: "Documents", count: documents.length, color: "#38bdf8" },
-            { id: "memory", label: "Memories", count: memories.length, color: "#a78bfa" },
+            { id: "memory", label: "Memories", count: memories.length, color: "#c084fc" },
             { id: "concept", label: "Concepts", count: knowledgeItems.length, color: "#818cf8" },
             { id: "project", label: "Initiatives", count: projects.length, color: "#34d399" },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveFilter(tab.id as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 cursor-pointer ${
                 activeFilter === tab.id
-                  ? "bg-white/10 text-white font-semibold shadow-xs"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+                  ? "bg-white/15 text-white font-semibold shadow-sm border border-white/15"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
               }`}
             >
               {tab.color && (
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tab.color }} />
+                <span
+                  className="w-2 h-2 rounded-full shadow-sm"
+                  style={{ backgroundColor: tab.color }}
+                />
               )}
               <span>{tab.label}</span>
               <span className="text-[10px] font-mono text-slate-500">({tab.count})</span>
@@ -666,48 +823,48 @@ export function NeuralGraphCanvas({
           ))}
         </div>
 
-        {/* Right: Search Input & Controls */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        {/* Right: Search & Viewport Tools */}
+        <div className="flex items-center gap-2.5 pointer-events-auto">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter graph nodes..."
-              className="w-48 pl-8 pr-3 py-1.5 rounded-xl bg-[#0e0f17]/90 backdrop-blur-md border border-white/[0.08] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 shadow-xl"
+              placeholder="Search graph..."
+              className="w-48 pl-9 pr-3.5 py-2 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 shadow-2xl transition-all"
             />
           </div>
 
-          <div className="flex items-center p-1 rounded-xl bg-[#0e0f17]/90 backdrop-blur-md border border-white/[0.08] shadow-xl text-slate-400">
+          <div className="flex items-center p-1 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] shadow-2xl text-slate-400">
             <button
               onClick={handleZoomIn}
-              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors"
+              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Zoom In"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleZoomOut}
-              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors"
+              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleResetView}
-              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors"
-              title="Recenter Graph"
+              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              title="Recenter"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
-            <div className="w-px h-3.5 bg-white/10 mx-1" />
+            <div className="w-px h-4 bg-white/10 mx-1" />
             <button
               onClick={() => setIsPhysicsRunning(!isPhysicsRunning)}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`p-2 rounded-xl transition-colors cursor-pointer ${
                 isPhysicsRunning ? "text-emerald-400 hover:bg-white/[0.06]" : "text-amber-400 hover:bg-white/[0.06]"
               }`}
-              title={isPhysicsRunning ? "Pause Physics Simulation" : "Resume Physics Simulation"}
+              title={isPhysicsRunning ? "Freeze Physics" : "Resume Physics"}
             >
               {isPhysicsRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </button>
@@ -725,9 +882,27 @@ export function NeuralGraphCanvas({
         className="w-full h-full cursor-grab active:cursor-grabbing block"
       />
 
-      {/* Subtle Bottom Legend Bar */}
-      <div className="absolute bottom-4 left-6 z-20 flex items-center gap-4 text-[11px] font-mono text-slate-500 bg-[#0c0d14]/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.06]">
-        <span>Drag node to anchor • Wheel to zoom • Click node to inspect</span>
+      {/* Bottom Floating Navigation Legend */}
+      <div className="absolute bottom-5 left-6 z-20 flex items-center gap-3 text-[11px] font-mono text-slate-400 bg-[#0c0d16]/80 backdrop-blur-2xl px-3.5 py-2 rounded-2xl border border-white/[0.08] shadow-2xl">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-sky-400" />
+          <span>Documents</span>
+        </span>
+        <span className="text-slate-600">•</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-purple-400" />
+          <span>Axioms</span>
+        </span>
+        <span className="text-slate-600">•</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>Initiatives</span>
+        </span>
+        <span className="text-slate-600">•</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          <span>Concepts</span>
+        </span>
       </div>
     </div>
   );
