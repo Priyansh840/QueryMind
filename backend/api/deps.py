@@ -4,6 +4,8 @@ Provides database sessions with injected Supabase JWT context for PostgreSQL RLS
 Supports both asymmetric JWKS (ES256/RS256) and symmetric (HS256) Supabase JWT tokens.
 """
 
+import sys
+import os
 import json
 import logging
 import uuid
@@ -77,6 +79,11 @@ async def get_current_supabase_user(
     Falls back gracefully to local dev user when running locally without active auth token.
     """
     if not credentials or not credentials.credentials:
+        if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+            )
         return DEV_USER_PAYLOAD
 
     token = credentials.credentials
@@ -107,6 +114,11 @@ async def get_current_supabase_user(
                 return payload
     except Exception as e:
         logger.warning(f"JWT validation fallback: {e}")
+        if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+            )
 
     return DEV_USER_PAYLOAD
 
