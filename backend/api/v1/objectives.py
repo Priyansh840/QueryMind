@@ -31,7 +31,7 @@ async def get_objective_trace(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid objective ID format.")
 
-    # Fetch objective with all nested workflows, steps, and runs belonging to current_user
+    # Fetch objective with all nested workflows, steps, and runs
     stmt = (
         select(Objective)
         .options(
@@ -39,13 +39,22 @@ async def get_objective_trace(
             .selectinload(Workflow.steps)
             .selectinload(WorkflowStep.agent_runs)
         )
-        .where(Objective.id == obj_uuid, Objective.user_id == current_user.id)
+        .where(Objective.id == obj_uuid)
     )
     result = await db.execute(stmt)
     objective = result.scalars().first()
 
     if not objective:
         raise HTTPException(status_code=404, detail="Objective not found.")
+
+    # Authorization check: owner is allowed; if space_id exists, authorized space collaborator is allowed
+    if objective.user_id != current_user.id:
+        if objective.space_id:
+            from api.deps import get_space_membership
+            await get_space_membership(str(objective.space_id), current_user, db, min_role="viewer")
+        else:
+            raise HTTPException(status_code=404, detail="Objective not found.")
+
 
     trace_events = []
 

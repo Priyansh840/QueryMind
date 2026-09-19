@@ -21,6 +21,7 @@ from core.config import settings
 from llm.embeddings import get_embeddings
 from models.knowledge import Document, DocumentChunk
 from database.postgres import async_session
+from rag.knowledge_ingestion import ingest_document_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +143,26 @@ class IngestionEngine:
                         
                 if fail_at_stage == "after_qdrant_upsert":
                     raise Exception("Simulated failure after Qdrant upsert")
-                
-                # 8. Success: Safely cleanup old working version
+
+                # 8. Structured Knowledge Ingestion (Step 12 enhancement)
+                try:
+                    async with db.begin_nested():
+                        await ingest_document_knowledge(
+                            document=doc_record,
+                            chunks=new_chunk_records,
+                            user_id=user_id,
+                            space_id=space_id,
+                            db=db,
+                            fail_at_stage=fail_at_stage,
+                        )
+                except Exception as k_err:
+                    if fail_at_stage and "knowledge" in fail_at_stage:
+                        raise
+                    logger.warning(
+                        f"Knowledge extraction failed for document {document_id} (raw chunk RAG preserved): {k_err}"
+                    )
+
+                # 9. Success: Safely cleanup old working version
                 if old_chunk_ids:
                     await self._cleanup_specific_chunks(db, old_chunk_ids)
                     

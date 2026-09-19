@@ -7,7 +7,7 @@ Strictly enforces User and Space multi-tenant isolation.
 import uuid
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -205,7 +205,7 @@ async def global_space_search(
                         snippet=ch["content"][:220] + "..." if len(ch["content"]) > 220 else ch["content"],
                         score=round(ch.get("score", 0.85), 3),
                         space_id=str(space_uuid),
-                        created_at=datetime.utcnow(),
+                        created_at=datetime.now(timezone.utc),
                         metadata={"document_id": ch.get("document_id")},
                         href=f"/spaces/{space_id}/documents",
                     )

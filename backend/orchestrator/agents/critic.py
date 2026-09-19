@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -8,6 +8,7 @@ from orchestrator.state import AgentState
 from orchestrator.schemas import CriticOutput
 from llm.provider import get_llm
 from models.orchestrator import AgentRun, WorkflowStep, Workflow
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
 MAX_WORKFLOW_ITERATIONS = 3
@@ -38,8 +39,12 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
         step_order = (workflow_iteration * 10) + 3  # 13, 23, 33...
         step_stmt = insert(WorkflowStep).values(
             id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="critique"
-        ).on_conflict_do_nothing()
+            iteration=workflow_iteration, intent_type="critique",
+            status="running"
+        ).on_conflict_do_update(
+            index_elements=['id'],
+            set_={'status': 'running'}
+        )
         await db.execute(step_stmt)
         
         run_id = uuid.uuid4()
@@ -48,7 +53,7 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
             workflow_step_id=step_id,
             agent_type="critic",
             status="running",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             input_context={"results_count": len(state.get("research_results", []))}
         )
         db.add(run)
@@ -110,9 +115,17 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
         
         # Database Logging - Complete
         run.status = "completed"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         run.output_summary = response.model_dump()
         db.add(run)
+        # Step 13: Update step status in real-time
+        if 'step_id' in locals() and db:
+            try:
+                await db.execute(
+                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
+                )
+            except Exception as ex:
+                logger.debug(f"Step status update error: {ex}")
         await db.commit()
         
         return state
@@ -121,8 +134,16 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
         logger.error(f"Critic failed: {e}")
         run.status = "failed"
         run.error = str(e)
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         db.add(run)
+        # Step 13: Update step status in real-time
+        if 'step_id' in locals() and db:
+            try:
+                await db.execute(
+                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
+                )
+            except Exception as ex:
+                logger.debug(f"Step status update error: {ex}")
         await db.commit()
         
         # Safe fallback

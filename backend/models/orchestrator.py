@@ -4,7 +4,7 @@ from sqlalchemy import String, Text, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.postgres import Base
+from database.postgres import Base, utc_now
 
 class Objective(Base):
     __tablename__ = "objectives"
@@ -15,7 +15,7 @@ class Objective(Base):
     raw_input: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     
     user = relationship("User", back_populates="objectives")
     space = relationship("Space")
@@ -29,14 +29,21 @@ class Workflow(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     objective_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("objectives.id", ondelete="CASCADE"), nullable=False)
     space_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), nullable=True, index=True)
-    status: Mapped[str] = mapped_column(String(50), default="pending")
+    status: Mapped[str] = mapped_column(String(50), default="pending", index=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    
+    # Step 13: Durable workflow execution columns
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     
     objective = relationship("Objective", back_populates="workflows")
     space = relationship("Space")
     steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
-    events = relationship("WorkflowEvent", back_populates="workflow", cascade="all, delete-orphan")
 
 
 class WorkflowStep(Base):
@@ -52,7 +59,7 @@ class WorkflowStep(Base):
     output_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     workflow = relationship("Workflow", back_populates="steps")
-    agent_runs = relationship("AgentRun", back_populates="workflow_step", cascade="all, delete-orphan")
+    agent_runs = relationship("AgentRun", back_populates="step", cascade="all, delete-orphan")
 
 
 class AgentRun(Base):
@@ -61,18 +68,18 @@ class AgentRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workflow_step_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflow_steps.id", ondelete="CASCADE"), nullable=False)
     agent_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="running")
     task_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default="pending")
+    
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     input_context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    
-    workflow_step = relationship("WorkflowStep", back_populates="agent_runs")
+    step = relationship("WorkflowStep", back_populates="agent_runs")
 
 
 class Synthesis(Base):
@@ -84,24 +91,6 @@ class Synthesis(Base):
     recommendations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     evidence: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     
     objective = relationship("Objective", back_populates="syntheses")
-
-
-class WorkflowEvent(Base):
-    __tablename__ = "workflow_events"
-    
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    workflow_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True)
-    
-    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    
-    user = relationship("User", back_populates="workflow_events")
-    workflow = relationship("Workflow", back_populates="events")

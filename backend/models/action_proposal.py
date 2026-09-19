@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import String, Text, DateTime, ForeignKey, Index, UniqueConstraint, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.postgres import Base
+from database.postgres import Base, utc_now
 
 
 class ActionProposal(Base):
@@ -35,7 +35,7 @@ class ActionProposal(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
 
     # Approval & Execution Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     approved_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -50,9 +50,11 @@ class ActionProposal(Base):
     conversation = relationship("Conversation")
     message = relationship("Message", back_populates="action_proposals")
     objective = relationship("Objective")
+    outcome = relationship("Outcome", uselist=False, back_populates="action_proposal")
 
     # Constraints & Indexes
     __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'executed', 'rejected', 'failed')", name="ck_action_proposals_status"),
         UniqueConstraint("message_id", "proposal_id", name="uq_action_proposals_message_proposal"),
         Index("idx_action_proposals_user_space", "user_id", "space_id"),
         Index("idx_action_proposals_message_id", "message_id"),

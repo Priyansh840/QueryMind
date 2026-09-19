@@ -8,7 +8,7 @@ import uuid
 import logging
 import asyncio
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +19,10 @@ from api.deps import get_db, get_current_user
 from database.postgres import async_session
 from models.user import User
 from models.core import Space
-from models.orchestrator import Objective, Workflow, WorkflowStep, AgentRun, Synthesis, WorkflowEvent
+from models.conversation import Conversation, Message
+from models.orchestrator import Objective, Workflow, WorkflowStep, AgentRun, Synthesis
 from models.action_proposal import ActionProposal
+from repositories.action_proposals import ActionProposalRepository
 from orchestrator.graph import get_orchestrator
 
 logger = logging.getLogger(__name__)
@@ -84,78 +86,17 @@ class WorkflowListItemResponse(BaseModel):
 
 
 # -------------------------------------------------------------
-# Background Execution Runner
+# Background Execution Runner (Delegates to WorkflowWorker)
 # -------------------------------------------------------------
-async def run_orchestrator_workflow_task(workflow_id: str, objective_id: str, user_id: str, space_id: str, query: str):
+async def run_orchestrator_workflow_task(workflow_id: str, objective_id: str = "", user_id: str = "", space_id: str = "", query: str = ""):
     """
-    Executes the multi-agent graph in the background and commits step updates & agent runs.
+    [DEPRECATED] Direct invocation of workflow task runner.
+    Preserved for backward-compatibility with tests. Delegates directly to WorkflowWorker.execute_job().
+    Production code must use the durable queue: Workflow status='queued' picked up by WorkflowWorker.
     """
-    logger.info(f"Starting autonomous workflow execution: {workflow_id} (space={space_id})")
-    app = get_orchestrator()
-
-    initial_state = {
-        "user_id": str(user_id),
-        "space_id": str(space_id),
-        "objective_id": str(objective_id),
-        "conversation_id": None,
-        "raw_query": query,
-        "chat_history": [],
-        "workspace_context": {
-            "space": None,
-            "goals": [],
-            "projects": [],
-            "memories": []
-        },
-        "planner_output": None,
-        "research_tasks": [],
-        "research_results": [],
-        "critic_output": None,
-        "workflow_iteration": 1,
-        "total_research_tasks": 0,
-        "workflow_status": "running",
-        "final_synthesis": "",
-        "citations": []
-    }
-
-    async with async_session() as db:
-        # Update workflow status to running
-        wf_uuid = uuid.UUID(workflow_id)
-        stmt = select(Workflow).where(Workflow.id == wf_uuid)
-        res = await db.execute(stmt)
-        wf = res.scalar_one_or_none()
-        if wf:
-            wf.status = "running"
-            await db.commit()
-
-        try:
-            config = {"configurable": {"db": db}}
-            final_state = await app.ainvoke(initial_state, config=config)
-
-            # Update final workflow status
-            stmt_re = select(Workflow).options(selectinload(Workflow.steps)).where(Workflow.id == wf_uuid)
-            res_re = await db.execute(stmt_re)
-            wf_re = res_re.scalar_one_or_none()
-            if wf_re:
-                if final_state.get("workflow_status") == "failed":
-                    wf_re.status = "failed"
-                else:
-                    wf_re.status = "completed"
-
-                for s in wf_re.steps:
-                    if s.status == "running" or s.status == "pending":
-                        s.status = "completed"
-                await db.commit()
-                logger.info(f"Workflow {workflow_id} finished successfully with status: {wf_re.status}")
-
-        except Exception as e:
-            logger.error(f"Error executing workflow {workflow_id}: {e}", exc_info=True)
-            async with async_session() as err_db:
-                stmt_err = select(Workflow).where(Workflow.id == wf_uuid)
-                res_err = await err_db.execute(stmt_err)
-                wf_err = res_err.scalar_one_or_none()
-                if wf_err:
-                    wf_err.status = "failed"
-                    await err_db.commit()
+    from services.workflow_worker import get_workflow_worker
+    worker = get_workflow_worker()
+    return await worker.execute_job(workflow_id)
 
 
 # -------------------------------------------------------------
@@ -165,12 +106,12 @@ async def run_orchestrator_workflow_task(workflow_id: str, objective_id: str, us
 @router.post("/", response_model=WorkflowDetailResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow(
     request: WorkflowCreateRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Creates and plans an autonomous multi-agent workflow for the Space.
+    Sets status to 'queued' for durable asynchronous pickup by WorkflowWorker.
     Requires at least 'admin' role in the space.
     """
     from api.deps import get_space_membership
@@ -187,7 +128,7 @@ async def create_workflow(
         space_id=space_uuid,
         raw_input=request.goal.strip(),
         status="planning",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(objective)
 
@@ -195,26 +136,26 @@ async def create_workflow(
         id=wf_id,
         objective_id=obj_id,
         space_id=space_uuid,
-        status="planning",
-        created_at=datetime.utcnow(),
+        status="queued",
+        created_at=datetime.now(timezone.utc),
     )
     db.add(workflow)
 
-    # 3. Create planned workflow steps
+    # 3. Create planned workflow steps with deterministic identity matching agent nodes
     planned_steps = [
-        ("Context Gathering", "context_gatherer", "Aggregate Space knowledge, documents, active goals, and user context."),
-        ("Multi-Agent Planning", "planner", "Decompose user objective into structured sub-tasks and identify research needs."),
-        ("Knowledge Retrieval & Research", "researcher", "Query Space vector store and analyze relevant source documentation."),
-        ("Decision Analysis & Synthesis", "decision_analyzer", "Evaluate findings, check constraints, and synthesize conclusions."),
-        ("Action Proposal & Execution", "action_proposer", "Formulate concrete recommendations with approval boundaries."),
+        ("Context Gathering", "context_gathering", "Aggregate Space knowledge, documents, active goals, and user context.", uuid.uuid5(wf_id, "context_gatherer_1"), 1),
+        ("Multi-Agent Planning", "planning", "Decompose user objective into structured sub-tasks and identify research needs.", uuid.uuid5(wf_id, "planner_1"), 11),
+        ("Knowledge Retrieval & Research", "research", "Query Space vector store and analyze relevant source documentation.", uuid.uuid5(wf_id, "researcher_1"), 12),
+        ("Decision Analysis & Evaluation", "decision_analysis", "Evaluate findings, check constraints, and synthesize conclusions.", uuid.uuid5(wf_id, "decision_1"), 18),
+        ("Synthesis & Action Formulation", "synthesis", "Formulate concrete recommendations, findings, and evidence.", uuid.uuid5(wf_id, "synthesizer"), 90),
     ]
 
     steps_db = []
-    for idx, (name, intent, desc) in enumerate(planned_steps, start=1):
+    for name, intent, desc, step_uuid, step_order in planned_steps:
         step = WorkflowStep(
-            id=uuid.uuid4(),
+            id=step_uuid,
             workflow_id=wf_id,
-            step_order=idx,
+            step_order=step_order,
             iteration=1,
             intent_type=intent,
             description=desc,
@@ -226,15 +167,7 @@ async def create_workflow(
     await db.commit()
     await db.refresh(workflow)
 
-    # 4. Trigger async execution
-    background_tasks.add_task(
-        run_orchestrator_workflow_task,
-        str(wf_id),
-        str(obj_id),
-        str(current_user.id),
-        str(space_uuid),
-        request.goal.strip(),
-    )
+    step_name_map = {intent: name for name, intent, _, _, _ in planned_steps}
 
     return WorkflowDetailResponse(
         id=str(workflow.id),
@@ -249,7 +182,7 @@ async def create_workflow(
                 step_order=s.step_order,
                 iteration=s.iteration,
                 intent_type=s.intent_type,
-                name=planned_steps[s.step_order - 1][0],
+                name=step_name_map.get(s.intent_type, s.intent_type.replace("_", " ").title()),
                 description=s.description,
                 status=s.status,
                 agent_runs=[],
@@ -259,6 +192,7 @@ async def create_workflow(
         output=None,
         pending_actions=[],
     )
+
 
 
 @router.get("", response_model=List[WorkflowListItemResponse])
@@ -346,9 +280,10 @@ async def get_workflow(
     from api.deps import get_space_membership
     space, membership = await get_space_membership(str(space_uuid), current_user, db, min_role="viewer")
 
-    # Fetch synthesis or pending actions in space
+    # Fetch pending action proposals strictly scoped to this workflow's objective lineage
     stmt_act = select(ActionProposal).where(
         ActionProposal.space_id == space_uuid,
+        ActionProposal.objective_id == wf.objective_id,
         ActionProposal.status == "pending"
     )
     res_act = await db.execute(stmt_act)
@@ -364,6 +299,22 @@ async def get_workflow(
         }
         for a in res_act.scalars().all()
     ]
+
+    # Fetch authoritative Synthesis output associated with this workflow's objective
+    stmt_synth = (
+        select(Synthesis)
+        .where(Synthesis.objective_id == wf.objective_id)
+        .order_by(Synthesis.created_at.desc())
+    )
+    res_synth = await db.execute(stmt_synth)
+    synthesis = res_synth.scalars().first()
+    output_data = None
+    if synthesis:
+        output_data = {
+            "findings": synthesis.findings or [],
+            "recommendations": synthesis.recommendations or [],
+            "evidence": synthesis.evidence or [],
+        }
 
     steps_res = []
     for s in sorted(wf.steps, key=lambda x: x.step_order):
@@ -402,20 +353,20 @@ async def get_workflow(
         status=wf.status,
         created_at=wf.created_at,
         steps=steps_res,
-        output=None,
+        output=output_data,
         pending_actions=pending_actions,
     )
+
 
 
 @router.post("/{workflow_id}/retry", response_model=WorkflowDetailResponse)
 async def retry_workflow(
     workflow_id: str,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Retries execution of a failed workflow safely.
+    Retries execution of a failed workflow safely by re-queuing it for the WorkflowWorker.
     Requires at least 'admin' role in the space.
     """
     try:
@@ -441,21 +392,16 @@ async def retry_workflow(
     from api.deps import get_space_membership
     space, membership = await get_space_membership(str(wf.space_id), current_user, db, min_role="admin")
 
-    wf.status = "running"
+    wf.status = "queued"
+    wf.error = None
+    wf.worker_id = None
+    wf.locked_at = None
+    wf.retry_count = (wf.retry_count or 0) + 1
     for s in wf.steps:
         if s.status == "failed":
             s.status = "pending"
 
     await db.commit()
-
-    background_tasks.add_task(
-        run_orchestrator_workflow_task,
-        str(wf.id),
-        str(obj.id),
-        str(current_user.id),
-        str(wf.space_id),
-        obj.raw_input,
-    )
 
     return await get_workflow(workflow_id, current_user=current_user, db=db)
 
@@ -487,6 +433,8 @@ async def cancel_workflow(
     space, membership = await get_space_membership(str(wf.space_id), current_user, db, min_role="admin")
 
     wf.status = "cancelled"
+    wf.locked_at = None
+    wf.worker_id = None
     for s in wf.steps:
         if s.status == "running" or s.status == "pending":
             s.status = "cancelled"

@@ -7,7 +7,7 @@ User identity is derived strictly from the validated Supabase JWT token.
 import uuid
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,9 +75,33 @@ async def create_project(
         space_id=space.id,
         name=request.name.strip(),
         status="active",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(new_project)
+    await db.flush()
+
+    from repositories.outcomes import OutcomeRepository
+    await OutcomeRepository.create(
+        db,
+        space_id=space.id,
+        user_id=current_user.id,
+        target_entity_type="project",
+        target_entity_id=new_project.id,
+        initiated_by="human",
+        status="unknown",
+        expected_outcome=f"Create project '{new_project.name}'",
+        actual_outcome=None,
+        state_delta={
+            "before": None,
+            "after": {
+                "id": str(new_project.id),
+                "name": new_project.name,
+                "status": new_project.status,
+                "space_id": str(space.id),
+            },
+        },
+        auto_commit=False,
+    )
     
     try:
         await db.commit()
@@ -184,10 +208,39 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    state_before = {
+        "id": str(project.id),
+        "name": project.name,
+        "status": project.status,
+        "space_id": str(project.space_id),
+    }
+
     if request.name is not None:
         project.name = request.name.strip()
     if request.status is not None:
         project.status = request.status.strip()
+
+    state_after = {
+        "id": str(project.id),
+        "name": project.name,
+        "status": project.status,
+        "space_id": str(project.space_id),
+    }
+
+    from repositories.outcomes import OutcomeRepository
+    await OutcomeRepository.create(
+        db,
+        space_id=project.space_id,
+        user_id=current_user.id,
+        target_entity_type="project",
+        target_entity_id=project.id,
+        initiated_by="human",
+        status="unknown",
+        expected_outcome=f"Update project '{project.name}' status to '{project.status}'",
+        actual_outcome=None,
+        state_delta={"before": state_before, "after": state_after},
+        auto_commit=False,
+    )
 
     try:
         await db.commit()

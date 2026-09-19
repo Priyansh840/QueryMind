@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -8,6 +8,7 @@ from orchestrator.state import AgentState
 from orchestrator.schemas import PlannerOutput
 from llm.provider import get_llm
 from models.orchestrator import AgentRun, WorkflowStep, Workflow, Objective
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,12 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
         step_order = (workflow_iteration * 10) + 1  # 11, 21, 31...
         step_stmt = insert(WorkflowStep).values(
             id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="planning"
-        ).on_conflict_do_nothing()
+            iteration=workflow_iteration, intent_type="planning",
+            status="running"
+        ).on_conflict_do_update(
+            index_elements=['id'],
+            set_={'status': 'running'}
+        )
         await db.execute(step_stmt)
         
         # Agent Run
@@ -54,7 +59,7 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
             workflow_step_id=step_id,
             agent_type="planner",
             status="running",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
             input_context={"raw_query": state["raw_query"]}
         )
         db.add(run)
@@ -75,6 +80,7 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
             "- If the user asks about ANY document, file, CV, resume, notes, names, experiences, or project details uploaded to this space, set needs_research to true.\n"
             "- When formulating search tasks, write effective semantic queries that will match content inside the document (e.g. for 'what is my name in the document' or 'in the document', create queries like 'name candidate personal details contact information resume summary' or 'profile overview').\n"
             "- If the user asks a purely generic question (e.g. general math, generic coding theory, general chit-chat) unrelated to workspace documents, set needs_research to false.\n"
+            "- When <recent_action_outcomes> or <lessons_learned> are present in context, consider them to recognize repeated failures and avoid repeating known ineffective query patterns, but treat unverified reflections as advisory rather than axiomatic truth.\n"
             "- Return a structured plan with needs_research, reasoning_summary, and specific search tasks."
         )
         
@@ -108,9 +114,17 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
         
         # Database Logging - Complete
         run.status = "completed"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         run.output_summary = response.model_dump()
         db.add(run)
+        # Step 13: Update step status in real-time
+        if 'step_id' in locals() and db:
+            try:
+                await db.execute(
+                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
+                )
+            except Exception as ex:
+                logger.debug(f"Step status update error: {ex}")
         await db.commit()
         
         return state
@@ -119,8 +133,16 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
         logger.error(f"Planner failed: {e}")
         run.status = "failed"
         run.error = str(e)
-        run.completed_at = datetime.utcnow()
+        run.completed_at = datetime.now(timezone.utc)
         db.add(run)
+        # Step 13: Update step status in real-time
+        if 'step_id' in locals() and db:
+            try:
+                await db.execute(
+                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
+                )
+            except Exception as ex:
+                logger.debug(f"Step status update error: {ex}")
         await db.commit()
         
         # Set a safe fallback state

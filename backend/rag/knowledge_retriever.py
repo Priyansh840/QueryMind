@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 async def retrieve_knowledge(
     query: str,
-    user_id: str,
+    user_id: Optional[str] = None,
     space_id: Optional[str] = None,
     knowledge_type: Optional[str] = None,
     top_k: int = 5,
@@ -29,38 +29,44 @@ async def retrieve_knowledge(
     """
     Retrieves structured knowledge items:
     1. Embeds the user query.
-    2. Searches Qdrant 'querymind_knowledge' vector index with strict user_id & space_id filters.
-    3. Hydrates authoritative content and metadata from PostgreSQL knowledge table.
+    2. Searches Qdrant 'querymind_knowledge' vector index with authoritative space_id workspace isolation.
+    3. Hydrates authoritative content and metadata from PostgreSQL knowledge table with matching space boundary.
     """
-    try:
-        user_uuid = uuid.UUID(str(user_id))
-    except (ValueError, TypeError):
-        logger.error(f"Invalid user_id for knowledge retrieval: {user_id}")
-        return []
+    user_uuid = None
+    if user_id:
+        try:
+            user_uuid = uuid.UUID(str(user_id))
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid user_id for knowledge retrieval: {user_id}")
 
     space_uuid = None
     if space_id:
         try:
             space_uuid = uuid.UUID(str(space_id))
         except (ValueError, TypeError):
-            logger.warning(f"Invalid space_id '{space_id}', ignoring space filter")
+            logger.warning(f"Invalid space_id for knowledge retrieval: {space_id}")
+
+    if not space_uuid and not user_uuid:
+        logger.error("Either space_id or user_id is strictly required for knowledge retrieval.")
+        return []
 
     # 1. Embed query
     query_vector = embedding_service.embed_query(query)
 
-    # 2. Build Qdrant filter
-    must_conditions = [
-        qmodels.FieldCondition(
-            key="user_id",
-            match=qmodels.MatchValue(value=str(user_uuid)),
-        )
-    ]
-
+    # 2. Build Qdrant filter - space_id is the primary collaboration boundary
+    must_conditions = []
     if space_uuid:
         must_conditions.append(
             qmodels.FieldCondition(
                 key="space_id",
                 match=qmodels.MatchValue(value=str(space_uuid)),
+            )
+        )
+    elif user_uuid:
+        must_conditions.append(
+            qmodels.FieldCondition(
+                key="user_id",
+                match=qmodels.MatchValue(value=str(user_uuid)),
             )
         )
 
@@ -78,7 +84,7 @@ async def retrieve_knowledge(
                 collection_name=collection_name,
                 query=query_vector,
                 query_filter=qmodels.Filter(must=must_conditions),
-                limit=top_k,
+                limit=max(top_k * 3, 20),
             )
             hits = response.points
         except Exception as e:
@@ -102,13 +108,19 @@ async def retrieve_knowledge(
     if not knowledge_uuids:
         return []
 
-    # 4. Hydrate from PostgreSQL
+    # 4. Hydrate from PostgreSQL with space isolation guarantee
     results: List[Dict[str, Any]] = []
     async with async_session() as db:
+        conditions = [Knowledge.id.in_(knowledge_uuids)]
+        if space_uuid:
+            conditions.append(Knowledge.space_id == space_uuid)
+        elif user_uuid:
+            conditions.append(Knowledge.user_id == user_uuid)
+
         stmt = (
             select(Knowledge, Document.title)
             .outerjoin(Document, Document.id == Knowledge.document_id)
-            .where(Knowledge.id.in_(knowledge_uuids))
+            .where(*conditions)
         )
         res = await db.execute(stmt)
         rows = res.fetchall()
@@ -121,7 +133,9 @@ async def retrieve_knowledge(
             score = hit_score_map.get(str(k_obj.id), 0.0)
             results.append(
                 {
+                    "source_type": "knowledge",
                     "knowledge_id": str(k_obj.id),
+                    "chunk_id": str(k_obj.source_chunk_id) if k_obj.source_chunk_id else str(k_obj.id),
                     "document_id": str(k_obj.document_id) if k_obj.document_id else None,
                     "document_title": doc_title or k_obj.title or "Document",
                     "title": k_obj.title,
@@ -136,6 +150,6 @@ async def retrieve_knowledge(
                 }
             )
 
-    # Sort hydrated results by relevance score descending
+    # Sort hydrated results by relevance score descending and return top_k
     results.sort(key=lambda x: x["relevance_score"], reverse=True)
-    return results
+    return results[:top_k]

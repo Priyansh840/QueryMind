@@ -10,7 +10,7 @@ from sqlalchemy import String, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.postgres import Base
+from database.postgres import Base, utc_now
 
 
 class User(Base):
@@ -27,10 +27,10 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
 
     # Relationships
@@ -41,7 +41,7 @@ class User(Base):
     memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan")
     objectives = relationship("Objective", back_populates="user", cascade="all, delete-orphan")
     connections = relationship("Connection", back_populates="user", cascade="all, delete-orphan")
-    workflow_events = relationship("WorkflowEvent", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.email}>"
+

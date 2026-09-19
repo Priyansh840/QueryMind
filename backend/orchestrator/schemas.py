@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 class TaskDefinition(BaseModel):
@@ -116,6 +116,8 @@ class ActionExecutionResult(BaseModel):
     error_code: Optional[Literal["invalid_proposal", "unauthorized", "target_not_found", "invalid_parameters", "already_executed", "execution_failed"]] = Field(
         default=None, description="Structured error category if not executed"
     )
+    state_delta: Optional[Dict[str, Any]] = Field(default=None, description="Deterministic before and after state delta")
+    target_entity_type: Optional[str] = Field(default=None, description="Target entity type: goal, project, memory")
 
 
 

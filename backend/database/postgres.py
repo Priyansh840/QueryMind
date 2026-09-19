@@ -25,9 +25,18 @@ async_session = async_sessionmaker(
 )
 
 
+from datetime import datetime, timezone
+
+
+def utc_now() -> datetime:
+    """Returns a timezone-aware UTC datetime."""
+    return datetime.now(timezone.utc)
+
+
 # Base class for all models
 class Base(DeclarativeBase):
     pass
+
 
 
 async def get_db() -> AsyncSession:

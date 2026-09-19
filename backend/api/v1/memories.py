@@ -8,7 +8,7 @@ No Qdrant interactions are performed here.
 import uuid
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,12 +111,37 @@ async def create_memory(
         status="active",
         reinforcement_count=1,
         source_count=1,
-        first_seen_at=datetime.utcnow(),
-        last_reinforced_at=datetime.utcnow(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        first_seen_at=datetime.now(timezone.utc),
+        last_reinforced_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(new_memory)
+    await db.flush()
+
+    if space_uuid:
+        from repositories.outcomes import OutcomeRepository
+        await OutcomeRepository.create(
+            db,
+            space_id=space_uuid,
+            user_id=current_user.id,
+            target_entity_type="memory",
+            target_entity_id=new_memory.id,
+            initiated_by="human",
+            status="unknown",
+            expected_outcome=f"Record {new_memory.memory_type} memory: '{new_memory.content[:60]}'",
+            actual_outcome=None,
+            state_delta={
+                "before": None,
+                "after": {
+                    "id": str(new_memory.id),
+                    "content": new_memory.content,
+                    "memory_type": new_memory.memory_type,
+                    "space_id": str(space_uuid),
+                },
+            },
+            auto_commit=False,
+        )
     
     try:
         await db.commit()
@@ -193,8 +218,8 @@ async def reinforce_memory(
 
     memory.reinforcement_count += 1
     memory.source_count += 1
-    memory.last_reinforced_at = datetime.utcnow()
-    memory.updated_at = datetime.utcnow()
+    memory.last_reinforced_at = datetime.now(timezone.utc)
+    memory.updated_at = datetime.now(timezone.utc)
     # Smooth confidence scaling (capped at 1.0)
     memory.confidence = min(1.0, round(0.5 + (memory.reinforcement_count * 0.1), 2))
 
@@ -268,7 +293,7 @@ async def get_space_memory_summary(
             "summary": f"This workspace has indexed {len(docs)} source document(s) referenced across {len(convs)} conversation thread(s).",
             "source_count": len(docs) + len(convs),
             "confidence": "high",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
     if actions:
@@ -280,7 +305,7 @@ async def get_space_memory_summary(
             "summary": f"{approved_count} of {len(actions)} proposed action(s) have been reviewed and approved in this workspace.",
             "source_count": len(actions),
             "confidence": "high",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
     for m in memories:
@@ -373,7 +398,7 @@ async def update_memory(
     if request.importance is not None:
         memory.importance = request.importance.strip()
         
-    memory.updated_at = datetime.utcnow()
+    memory.updated_at = datetime.now(timezone.utc)
 
     try:
         await db.commit()

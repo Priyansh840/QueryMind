@@ -4,7 +4,7 @@ Provides endpoints for member management, role updates, space departures, and ow
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
@@ -125,8 +125,8 @@ async def add_space_member(
         user_id=target_user.id,
         role=payload.role,
         invited_by_user_id=current_user.id,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(new_member)
     await db.commit()
@@ -196,7 +196,7 @@ async def update_space_member_role(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign 'owner' via role patch.")
 
     target_member.role = payload.role
-    target_member.updated_at = datetime.utcnow()
+    target_member.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(target_member)
 
@@ -309,13 +309,13 @@ async def transfer_space_ownership(
 
     # Atomic transaction
     space.user_id = t_user_uuid
-    space.updated_at = datetime.utcnow()
+    space.updated_at = datetime.now(timezone.utc)
 
     current_membership.role = "admin"
-    current_membership.updated_at = datetime.utcnow()
+    current_membership.updated_at = datetime.now(timezone.utc)
 
     target_member.role = "owner"
-    target_member.updated_at = datetime.utcnow()
+    target_member.updated_at = datetime.now(timezone.utc)
 
     await db.commit()
 

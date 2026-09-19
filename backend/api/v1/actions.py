@@ -32,12 +32,34 @@ from schemas.action_proposal import (
     DecisionTimelineEvent,
 )
 from repositories.action_proposals import ActionProposalRepository
+from repositories.outcomes import OutcomeRepository
 from services.action_executor import execute_action
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 VALID_STATUSES = {"pending", "approved", "executed", "rejected", "failed"}
+
+
+def _compute_expected_outcome(proposal) -> str:
+    params = proposal.parameters or {}
+    if proposal.action_type == "create_goal":
+        desc = params.get("description", "").strip()
+        return f"Create active goal: '{desc}'"
+    elif proposal.action_type == "update_goal_status":
+        status_val = params.get("status", "")
+        return f"Update goal {proposal.target_id} status to '{status_val}'"
+    elif proposal.action_type == "create_project":
+        name = params.get("name", "").strip()
+        return f"Create active project: '{name}'"
+    elif proposal.action_type == "update_project_status":
+        status_val = params.get("status", "")
+        return f"Update project {proposal.target_id} status to '{status_val}'"
+    elif proposal.action_type == "add_memory":
+        m_type = params.get("memory_type", "note")
+        content = params.get("content", "").strip()
+        return f"Record {m_type} memory: '{content[:60]}'"
+    return f"Execute {proposal.action_type}"
 
 
 class ActionExecuteRequest(BaseModel):
@@ -258,6 +280,37 @@ async def approve_action_by_id(
         proposal.executed_target_id = execution_result.target_id
         proposal.error_code = None
         proposal.error_message = None
+
+        target_uuid = None
+        if execution_result.target_id:
+            try:
+                target_uuid = uuid.UUID(str(execution_result.target_id))
+            except (ValueError, TypeError):
+                target_uuid = None
+
+        target_entity_type = (
+            execution_result.target_entity_type
+            or proposal.action_type.split("_")[-1]
+        )
+        expected = _compute_expected_outcome(proposal)
+
+        # Record Outcome with status="unknown" (Step 14 Semantic Rule: execution != success)
+        await OutcomeRepository.create(
+            db,
+            space_id=proposal.space_id,
+            user_id=current_user.id,
+            action_proposal_id=proposal.id,
+            workflow_id=None,
+            target_entity_type=target_entity_type,
+            target_entity_id=target_uuid,
+            initiated_by="ai_proposal",
+            status="unknown",
+            expected_outcome=expected,
+            actual_outcome=None,
+            state_delta=execution_result.state_delta,
+            auto_commit=False,
+        )
+
         await db.commit()
     else:
         await db.rollback()
@@ -270,6 +323,27 @@ async def approve_action_by_id(
             failed_proposal.status = "failed"
             failed_proposal.error_code = execution_result.error_code
             failed_proposal.error_message = execution_result.message
+
+            target_entity_type = (
+                execution_result.target_entity_type
+                or failed_proposal.action_type.split("_")[-1]
+            )
+            expected = _compute_expected_outcome(failed_proposal)
+            await OutcomeRepository.create(
+                db,
+                space_id=failed_proposal.space_id,
+                user_id=current_user.id,
+                action_proposal_id=failed_proposal.id,
+                workflow_id=None,
+                target_entity_type=target_entity_type,
+                target_entity_id=None,
+                initiated_by="ai_proposal",
+                status="failed",
+                expected_outcome=expected,
+                actual_outcome=f"Execution failed: {execution_result.message}",
+                state_delta=None,
+                auto_commit=False,
+            )
             await db.commit()
 
     return execution_result
@@ -326,7 +400,7 @@ async def get_decision_detail(
                         chunk_id=str(cit.get("chunk_id")) if cit.get("chunk_id") else None,
                         page_number=cit.get("page_number"),
                         snippet=cit.get("snippet"),
-                        source_type="document",
+                        source_type=cit.get("source_type", "document"),
                     )
                 )
             elif isinstance(cit, str):
@@ -576,6 +650,37 @@ async def approve_and_execute_action(
         proposal.executed_target_id = execution_result.target_id
         proposal.error_code = None
         proposal.error_message = None
+
+        target_uuid = None
+        if execution_result.target_id:
+            try:
+                target_uuid = uuid.UUID(str(execution_result.target_id))
+            except (ValueError, TypeError):
+                target_uuid = None
+
+        target_entity_type = (
+            execution_result.target_entity_type
+            or proposal.action_type.split("_")[-1]
+        )
+        expected = _compute_expected_outcome(proposal)
+
+        # Record Outcome with status="unknown" (Step 14 Semantic Rule: execution != success)
+        await OutcomeRepository.create(
+            db,
+            space_id=proposal.space_id,
+            user_id=current_user.id,
+            action_proposal_id=proposal.id,
+            workflow_id=None,
+            target_entity_type=target_entity_type,
+            target_entity_id=target_uuid,
+            initiated_by="ai_proposal",
+            status="unknown",
+            expected_outcome=expected,
+            actual_outcome=None,
+            state_delta=execution_result.state_delta,
+            auto_commit=False,
+        )
+
         await db.commit()
     else:
         # Record failure metadata and rollback unflushed entity mutations
@@ -591,6 +696,27 @@ async def approve_and_execute_action(
             failed_proposal.status = "failed"
             failed_proposal.error_code = execution_result.error_code
             failed_proposal.error_message = execution_result.message
+
+            target_entity_type = (
+                execution_result.target_entity_type
+                or failed_proposal.action_type.split("_")[-1]
+            )
+            expected = _compute_expected_outcome(failed_proposal)
+            await OutcomeRepository.create(
+                db,
+                space_id=failed_proposal.space_id,
+                user_id=current_user.id,
+                action_proposal_id=failed_proposal.id,
+                workflow_id=None,
+                target_entity_type=target_entity_type,
+                target_entity_id=None,
+                initiated_by="ai_proposal",
+                status="failed",
+                expected_outcome=expected,
+                actual_outcome=f"Execution failed: {execution_result.message}",
+                state_delta=None,
+                auto_commit=False,
+            )
             await db.commit()
 
     return execution_result
