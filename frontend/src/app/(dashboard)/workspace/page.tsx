@@ -268,7 +268,7 @@ export default function WorkspacePage() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span className="space-dot" style={{ background: "#3B82F6" }} />
+              <span className="space-dot" style={{ background: "var(--text-primary)" }} />
               <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
                 Kalyra Engine commit pushed (7 commits)
               </span>

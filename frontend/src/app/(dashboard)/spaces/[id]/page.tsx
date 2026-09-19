@@ -50,7 +50,7 @@ export default function SpaceDetailPage({
     );
   }, [spaces, spaceId]);
 
-  const spaceColor = space?.color || "#8B5CF6";
+  const spaceColor = space?.color || "#FFFFFF";
 
   // Fetch real documents for this space from backend on mount
   React.useEffect(() => {

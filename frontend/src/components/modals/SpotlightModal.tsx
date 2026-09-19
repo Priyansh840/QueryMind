@@ -50,7 +50,7 @@ export default function SpotlightModal() {
       title: s.name,
       badge: `${s.count} objects`,
       type: "Space",
-      color: s.color || "#8B5CF6",
+      color: s.color || "#FFFFFF",
       action: () => {
         selectSpace(s.id);
         closeSpotlight();
@@ -64,7 +64,7 @@ export default function SpotlightModal() {
       title: obj.title,
       badge: obj.type,
       type: "Object",
-      color: "#3B82F6",
+      color: "#D4D4D4",
       action: () => {
         openObjectModal(obj);
         closeSpotlight();
@@ -78,7 +78,7 @@ export default function SpotlightModal() {
       title: c.title,
       badge: c.type,
       type: "Command",
-      color: "#10B981",
+      color: "#FFFFFF",
       action: () => {
         c.action();
         closeSpotlight();

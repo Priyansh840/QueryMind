@@ -158,7 +158,7 @@ export default function SpacesDirectoryPage() {
           </div>
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Qdrant Vectors</div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: "#8B5CF6", marginTop: "4px" }}>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalVectors} prefix="~" />
             </div>
           </div>
@@ -244,7 +244,7 @@ export default function SpacesDirectoryPage() {
         {filteredSpaces.map((space, idx) => {
           const spaceDocs = uploadedDocuments.filter((d) => d.spaceId === space.id);
           const docCount = Math.max(space.count, spaceDocs.length);
-          const spaceColor = space.color || "#6366F1";
+          const spaceColor = space.color || "#FFFFFF";
 
           return (
             <div

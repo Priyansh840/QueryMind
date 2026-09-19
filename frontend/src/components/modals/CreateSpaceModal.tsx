@@ -6,13 +6,13 @@ import { useMyndStore, AgentPersona } from "@/lib/mynd-store";
 import { queryMindApi } from "@/lib/api";
 
 const COLOR_PRESETS = [
-  { name: "Violet", color: "#8B5CF6", bg: "rgba(139, 92, 246, 0.15)" },
-  { name: "Emerald", color: "#10B981", bg: "rgba(16, 185, 129, 0.15)" },
-  { name: "Blue", color: "#3B82F6", bg: "rgba(59, 130, 246, 0.15)" },
-  { name: "Amber", color: "#F59E0B", bg: "rgba(245, 158, 11, 0.15)" },
-  { name: "Rose", color: "#EC4899", bg: "rgba(236, 72, 153, 0.15)" },
-  { name: "Indigo", color: "#6366F1", bg: "rgba(99, 102, 241, 0.15)" },
-  { name: "Cyan", color: "#06B6D4", bg: "rgba(6, 182, 212, 0.15)" },
+  { name: "White", color: "#FFFFFF", bg: "rgba(255, 255, 255, 0.15)" },
+  { name: "Silver", color: "#E5E5E5", bg: "rgba(229, 229, 229, 0.15)" },
+  { name: "Zinc", color: "#D4D4D4", bg: "rgba(212, 212, 212, 0.15)" },
+  { name: "Neutral", color: "#A3A3A3", bg: "rgba(163, 163, 163, 0.15)" },
+  { name: "Stone", color: "#737373", bg: "rgba(115, 115, 115, 0.15)" },
+  { name: "Dark", color: "#525252", bg: "rgba(82, 82, 82, 0.15)" },
+  { name: "Carbon", color: "#404040", bg: "rgba(64, 64, 64, 0.15)" },
 ];
 
 const ICONS = [
@@ -31,49 +31,49 @@ const AGENT_TEMPLATES: Record<string, AgentPersona> = {
     title: "Senior Career & Systems Architect",
     specialty: "Resume tuning, architectural interviews & career roadmapping",
     status: "active",
-    avatarBg: "#8B5CF6",
+    avatarBg: "#262626",
   },
   atom: {
     name: "Synthesis Fellow",
     title: "Lead AI & Literature Researcher",
     specialty: "Literature review, citation mapping & technical proofs",
     status: "active",
-    avatarBg: "#10B981",
+    avatarBg: "#262626",
   },
   rocket: {
     name: "Venture Architect",
     title: "Product Technologist & GTM Strategist",
     specialty: "Product specs, investor narratives & execution roadmaps",
     status: "active",
-    avatarBg: "#3B82F6",
+    avatarBg: "#262626",
   },
   graduation: {
     name: "Academic Scholar",
     title: "Coursework & Concept Distiller",
     specialty: "Lecture synthesis, practice problem generation & revision",
     status: "active",
-    avatarBg: "#F97316",
+    avatarBg: "#262626",
   },
   sparkles: {
     name: "Creative Catalyst",
     title: "Lateral Brain Dump Co-pilot",
     specialty: "Idea collisions, rapid prototyping & divergent thinking",
     status: "active",
-    avatarBg: "#EC4899",
+    avatarBg: "#262626",
   },
   terminal: {
     name: "Kernel Auditor",
     title: "Full-Stack & Systems Co-pilot",
     specialty: "Code analysis, refactoring patterns & benchmark review",
     status: "active",
-    avatarBg: "#6366F1",
+    avatarBg: "#262626",
   },
   folder: {
     name: "Knowledge Curator",
     title: "Domain Intelligence Assistant",
     specialty: "Document indexing, memory retrieval & synthesis",
     status: "active",
-    avatarBg: "#06B6D4",
+    avatarBg: "#262626",
   },
 };
 
@@ -207,8 +207,8 @@ export default function CreateSpaceModal() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#fff",
-                boxShadow: `0 0 16px ${selectedColor}66`,
+                color: selectedColor === "#FFFFFF" || selectedColor === "#E5E5E5" || selectedColor === "#D4D4D4" ? "#000000" : "#FFFFFF",
+                boxShadow: `0 0 16px ${selectedColor}44`,
               }}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none">
@@ -457,12 +457,12 @@ export default function CreateSpaceModal() {
                 borderRadius: "8px",
                 border: "none",
                 background: selectedColor,
-                color: "#FFFFFF",
+                color: selectedColor === "#FFFFFF" || selectedColor === "#E5E5E5" || selectedColor === "#D4D4D4" ? "#000000" : "#FFFFFF",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: isSubmitting || !name.trim() ? "not-allowed" : "pointer",
                 opacity: isSubmitting || !name.trim() ? 0.6 : 1,
-                boxShadow: `0 2px 10px ${selectedColor}44`,
+                boxShadow: `0 2px 10px ${selectedColor}33`,
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",

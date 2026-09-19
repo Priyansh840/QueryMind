@@ -97,40 +97,40 @@ export default function KnowledgeMap() {
     if (t.includes("doc") || t.includes("pdf") || t.includes("txt") || t.includes("report")) {
       return {
         category: "document" as const,
-        color: "#10B981",
-        bgColor: "rgba(16, 185, 129, 0.15)",
-        icon: <FileText style={{ width: "14px", height: "14px", color: "#10B981" }} />,
+        color: "#FFFFFF",
+        bgColor: "rgba(255, 255, 255, 0.12)",
+        icon: <FileText style={{ width: "14px", height: "14px", color: "#FFFFFF" }} />,
       };
     }
     if (t.includes("concept") || t.includes("arch") || t.includes("system")) {
       return {
         category: "concept" as const,
-        color: "#8B5CF6",
-        bgColor: "rgba(139, 92, 246, 0.15)",
-        icon: <BrainCircuit style={{ width: "14px", height: "14px", color: "#8B5CF6" }} />,
+        color: "#FFFFFF",
+        bgColor: "rgba(255, 255, 255, 0.12)",
+        icon: <BrainCircuit style={{ width: "14px", height: "14px", color: "#FFFFFF" }} />,
       };
     }
     if (t.includes("research") || t.includes("code") || t.includes("engine")) {
       return {
         category: "research" as const,
-        color: "#0284C7",
-        bgColor: "rgba(2, 132, 199, 0.15)",
-        icon: <FileCode style={{ width: "14px", height: "14px", color: "#0284C7" }} />,
+        color: "#FFFFFF",
+        bgColor: "rgba(255, 255, 255, 0.12)",
+        icon: <FileCode style={{ width: "14px", height: "14px", color: "#FFFFFF" }} />,
       };
     }
     if (t.includes("goal") || t.includes("matrix") || t.includes("career")) {
       return {
         category: "goal" as const,
-        color: "#F59E0B",
-        bgColor: "rgba(245, 158, 11, 0.15)",
-        icon: <Target style={{ width: "14px", height: "14px", color: "#F59E0B" }} />,
+        color: "#FFFFFF",
+        bgColor: "rgba(255, 255, 255, 0.12)",
+        icon: <Target style={{ width: "14px", height: "14px", color: "#FFFFFF" }} />,
       };
     }
     return {
       category: "note" as const,
-      color: "#EC4899",
-      bgColor: "rgba(236, 72, 153, 0.15)",
-      icon: <BookOpen style={{ width: "14px", height: "14px", color: "#EC4899" }} />,
+      color: "#FFFFFF",
+      bgColor: "rgba(255, 255, 255, 0.12)",
+      icon: <BookOpen style={{ width: "14px", height: "14px", color: "#FFFFFF" }} />,
     };
   }, []);
 
@@ -563,8 +563,8 @@ export default function KnowledgeMap() {
               width: "32px",
               height: "32px",
               borderRadius: "10px",
-              background: "rgba(139, 92, 246, 0.15)",
-              color: "#8B5CF6",
+              background: "var(--surface-hover)",
+              color: "var(--text-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -785,11 +785,11 @@ export default function KnowledgeMap() {
         }}
       >
         {[
-          { id: "all", label: "All Items", count: categoryCounts.all, color: "#8B5CF6" },
-          { id: "document", label: "Documents", count: categoryCounts.document, color: "#10B981" },
-          { id: "concept", label: "Concepts & Systems", count: categoryCounts.concept, color: "#8B5CF6" },
-          { id: "note", label: "Notes & Captures", count: categoryCounts.note, color: "#EC4899" },
-          { id: "research", label: "Research & Code", count: categoryCounts.research, color: "#0284C7" },
+          { id: "all", label: "All Items", count: categoryCounts.all, color: "#FFFFFF" },
+          { id: "document", label: "Documents", count: categoryCounts.document, color: "#FFFFFF" },
+          { id: "concept", label: "Concepts & Systems", count: categoryCounts.concept, color: "#FFFFFF" },
+          { id: "note", label: "Notes & Captures", count: categoryCounts.note, color: "#FFFFFF" },
+          { id: "research", label: "Research & Code", count: categoryCounts.research, color: "#FFFFFF" },
         ].map((cat) => {
           const isActive = activeCategory === cat.id;
           return (
@@ -891,8 +891,8 @@ export default function KnowledgeMap() {
           >
             <defs>
               <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.2" />
+                <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#737373" stopOpacity="0.2" />
               </linearGradient>
             </defs>
 
@@ -947,9 +947,9 @@ export default function KnowledgeMap() {
                 width: "60px",
                 height: "60px",
                 borderRadius: "50%",
-                background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
-                border: "3px solid var(--node-bg, #FFFFFF)",
-                boxShadow: "0 6px 20px rgba(139, 92, 246, 0.35)",
+                background: "#262626",
+                border: "3px solid #FFFFFF",
+                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.5)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -986,7 +986,7 @@ export default function KnowledgeMap() {
               <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary, #111827)" }}>
                 {currentSpace?.name || "General Space"}
               </span>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "#8B5CF6" }}>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-secondary)" }}>
                 Core Brain Hub
               </span>
             </div>
@@ -1359,7 +1359,7 @@ export default function KnowledgeMap() {
               }}
             >
               {isUploading || isSubmittingCapture ? (
-                <RefreshCw className="animate-spin" style={{ width: "13px", height: "13px", color: "#8B5CF6" }} />
+                <RefreshCw className="animate-spin" style={{ width: "13px", height: "13px", color: "var(--text-primary)" }} />
               ) : (
                 <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
               )}
@@ -1414,8 +1414,8 @@ export default function KnowledgeMap() {
                 width: "32px",
                 height: "32px",
                 borderRadius: "50%",
-                background: captureText.trim() ? "var(--accent-purple, #8B5CF6)" : "var(--surface-subtle, #1F2937)",
-                color: captureText.trim() ? "#FFFFFF" : "var(--text-tertiary, #6B7280)",
+                background: captureText.trim() ? "#FFFFFF" : "var(--surface-hover)",
+                color: captureText.trim() ? "#000000" : "var(--text-tertiary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

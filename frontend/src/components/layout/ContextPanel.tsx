@@ -52,7 +52,7 @@ export default function ContextPanel() {
     );
   }, [spaces, activeSpaceId]);
 
-  const spaceColor = currentSpace?.color || "#8B5CF6";
+  const spaceColor = currentSpace?.color || "#FFFFFF";
 
   // Check if content looks like code
   const isCode = useMemo(() => {
@@ -220,12 +220,8 @@ export default function ContextPanel() {
               width: "32px",
               height: "32px",
               borderRadius: "8px",
-              background: activeDoc
-                ? isCode
-                  ? "#EFF6FF"
-                  : `${spaceColor}18`
-                : `${spaceColor}18`,
-              color: activeDoc ? (isCode ? "#3B82F6" : spaceColor) : spaceColor,
+              background: "var(--surface-hover)",
+              color: "var(--text-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -587,7 +583,7 @@ export default function ContextPanel() {
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
-                        <Lightbulb style={{ width: "14px", height: "14px", color: "#F59E0B", flexShrink: 0 }} />
+                        <Lightbulb style={{ width: "14px", height: "14px", color: "var(--text-secondary)", flexShrink: 0 }} />
                         <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
                           Extract 3 practice interview questions
                         </span>
@@ -772,7 +768,7 @@ export default function ContextPanel() {
                         gap: "6px",
                       }}
                     >
-                      <Lightbulb style={{ width: "13px", height: "13px", color: "#F59E0B" }} />
+                      <Lightbulb style={{ width: "13px", height: "13px", color: "var(--text-secondary)" }} />
                       <span>Audit Knowledge Gaps</span>
                     </button>
                   </div>

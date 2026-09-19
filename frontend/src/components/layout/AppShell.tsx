@@ -58,7 +58,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               updated: "Just now",
               pinned: s.is_default ?? existing?.pinned ?? false,
               desc: s.description || existing?.desc || "Workspace",
-              color: s.color || existing?.color || "#6366F1",
+              color: s.color || existing?.color || "#FFFFFF",
               icon: s.icon || existing?.icon || "folder",
               goal: existing?.goal || { title: `Master ${s.name}`, progress: 0 },
               milestones: existing?.milestones,

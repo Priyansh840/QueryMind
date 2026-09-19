@@ -116,12 +116,12 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090E] text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#000000] text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden selection:bg-white/20 selection:text-white">
       {/* Ambient background glow */}
       <div 
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none rounded-full blur-[140px] opacity-35"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] pointer-events-none rounded-full blur-[140px] opacity-30"
         style={{
-          background: "radial-gradient(circle, rgba(14, 165, 233, 0.35) 0%, rgba(99, 102, 241, 0.25) 45%, transparent 70%)"
+          background: "radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)"
         }}
       />
 
@@ -135,14 +135,14 @@ export default function RegisterPage() {
       />
 
       <div className="w-full max-w-[440px] z-10">
-        <div className="relative bg-[#0D121F]/90 backdrop-blur-2xl border border-white/[0.08] shadow-2xl shadow-black/80 rounded-3xl p-7 sm:p-8">
+        <div className="relative bg-[#121212] backdrop-blur-2xl border border-white/[0.08] shadow-2xl shadow-black/90 rounded-3xl p-7 sm:p-8">
           {/* Header */}
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-4 group">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-b from-[#162035] to-[#0D1424] border border-cyan-500/30 flex items-center justify-center shadow-lg shadow-cyan-500/10">
-                <Brain className="w-7 h-7 text-cyan-400" />
+              <div className="w-14 h-14 rounded-2xl bg-[#171717] border border-white/10 flex items-center justify-center shadow-lg shadow-black/40">
+                <Brain className="w-7 h-7 text-white" />
               </div>
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-400 border-2 border-[#0D121F] rounded-full shadow-sm shadow-cyan-400/80 animate-pulse" />
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#121212] rounded-full shadow-sm" />
             </div>
 
             <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-white flex items-center justify-center gap-2">
@@ -152,22 +152,22 @@ export default function RegisterPage() {
               Knowledge Operating System & AI Second Brain
             </p>
 
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/[0.08] border border-cyan-500/20 text-[11px] font-mono font-medium text-cyan-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 text-[11px] font-mono font-medium text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               v2.6 Core Neural Hub
             </div>
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="mt-6 p-1 bg-[#090D17] border border-white/[0.06] rounded-xl flex items-center gap-1">
+          <div className="mt-6 p-1 bg-[#0A0A0A] border border-white/[0.06] rounded-xl flex items-center gap-1">
             <Link
               href="/login"
               className="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5"
             >
               Sign In
             </Link>
-            <div className="flex-1 py-2 text-xs font-semibold rounded-lg bg-[#162035] text-white shadow-sm border border-white/[0.08] flex items-center justify-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            <div className="flex-1 py-2 text-xs font-semibold rounded-lg bg-[#212121] text-white shadow-sm border border-white/[0.08] flex items-center justify-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
               Create Space
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function RegisterPage() {
               <div className="w-full border-t border-white/[0.08]" />
             </div>
             <div className="relative flex justify-center text-[10px] uppercase font-mono tracking-wider">
-              <span className="bg-[#0D121F] px-3 text-slate-500">
+              <span className="bg-[#121212] px-3 text-slate-500">
                 OR REGISTER IDENTITY
               </span>
             </div>
@@ -241,7 +241,7 @@ export default function RegisterPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Alex Morgan"
-                  className="w-full bg-[#080C14] border border-white/[0.08] focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-slate-600 transition-all outline-none"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.08] focus:border-white/30 focus:ring-1 focus:ring-white/10 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-slate-600 transition-all outline-none"
                 />
               </div>
             </div>
@@ -251,8 +251,8 @@ export default function RegisterPage() {
                 <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
                   Workspace Email
                 </label>
-                <span className="text-[10px] text-cyan-400 font-mono flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   Sync Ready
                 </span>
               </div>
@@ -266,7 +266,7 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="alex@querymind.ai"
-                  className="w-full bg-[#080C14] border border-white/[0.08] focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-slate-600 transition-all outline-none font-mono"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.08] focus:border-white/30 focus:ring-1 focus:ring-white/10 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-white placeholder-slate-600 transition-all outline-none font-mono"
                 />
               </div>
             </div>
@@ -285,7 +285,7 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••••••"
-                  className="w-full bg-[#080C14] border border-white/[0.08] focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-600 transition-all outline-none font-mono"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.08] focus:border-white/30 focus:ring-1 focus:ring-white/10 rounded-xl py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-600 transition-all outline-none font-mono"
                 />
                 <button
                   type="button"
@@ -297,9 +297,9 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="p-3 bg-[#080C14] border border-white/[0.06] rounded-xl flex items-center justify-between">
+            <div className="p-3 bg-[#0A0A0A] border border-white/[0.06] rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-cyan-400">
+                <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white">
                   <Fingerprint className="w-4 h-4" />
                 </div>
                 <div>
@@ -317,11 +317,13 @@ export default function RegisterPage() {
                 aria-checked={biometricEnabled}
                 onClick={() => setBiometricEnabled(!biometricEnabled)}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  biometricEnabled ? "bg-indigo-600" : "bg-slate-800"
+                  biometricEnabled ? "bg-white" : "bg-neutral-800"
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full ${
+                    biometricEnabled ? "bg-black" : "bg-white"
+                  } shadow-lg ring-0 transition duration-200 ease-in-out ${
                     biometricEnabled ? "translate-x-4" : "translate-x-0"
                   }`}
                 />
@@ -331,17 +333,17 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-semibold shadow-lg shadow-white/10 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
                   <span>Provisioning Neural Space...</span>
                 </>
               ) : (
                 <>
                   <span>Create Neural Workspace</span>
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-200 group-hover:scale-110 transition-transform" />
+                  <Sparkles className="w-3.5 h-3.5 text-black group-hover:scale-110 transition-transform" />
                 </>
               )}
             </button>
@@ -349,14 +351,14 @@ export default function RegisterPage() {
 
           <div className="mt-6 pt-5 border-t border-white/[0.06] flex flex-col items-center text-center gap-2">
             <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>PostgreSQL + Qdrant Vector Zero-Knowledge Enclave</span>
             </div>
             <p className="text-[10px] text-slate-500 max-w-xs leading-relaxed">
               By establishing telemetry you consent to QueryMind's{" "}
-              <a href="#" className="text-cyan-400 hover:underline">Neural Privacy Protocol</a>{" "}
+              <a href="#" className="text-white underline">Neural Privacy Protocol</a>{" "}
               &{" "}
-              <a href="#" className="text-cyan-400 hover:underline">Vector Terms</a>.
+              <a href="#" className="text-white underline">Vector Terms</a>.
             </p>
           </div>
         </div>

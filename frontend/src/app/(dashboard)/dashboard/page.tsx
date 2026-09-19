@@ -45,7 +45,7 @@ export default function DashboardPage() {
               fontWeight: 500,
             }}
           >
-            <Sun style={{ width: "16px", height: "16px", color: "#F59E0B" }} />
+            <Sun style={{ width: "16px", height: "16px", color: "var(--text-secondary)" }} />
             <span>Good evening, {userProfile.name.split(" ")[0]}</span>
           </div>
 
@@ -100,7 +100,7 @@ export default function DashboardPage() {
               width: "8px",
               height: "8px",
               borderRadius: "50%",
-              background: isFocusMode ? "#8B5CF6" : "#6B7280",
+              background: isFocusMode ? "#FFFFFF" : "#737373",
             }}
           />
           <span>Focus Mode</span>
@@ -150,8 +150,8 @@ export default function DashboardPage() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "10px",
-                  background: "rgba(139, 92, 246, 0.15)",
-                  color: "#8B5CF6",
+                  background: "var(--surface-hover)",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -194,7 +194,7 @@ export default function DashboardPage() {
                   width: "95%",
                   height: "100%",
                   borderRadius: "2px",
-                  background: "#8B5CF6",
+                  background: "var(--text-primary)",
                 }}
               />
             </div>
@@ -230,8 +230,8 @@ export default function DashboardPage() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "10px",
-                  background: "rgba(16, 185, 129, 0.15)",
-                  color: "#10B981",
+                  background: "var(--surface-hover)",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                   width: "80%",
                   height: "100%",
                   borderRadius: "2px",
-                  background: "#10B981",
+                  background: "var(--text-primary)",
                 }}
               />
             </div>
@@ -310,8 +310,8 @@ export default function DashboardPage() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "10px",
-                  background: "rgba(59, 130, 246, 0.15)",
-                  color: "#3B82F6",
+                  background: "var(--surface-hover)",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -354,7 +354,7 @@ export default function DashboardPage() {
                   width: "72%",
                   height: "100%",
                   borderRadius: "2px",
-                  background: "#3B82F6",
+                  background: "var(--text-primary)",
                 }}
               />
             </div>
@@ -398,7 +398,7 @@ export default function DashboardPage() {
           </h2>
           <Link
             href="/activity"
-            style={{ fontSize: "12px", fontWeight: 600, color: "#8B5CF6", textDecoration: "none" }}
+            style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", textDecoration: "underline" }}
           >
             View all
           </Link>
@@ -420,8 +420,8 @@ export default function DashboardPage() {
                   width: "28px",
                   height: "28px",
                   borderRadius: "8px",
-                  background: item.bg || "#F5F3FF",
-                  color: item.color || "#8B5CF6",
+                  background: item.bg || "var(--surface-hover)",
+                  color: item.color || "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",

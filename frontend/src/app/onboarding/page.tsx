@@ -81,7 +81,7 @@ export default function OnboardingPage() {
     <div 
       className="min-h-screen text-slate-100 flex flex-col justify-between items-center px-4 py-10 relative overflow-x-hidden"
       style={{
-        backgroundColor: "#07090E",
+        backgroundColor: "#000000",
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
@@ -91,7 +91,7 @@ export default function OnboardingPage() {
         style={{
           width: "800px",
           height: "800px",
-          background: "radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(14, 165, 233, 0.08) 45%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)",
           filter: "blur(140px)",
           opacity: 0.7,
         }}
@@ -103,7 +103,7 @@ export default function OnboardingPage() {
         style={{
           backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)`,
           backgroundSize: "32px 32px",
-          opacity: 0.5,
+          opacity: 0.4,
         }}
       />
 
@@ -115,21 +115,21 @@ export default function OnboardingPage() {
               width: "36px",
               height: "36px",
               borderRadius: "10px",
-              background: "#121826",
+              background: "#171717",
               border: "1px solid rgba(255, 255, 255, 0.12)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.6)",
             }}
           >
-            <Brain style={{ width: "20px", height: "20px", color: "#818CF8" }} />
+            <Brain style={{ width: "20px", height: "20px", color: "#FFFFFF" }} />
           </div>
           <div>
             <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.02em", color: "#FFFFFF" }}>
               QueryMind
             </span>
-            <span style={{ fontSize: "11px", color: "#64748B", marginLeft: "8px", fontFamily: "'IBM Plex Mono', monospace" }}>
+            <span style={{ fontSize: "11px", color: "#737373", marginLeft: "8px", fontFamily: "'IBM Plex Mono', monospace" }}>
               Workspace Provisioning
             </span>
           </div>
@@ -155,16 +155,16 @@ export default function OnboardingPage() {
               gap: "6px",
               padding: "4px 12px",
               borderRadius: "9999px",
-              background: "rgba(99, 102, 241, 0.1)",
-              border: "1px solid rgba(99, 102, 241, 0.25)",
+              background: "rgba(255, 255, 255, 0.06)",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
               fontSize: "11px",
               fontFamily: "'IBM Plex Mono', monospace",
-              color: "#A5B4FC",
+              color: "#EDEDED",
               fontWeight: 500,
               marginBottom: "12px",
             }}
           >
-            <Sparkles style={{ width: "13px", height: "13px", color: "#818CF8" }} />
+            <Sparkles style={{ width: "13px", height: "13px", color: "#FFFFFF" }} />
             STEP 2 OF 3 • USER INTERESTS & PRE-SPACES
           </div>
 
@@ -202,9 +202,9 @@ export default function OnboardingPage() {
                 key={interest.id}
                 onClick={() => toggleInterest(interest.id)}
                 style={{
-                  background: isSelected ? "#0F1626" : "rgba(13, 18, 31, 0.75)",
+                  background: isSelected ? "#1A1A1A" : "#121212",
                   border: isSelected 
-                    ? "1px solid rgba(99, 102, 241, 0.55)" 
+                    ? "1px solid #FFFFFF" 
                     : "1px solid rgba(255, 255, 255, 0.08)",
                   borderRadius: "16px",
                   padding: "18px",
@@ -212,8 +212,8 @@ export default function OnboardingPage() {
                   transition: "all 150ms ease",
                   position: "relative",
                   boxShadow: isSelected 
-                    ? "0 8px 24px -6px rgba(99, 102, 241, 0.25)" 
-                    : "0 2px 8px rgba(0, 0, 0, 0.3)",
+                    ? "0 8px 24px -6px rgba(255, 255, 255, 0.08)" 
+                    : "0 2px 8px rgba(0, 0, 0, 0.5)",
                 }}
                 className="hover:border-slate-500/40 group"
               >
@@ -226,7 +226,7 @@ export default function OnboardingPage() {
                     width: "22px",
                     height: "22px",
                     borderRadius: "6px",
-                    background: isSelected ? "#4F46E5" : "rgba(255, 255, 255, 0.04)",
+                    background: isSelected ? "#10B981" : "rgba(255, 255, 255, 0.04)",
                     border: isSelected ? "none" : "1px solid rgba(255, 255, 255, 0.1)",
                     display: "flex",
                     alignItems: "center",
@@ -244,12 +244,12 @@ export default function OnboardingPage() {
                       width: "40px",
                       height: "40px",
                       borderRadius: "10px",
-                      background: isSelected ? "rgba(99, 102, 241, 0.2)" : "rgba(255, 255, 255, 0.04)",
-                      border: isSelected ? "1px solid rgba(99, 102, 241, 0.3)" : "1px solid rgba(255, 255, 255, 0.06)",
+                      background: isSelected ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.04)",
+                      border: isSelected ? "1px solid rgba(255, 255, 255, 0.16)" : "1px solid rgba(255, 255, 255, 0.06)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: isSelected ? "#818CF8" : "#94A3B8",
+                      color: isSelected ? "#FFFFFF" : "#A1A1A1",
                     }}
                   >
                     {getInterestIcon(interest.icon)}
@@ -259,7 +259,7 @@ export default function OnboardingPage() {
                       style={{
                         fontSize: "10px",
                         fontFamily: "'IBM Plex Mono', monospace",
-                        color: isSelected ? "#818CF8" : "#64748B",
+                        color: isSelected ? "#FFFFFF" : "#737373",
                         textTransform: "uppercase",
                         letterSpacing: "0.05em",
                         fontWeight: 600,
@@ -321,23 +321,23 @@ export default function OnboardingPage() {
         <div 
           className="w-full"
           style={{
-            background: "rgba(13, 18, 31, 0.85)",
+            background: "#121212",
             border: "1px solid rgba(255, 255, 255, 0.08)",
             borderRadius: "20px",
             padding: "20px 24px",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.6)",
             backdropFilter: "blur(16px)",
           }}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
             <div>
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-indigo-400" />
+                <Layers className="w-4 h-4 text-white" />
                 <h4 style={{ fontSize: "14px", fontWeight: 600, color: "#FFFFFF", margin: 0 }}>
                   Pre-Configured Spaces Ready for Generation ({previewSpaces.length})
                 </h4>
               </div>
-              <p style={{ fontSize: "12px", color: "#64748B", margin: "2px 0 0 0" }}>
+              <p style={{ fontSize: "12px", color: "#737373", margin: "2px 0 0 0" }}>
                 Each space is paired with a domain-expert agent and starter synthesis milestones.
               </p>
             </div>
@@ -351,25 +351,25 @@ export default function OnboardingPage() {
                 height: "42px",
                 padding: "0 22px",
                 borderRadius: "10px",
-                background: "linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)",
+                background: "#FFFFFF",
                 border: "none",
-                color: "#FFFFFF",
+                color: "#000000",
                 fontSize: "13px",
                 fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
                 cursor: "pointer",
-                boxShadow: "0 4px 16px rgba(79, 70, 229, 0.3)",
+                boxShadow: "0 4px 16px rgba(255, 255, 255, 0.15)",
                 transition: "all 150ms ease",
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "0 6px 22px rgba(79, 70, 229, 0.45)";
+                e.currentTarget.style.background = "#E5E5E5";
                 e.currentTarget.style.transform = "translateY(-1px)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(79, 70, 229, 0.3)";
+                e.currentTarget.style.background = "#FFFFFF";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
             >
@@ -384,7 +384,7 @@ export default function OnboardingPage() {
               <div
                 key={space.id}
                 style={{
-                  background: "#080C14",
+                  background: "#0D0D0D",
                   border: "1px solid rgba(255, 255, 255, 0.07)",
                   borderRadius: "12px",
                   padding: "12px 14px",
@@ -426,7 +426,7 @@ export default function OnboardingPage() {
                   }}
                 >
                   <div className="flex items-center gap-1.5">
-                    <Bot className="w-3.5 h-3.5 text-indigo-400" />
+                    <Bot className="w-3.5 h-3.5 text-white/80" />
                     <span className="truncate max-w-[110px]">{space.agentName}</span>
                   </div>
                   <div className="flex items-center gap-1 text-slate-500">

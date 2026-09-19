@@ -163,8 +163,8 @@ export default function LoginPage() {
     <div 
       className="min-h-screen flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden"
       style={{
-        backgroundColor: "#07090E",
-        color: "#F1F5F9",
+        backgroundColor: "#000000",
+        color: "#EDEDED",
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
@@ -174,7 +174,7 @@ export default function LoginPage() {
         style={{
           width: "600px",
           height: "600px",
-          background: "radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, rgba(30, 41, 59, 0.2) 50%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)",
           filter: "blur(140px)",
           opacity: 0.8,
         }}
@@ -186,7 +186,7 @@ export default function LoginPage() {
         style={{
           backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)`,
           backgroundSize: "32px 32px",
-          opacity: 0.5,
+          opacity: 0.4,
         }}
       />
 
@@ -195,10 +195,10 @@ export default function LoginPage() {
         className="relative z-10 w-full"
         style={{
           maxWidth: "420px",
-          background: "rgba(13, 17, 28, 0.94)",
+          background: "#121212",
           border: "1px solid rgba(255, 255, 255, 0.08)",
           borderRadius: "22px",
-          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 40px rgba(99, 102, 241, 0.05)",
+          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.06)",
           backdropFilter: "blur(20px)",
           padding: "32px 28px",
         }}
@@ -211,15 +211,15 @@ export default function LoginPage() {
                 width: "52px",
                 height: "52px",
                 borderRadius: "14px",
-                background: "#121826",
+                background: "#171717",
                 border: "1px solid rgba(255, 255, 255, 0.12)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 6px 18px rgba(0, 0, 0, 0.4)",
+                boxShadow: "0 6px 18px rgba(0, 0, 0, 0.6)",
               }}
             >
-              <Brain style={{ width: "26px", height: "26px", color: "#818CF8" }} />
+              <Brain style={{ width: "26px", height: "26px", color: "#FFFFFF" }} />
             </div>
             <span 
               style={{
@@ -229,7 +229,7 @@ export default function LoginPage() {
                 width: "12px",
                 height: "12px",
                 backgroundColor: "#10B981",
-                border: "2px solid #0D111C",
+                border: "2px solid #121212",
                 borderRadius: "50%",
               }}
             />
@@ -290,7 +290,7 @@ export default function LoginPage() {
         <div 
           style={{
             marginTop: "22px",
-            background: "#080B12",
+            background: "#0A0A0A",
             border: "1px solid rgba(255, 255, 255, 0.07)",
             borderRadius: "12px",
             padding: "4px",
@@ -310,9 +310,9 @@ export default function LoginPage() {
               fontSize: "12px",
               fontWeight: 600,
               borderRadius: "8px",
-              border: mode === "signin" ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid transparent",
-              background: mode === "signin" ? "#161F33" : "transparent",
-              color: mode === "signin" ? "#FFFFFF" : "#64748B",
+              border: mode === "signin" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
+              background: mode === "signin" ? "#212121" : "transparent",
+              color: mode === "signin" ? "#FFFFFF" : "#737373",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",
@@ -326,7 +326,7 @@ export default function LoginPage() {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: mode === "signin" ? "#818CF8" : "transparent",
+                backgroundColor: mode === "signin" ? "#FFFFFF" : "transparent",
               }}
             />
             Sign In
@@ -343,9 +343,9 @@ export default function LoginPage() {
               fontSize: "12px",
               fontWeight: 600,
               borderRadius: "8px",
-              border: mode === "signup" ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid transparent",
-              background: mode === "signup" ? "#161F33" : "transparent",
-              color: mode === "signup" ? "#FFFFFF" : "#64748B",
+              border: mode === "signup" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
+              background: mode === "signup" ? "#212121" : "transparent",
+              color: mode === "signup" ? "#FFFFFF" : "#737373",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",
@@ -359,7 +359,7 @@ export default function LoginPage() {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: mode === "signup" ? "#818CF8" : "transparent",
+                backgroundColor: mode === "signup" ? "#FFFFFF" : "transparent",
               }}
             />
             Create Space
@@ -464,12 +464,12 @@ export default function LoginPage() {
           <span 
             style={{
               position: "relative",
-              background: "#0D111C",
+              background: "#121212",
               padding: "0 10px",
               fontSize: "10px",
               fontFamily: "'IBM Plex Mono', monospace",
               letterSpacing: "0.08em",
-              color: "#64748B",
+              color: "#737373",
               textTransform: "uppercase",
             }}
           >
@@ -618,7 +618,7 @@ export default function LoginPage() {
                   height: "42px",
                   paddingLeft: "42px",
                   paddingRight: "14px",
-                  background: "#080B12",
+                  background: "#0A0A0A",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
                   borderRadius: "10px",
                   color: "#FFFFFF",
@@ -628,8 +628,8 @@ export default function LoginPage() {
                   fontFamily: "'IBM Plex Mono', monospace",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.5)";
-                  e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 102, 241, 0.12)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                  e.currentTarget.style.boxShadow = "0 0 0 2px rgba(255, 255, 255, 0.06)";
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
@@ -663,12 +663,12 @@ export default function LoginPage() {
                     border: "none",
                     padding: 0,
                     fontSize: "11px",
-                    color: "#64748B",
+                    color: "#737373",
                     cursor: "pointer",
                     textDecoration: "none",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#818CF8")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#64748B")}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#FFFFFF")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#737373")}
                 >
                   Forgot Key?
                 </button>
@@ -682,7 +682,7 @@ export default function LoginPage() {
                   left: "14px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#64748B",
+                  color: "#737373",
                   pointerEvents: "none",
                   display: "flex",
                   alignItems: "center",
@@ -701,7 +701,7 @@ export default function LoginPage() {
                   height: "42px",
                   paddingLeft: "42px",
                   paddingRight: "42px",
-                  background: "#080B12",
+                  background: "#0A0A0A",
                   border: "1px solid rgba(255, 255, 255, 0.08)",
                   borderRadius: "10px",
                   color: "#FFFFFF",
@@ -711,8 +711,8 @@ export default function LoginPage() {
                   fontFamily: "'IBM Plex Mono', monospace",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(99, 102, 241, 0.5)";
-                  e.currentTarget.style.boxShadow = "0 0 0 2px rgba(99, 102, 241, 0.12)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                  e.currentTarget.style.boxShadow = "0 0 0 2px rgba(255, 255, 255, 0.06)";
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
@@ -730,7 +730,7 @@ export default function LoginPage() {
                   background: "none",
                   border: "none",
                   padding: 0,
-                  color: "#64748B",
+                  color: "#737373",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -788,8 +788,8 @@ export default function LoginPage() {
                 width: "36px",
                 height: "20px",
                 borderRadius: "9999px",
-                background: biometricEnabled ? "#4F46E5" : "#1E293B",
-                border: "none",
+                background: biometricEnabled ? "#FFFFFF" : "#262626",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
                 cursor: "pointer",
                 position: "relative",
                 transition: "background-color 200ms ease",
@@ -799,10 +799,10 @@ export default function LoginPage() {
               <span 
                 style={{
                   display: "block",
-                  width: "16px",
-                  height: "16px",
+                  width: "14px",
+                  height: "14px",
                   borderRadius: "50%",
-                  background: "#FFFFFF",
+                  background: biometricEnabled ? "#000000" : "#FFFFFF",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                   transform: biometricEnabled ? "translateX(16px)" : "translateX(0)",
                   transition: "transform 200ms ease",
@@ -819,9 +819,9 @@ export default function LoginPage() {
               width: "100%",
               height: "44px",
               borderRadius: "10px",
-              background: "linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)",
+              background: "#FFFFFF",
               border: "none",
-              color: "#FFFFFF",
+              color: "#000000",
               fontSize: "13px",
               fontWeight: 600,
               display: "flex",
@@ -829,30 +829,30 @@ export default function LoginPage() {
               justifyContent: "center",
               gap: "8px",
               cursor: "pointer",
-              boxShadow: "0 4px 16px rgba(79, 70, 229, 0.28)",
+              boxShadow: "0 4px 16px rgba(255, 255, 255, 0.15)",
               transition: "all 150ms ease",
               opacity: loading ? 0.7 : 1,
             }}
             onMouseEnter={(e) => {
               if (!loading) {
-                e.currentTarget.style.boxShadow = "0 6px 20px rgba(79, 70, 229, 0.4)";
+                e.currentTarget.style.background = "#E5E5E5";
                 e.currentTarget.style.transform = "translateY(-1px)";
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(79, 70, 229, 0.28)";
+              e.currentTarget.style.background = "#FFFFFF";
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
             {loading ? (
               <>
-                <Loader2 style={{ width: "15px", height: "15px" }} className="animate-spin" />
+                <Loader2 style={{ width: "15px", height: "15px", color: "#000000" }} className="animate-spin" />
                 <span>Authenticating...</span>
               </>
             ) : (
               <>
                 <span>{mode === "signin" ? "Initialize Neural Session" : "Create Neural Workspace"}</span>
-                <Sparkles style={{ width: "14px", height: "14px", color: "#C7D2FE" }} />
+                <Sparkles style={{ width: "14px", height: "14px", color: "#000000" }} />
               </>
             )}
           </button>
@@ -894,9 +894,9 @@ export default function LoginPage() {
             }}
           >
             By continuing you consent to QueryMind's{" "}
-            <a href="#" style={{ color: "#818CF8", textDecoration: "none" }}>Neural Privacy Protocol</a>{" "}
+            <a href="#" style={{ color: "#EDEDED", textDecoration: "underline" }}>Neural Privacy Protocol</a>{" "}
             &{" "}
-            <a href="#" style={{ color: "#818CF8", textDecoration: "none" }}>Vector Terms</a>.
+            <a href="#" style={{ color: "#EDEDED", textDecoration: "underline" }}>Vector Terms</a>.
           </p>
         </div>
       </div>
