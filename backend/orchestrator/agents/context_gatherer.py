@@ -91,10 +91,39 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             state["workspace_context"] = empty_context
             return state
 
+        # Detect domain archetype and specialized agent role
+        icon = space.icon or ""
+        name_desc = f"{space.name} {space.description or ''}".lower()
+        if "📚" in icon or any(k in name_desc for k in ["study", "course", "exam", "lecture", "academic"]):
+            domain_type = "study"
+            domain_role = "ACADEMIC TUTOR & STUDY COMPANION"
+            domain_guidance = "You are in a dedicated Study & Academics workspace. Ground all explanations in lecture notes and textbook excerpts. Provide pedagogical breakdowns, cite source chapters/slides, and test understanding."
+        elif "⚡" in icon or any(k in name_desc for k in ["task", "sprint", "todo", "dev", "project", "bug"]):
+            domain_type = "tasks"
+            domain_role = "ENGINEERING SPRINT & TASK PLANNER"
+            domain_guidance = "You are in a dedicated Tasks & Execution workspace. Focus on concrete milestone breakdowns, actionable checklist deliverables, identifying blocking dependencies, and proposing execution steps."
+        elif "🔬" in icon or any(k in name_desc for k in ["research", "paper", "thesis", "literature", "science"]):
+            domain_type = "research"
+            domain_role = "LITERATURE & RESEARCH ANALYST"
+            domain_guidance = "You are in a dedicated Deep Research workspace. Emphasize multi-paper evidence synthesis, comparative methodology, empirical trade-offs, and conceptual cross-references."
+        elif "💼" in icon or any(k in name_desc for k in ["strategy", "exec", "roadmap", "okr", "business"]):
+            domain_type = "executive"
+            domain_role = "STRATEGIC OPERATIONS ADVISOR"
+            domain_guidance = "You are in a dedicated Executive Strategy workspace. Focus on executive roadmaps, decision governance, impact analysis, and resource trade-offs."
+        else:
+            domain_type = "custom"
+            domain_role = "INTELLIGENT WORKSPACE COMPANION"
+            domain_guidance = "Grounded sovereign workspace reasoning."
+
         space_data = {
             "id": str(space.id),
             "name": space.name,
-            "description": space.description
+            "description": space.description,
+            "icon": space.icon,
+            "color": space.color,
+            "domain_type": domain_type,
+            "domain_role": domain_role,
+            "domain_guidance": domain_guidance,
         }
 
         # 2. Fetch Active Projects for this Space (Limit 10)

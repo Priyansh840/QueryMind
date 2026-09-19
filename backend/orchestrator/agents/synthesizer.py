@@ -60,8 +60,15 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
     try:
         llm = get_llm(temperature=0.4)
         
+        space_info = (state.get("workspace_context") or {}).get("space") or {}
+        domain_role = space_info.get("domain_role", "INTELLIGENT WORKSPACE AI ASSISTANT")
+        domain_guidance = space_info.get("domain_guidance", "")
+        domain_type = space_info.get("domain_type", "custom")
+
         system_prompt = (
-            "You are MYND, an intelligent workspace AI assistant operating within the user's active Space context. "
+            f"You are MYND operating as: {domain_role}.\n"
+            f"Active Space: {space_info.get('name', 'General Space')} (Type: {domain_type.upper()})\n"
+            f"Domain Focus: {domain_guidance}\n\n"
             "You have direct access to the user's uploaded documents, knowledge vault, and workspace goals in this Space.\n\n"
             "CRITICAL RULES:\n"
             "1. You are NOT an isolated language model that cannot see files. You CAN access documents and information in this workspace through your RAG retrieval engine.\n"

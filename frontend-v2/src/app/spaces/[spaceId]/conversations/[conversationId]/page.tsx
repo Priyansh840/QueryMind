@@ -14,6 +14,8 @@ import {
   MemoryItem,
 } from "@/types/api";
 import { CommandSidebar } from "@/components/layout/CommandSidebar";
+import { createClient } from "@/lib/supabase/client";
+import { getSpaceArchetype } from "@/lib/spaces/spaceArchetypes";
 import {
   MessageSquare,
   Plus,
@@ -245,13 +247,22 @@ export default function ConversationPage({ params }: ConversationPageProps) {
     setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
 
     try {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/conversations/${conversationId}/messages`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({ content: textToSend }),
         }
       );
@@ -494,30 +505,42 @@ export default function ConversationPage({ params }: ConversationPageProps) {
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0a0a0f]">
         {/* Agent Header */}
         <header className="h-16 px-8 border-b border-white/[0.07] flex items-center justify-between shrink-0 bg-[#0c0d14]/90 backdrop-blur-md z-20">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-sm">
-                <Cpu className="w-4 h-4" />
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0c0d14] animate-pulse" />
-            </div>
+          {(() => {
+            const currentArchetype = getSpaceArchetype(space);
+            return (
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base border border-white/10 shrink-0 shadow-sm"
+                  style={{ backgroundColor: `${space?.color || currentArchetype.color}20` }}
+                >
+                  {space?.icon || currentArchetype.icon}
+                </div>
 
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold text-white tracking-tight truncate">
-                  MYND Autonomous Agent
-                </h1>
-                <span className="px-2 py-0.2 rounded text-[9px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-                  ONLINE • GROUNDED
-                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm font-bold text-white tracking-tight truncate">
+                      {space?.name || "MYND Agent"}
+                    </h1>
+                    <span
+                      className="px-2 py-0.2 rounded text-[9px] font-mono uppercase border font-bold"
+                      style={{
+                        backgroundColor: `${currentArchetype.color}15`,
+                        color: currentArchetype.color,
+                        borderColor: `${currentArchetype.color}30`,
+                      }}
+                    >
+                      {currentArchetype.badge}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2 mt-0.5 truncate">
+                    <span>{currentConv?.title || "Active Reasoning Session"}</span>
+                    <span>•</span>
+                    <span>{documents.length} Docs & {memories.length} Axioms Grounded</span>
+                  </div>
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2 mt-0.5 truncate">
-                <span>{currentConv?.title || "Multi-Turn Reasoning"}</span>
-                <span>•</span>
-                <span>{documents.length} Documents & {memories.length} Axioms Synced</span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <div className="flex items-center gap-2.5">
             <button
@@ -547,55 +570,50 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 <Sparkles className="w-6 h-6" />
               </div>
 
-              <div className="space-y-1.5 max-w-md">
-                <h2 className="text-base font-bold text-white">
-                  MYND Reasoning Agent Ready
-                </h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  I synthesize your workspace documents, verify invariant principles, and formulate executable action proposals.
-                </p>
-              </div>
+              {(() => {
+                const currentArchetype = getSpaceArchetype(space);
+                return (
+                  <>
+                    <div className="space-y-1.5 max-w-md">
+                      <h2 className="text-base font-bold text-white flex items-center justify-center gap-2">
+                        <span>{currentArchetype.icon}</span>
+                        <span>{currentArchetype.name} Agent Ready</span>
+                      </h2>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        {currentArchetype.id === "study"
+                          ? "I synthesize your lecture notes, test your understanding with practice quizzes, and extract key theorems."
+                          : currentArchetype.id === "tasks"
+                          ? "I break down deliverables into verifiable milestones, identify blockers, and propose actionable tasks."
+                          : currentArchetype.id === "research"
+                          ? "I analyze academic papers, synthesize comparative methodologies, and trace evidence consensus."
+                          : currentArchetype.id === "executive"
+                          ? "I track executive roadmaps, audit decision governance, and analyze strategic trade-offs."
+                          : "I synthesize your workspace documents, verify invariant principles, and formulate executable action proposals."}
+                      </p>
+                    </div>
 
-              {/* Real Agent Prompt Starters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full pt-2">
-                {[
-                  {
-                    title: "Synthesize Key Risks & Blockers",
-                    desc: "Audit current initiatives against uploaded evidence",
-                    prompt: "Synthesize all active initiatives and report critical blockers or contradictions in our documents.",
-                  },
-                  {
-                    title: "Propose Next Milestone Action",
-                    desc: "Generate an actionable proposal to execute into Work",
-                    prompt: "Analyze our space evidence and formulate a prioritized action proposal for the next sprint milestone.",
-                  },
-                  {
-                    title: "Audit Grounding Evidence",
-                    desc: "Check documents for missing architectural constraints",
-                    prompt: "Perform an audit of our grounded documents and summarize decisions that require human review.",
-                  },
-                  {
-                    title: "Review Invariant Axioms",
-                    desc: "Verify decision consistency with core principles",
-                    prompt: "List our retained invariant axioms and check if any current initiatives violate them.",
-                  },
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSendMessage(item.prompt)}
-                    className="p-3.5 rounded-xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] text-left transition-all group cursor-pointer space-y-1"
-                  >
-                    <div className="text-xs font-semibold text-white group-hover:text-indigo-400 transition-colors flex items-center justify-between">
-                      <span>{item.title}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-transform group-hover:translate-x-0.5" />
+                    {/* Domain-Specific Agent Prompt Starters */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full pt-2">
+                      {currentArchetype.samplePrompts.map((promptText, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSendMessage(promptText)}
+                          className="p-3.5 rounded-xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] text-left transition-all group cursor-pointer space-y-1"
+                        >
+                          <div className="text-xs font-semibold text-white group-hover:text-indigo-400 transition-colors flex items-center justify-between">
+                            <span className="truncate">{promptText}</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-transform group-hover:translate-x-0.5 shrink-0 ml-2" />
+                          </div>
+                          <div className="text-[11px] text-slate-400 leading-tight font-mono">
+                            {currentArchetype.name} Directive
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                    <div className="text-[11px] text-slate-400 leading-tight">
-                      {item.desc}
-                    </div>
-                  </button>
-                ))}
-              </div>
+                  </>
+                );
+              })()}
             </div>
           ) : (
             messages.map((msg, index) => {
