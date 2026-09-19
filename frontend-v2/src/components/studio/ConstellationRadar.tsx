@@ -6,7 +6,7 @@ import { Sparkles, Maximize2, Minimize2 } from "lucide-react";
 export interface ConstellationNode {
   id: string;
   title: string;
-  type: "document" | "memory" | "project" | "proposal" | "core";
+  type: "document" | "memory" | "project" | "proposal" | "knowledge" | "core";
   subtitle?: string;
   x: number;
   y: number;
@@ -26,6 +26,7 @@ export interface ConstellationLink {
 interface ConstellationRadarProps {
   documents?: Array<{ id: string; title: string; chunks_count?: number }>;
   memories?: Array<{ id: string; title: string; confidence?: string }>;
+  knowledgeItems?: Array<{ id: string; title?: string | null; content: string; knowledge_type: string; confidence?: number; document_title?: string | null }>;
   projects?: Array<{ id: string; name: string; status?: string }>;
   proposals?: Array<{ id: string; title: string }>;
   isStreaming?: boolean;
@@ -35,6 +36,7 @@ interface ConstellationRadarProps {
 export function ConstellationRadar({
   documents = [],
   memories = [],
+  knowledgeItems = [],
   projects = [],
   proposals = [],
   isStreaming = false,
@@ -44,7 +46,7 @@ export function ConstellationRadar({
   const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredNode, setHoveredNode] = useState<ConstellationNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const [filter, setFilter] = useState<"all" | "document" | "memory" | "project">("all");
+  const [filter, setFilter] = useState<"all" | "document" | "knowledge" | "memory" | "project">("all");
 
   const nodesRef = useRef<ConstellationNode[]>([]);
   const linksRef = useRef<ConstellationLink[]>([]);
@@ -149,6 +151,35 @@ export function ConstellationRadar({
       newLinks.push({ source: "core-mynd", target: proj.id, strength: 0.7 });
     });
 
+    // Add Knowledge Items / Concepts (Violet #a78bfa)
+    knowledgeItems.slice(0, 8).forEach((k, idx) => {
+      const angle = (idx / Math.max(knowledgeItems.length, 1)) * Math.PI * 2 + 0.8;
+      const dist = 80 + Math.random() * 45;
+      const title = k.title || (k.content.length > 25 ? `${k.content.slice(0, 25)}...` : k.content);
+      const node: ConstellationNode = {
+        id: k.id,
+        title: title,
+        type: "knowledge",
+        subtitle: `Qdrant ${k.knowledge_type} · ${Math.round((k.confidence || 1) * 100)}% conf`,
+        x: Math.max(30, Math.min(width - 30, centerX + Math.cos(angle) * dist)),
+        y: Math.max(20, Math.min(height - 20, centerY + Math.sin(angle) * dist)),
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        radius: 4.5,
+        color: "#a78bfa",
+        glowColor: "rgba(167, 139, 250, 0.5)",
+      };
+      newNodes.push(node);
+      newLinks.push({ source: "core-mynd", target: k.id, strength: 0.7 });
+
+      if (k.document_title) {
+        const docNode = newNodes.find((n) => n.type === "document" && n.title === k.document_title);
+        if (docNode) {
+          newLinks.push({ source: k.id, target: docNode.id, strength: 0.85 });
+        }
+      }
+    });
+
     // Add Pending Action Proposals (Amber)
     proposals.slice(0, 3).forEach((prop, idx) => {
       const angle = idx * 1.5 - 0.8;
@@ -172,7 +203,7 @@ export function ConstellationRadar({
 
     nodesRef.current = newNodes;
     linksRef.current = newLinks;
-  }, [documents, memories, projects, proposals]);
+  }, [documents, memories, knowledgeItems, projects, proposals]);
 
   // Main Canvas Rendering & Physics Loop
   useEffect(() => {
@@ -384,6 +415,10 @@ export function ConstellationRadar({
               <span>{documents.length} Grounded</span>
             </span>
             <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#a78bfa]" />
+              <span>{knowledgeItems.length} Concepts</span>
+            </span>
+            <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#818cf8]" />
               <span>{memories.length} Memories</span>
             </span>
@@ -418,6 +453,14 @@ export function ConstellationRadar({
               }`}
             >
               Docs
+            </button>
+            <button
+              onClick={() => setFilter("knowledge")}
+              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                filter === "knowledge" ? "bg-[#a78bfa]/20 text-[#a78bfa] font-medium" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Concepts
             </button>
             <button
               onClick={() => setFilter("memory")}
