@@ -743,7 +743,7 @@ const sampleActivityFeed: ActivityItem[] = [
 export const useMyndStore = create<MyndState>()(
   persist(
     (set, get) => ({
-      theme: "light",
+      theme: "dark",
       activeRoute: "home",
       activeSpaceId: "career",
       activeSpaceTab: "overview",
@@ -784,7 +784,7 @@ export const useMyndStore = create<MyndState>()(
 
       toggleTheme: () => {
         const cur = get().theme;
-        const next = cur === "light" ? "dark" : cur === "dark" ? "zen" : "light";
+        const next = cur === "dark" ? "light" : cur === "light" ? "zen" : "dark";
         if (typeof document !== "undefined") {
           document.documentElement.setAttribute("data-theme", next);
         }
@@ -1186,6 +1186,13 @@ export const useMyndStore = create<MyndState>()(
       name: "querymind_storage_v2",
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Default theme must be dark
+        if (!state.theme || state.theme === "light") {
+          state.theme = "dark";
+        }
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-theme", state.theme || "dark");
+        }
         const dedupe = <T extends { id?: string }>(arr: T[] | undefined): T[] => {
           if (!Array.isArray(arr)) return [];
           const seen = new Set<string>();
