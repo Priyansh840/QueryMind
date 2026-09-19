@@ -1,45 +1,51 @@
-:root {
+:root,
+[data-theme="dark"] {
   /* ==========================================================================
-     MYND DESIGN SYSTEM v3 — HIGH FIDELITY EXACT REPLICATION
-     Calm, elegant, minimal, Indiglo-Purple Accents, soft borders
+     MYND DESIGN SYSTEM v3 — DARK THEME (DEFAULT)
+     Calm, elegant, minimal, Indigo-Purple Accents, soft borders
      ========================================================================== */
 
-  /* LIGHT THEME */
-  --bg: #FFFFFF;
-  --bg-translucent: rgba(255, 255, 255, 0.85);
-  --surface: #FFFFFF;
-  --surface-subtle: #F9FAFB;
-  --surface-hover: #F3F4F6;
-  --sidebar-bg: #FAFAFA;
-  --border: #E5E7EB;
-  --border-strong: #D1D5DB;
-  --divider: #E5E7EB;
+  /* DARK THEME (CLASSIC BLACK & WHITE - HIGH CONTRAST) */
+  --bg: #000000;
+  --bg-translucent: rgba(0, 0, 0, 0.85);
+  --surface: #141414;
+  --surface-subtle: #1C1C1C;
+  --surface-hover: #262626;
+  --sidebar-bg: #0D0D0D;
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --divider: rgba(255, 255, 255, 0.12);
 
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-tertiary: #9CA3AF;
-  --text-ghost: #D1D5DB;
+  --text-primary: #FFFFFF;
+  --text-secondary: #D4D4D4; /* Crisp readable secondary text */
+  --text-tertiary: #A3A3A3;  /* High contrast readable metadata */
+  --text-ghost: #737373;     /* Visible subtle elements */
 
-  --accent: #6366F1; /* Indigo */
-  --accent-purple: #8B5CF6; /* Purple/Violet */
-  --accent-contrast: #FFFFFF;
-  --accent-soft: #EEF2FF;
-  --accent-soft-purple: #F5F3FF;
+  --accent: #FFFFFF;
+  --accent-purple: #FFFFFF;
+  --accent-contrast: #000000;
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-soft-purple: rgba(255, 255, 255, 0.08);
 
-  /* Custom Category Colors matching Map */
-  --color-resume: #10B981; /* Green */
-  --color-skills: #F59E0B; /* Orange */
-  --color-certs: #14B8A6; /* Teal */
-  --color-goals: #ED64A6; /* Pink */
-  --color-interviews: #EF4444; /* Red */
-  --color-projects: #3B82F6; /* Blue */
+  /* Functional Status Colors (Green tick, Red cross) */
+  --color-success: #10B981; /* Green for tick mark */
+  --color-error: #EF4444;   /* Red for cross mark */
+  --color-warning: #F59E0B; /* Amber warning */
+
+  /* Neutral Category Colors */
+  --color-resume: #E5E5E5;
+  --color-skills: #D4D4D4;
+  --color-certs: #A3A3A3;
+  --color-goals: #737373;
+  --color-interviews: #E5E5E5;
+  --color-projects: #D4D4D4;
 
   /* Elevation & Shadows */
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
-  --shadow-dock: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.8);
+  --shadow-dock: 0 10px 25px rgba(0, 0, 0, 0.8);
 
   /* Spacing */
   --s-2: 2px; --s-4: 4px; --s-6: 6px; --s-8: 8px;
@@ -74,40 +80,55 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
+  /* Canvas & Knowledge Map Tokens */
+  --canvas-bg: #000000;
+  --canvas-border: rgba(255, 255, 255, 0.08);
+  --node-bg: #171717;
+  --node-border: rgba(255, 255, 255, 0.12);
+  --node-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --node-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+
   /* Shell */
   --header-h: 56px;
   --sidebar-w: 240px;
   --context-w: 360px;
 }
 
-/* DARK THEME */
-[data-theme="dark"] {
-  --bg: #0B0F19;
-  --bg-translucent: rgba(11, 15, 25, 0.85);
-  --surface: #111827;
-  --surface-subtle: #1F2937;
-  --surface-hover: #374151;
-  --sidebar-bg: #0D111D;
-  --border: #1F2937;
-  --border-strong: #374151;
-  --divider: #1F2937;
+/* LIGHT THEME */
+[data-theme="light"] {
+  --bg: #FFFFFF;
+  --bg-translucent: rgba(255, 255, 255, 0.85);
+  --surface: #FFFFFF;
+  --surface-subtle: #F9FAFB;
+  --surface-hover: #F3F4F6;
+  --sidebar-bg: #FAFAFA;
+  --border: #E5E7EB;
+  --border-strong: #D1D5DB;
+  --divider: #E5E7EB;
 
-  --text-primary: #F9FAFB;
-  --text-secondary: #D1D5DB;
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
   --text-tertiary: #9CA3AF;
-  --text-ghost: #4B5563;
+  --text-ghost: #D1D5DB;
 
-  --accent: #818CF8;
-  --accent-purple: #A78BFA;
-  --accent-contrast: #0B0F19;
-  --accent-soft: rgba(99, 102, 241, 0.15);
-  --accent-soft-purple: rgba(139, 92, 246, 0.15);
+  --accent: #000000;
+  --accent-purple: #262626;
+  --accent-contrast: #FFFFFF;
+  --accent-soft: rgba(0, 0, 0, 0.06);
+  --accent-soft-purple: rgba(0, 0, 0, 0.04);
 
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
-  --shadow-md: 0 8px 24px rgba(0,0,0,0.5);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,0.6);
-  --shadow-dock: 0 10px 25px rgba(0, 0, 0, 0.6);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
+  --shadow-dock: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+
+  --canvas-bg: radial-gradient(circle at center, #FAFAFE 0%, #F4F4F8 100%);
+  --canvas-border: #E5E7EB;
+  --node-bg: #FFFFFF;
+  --node-border: rgba(0, 0, 0, 0.08);
+  --node-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  --node-hover-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 /* ZEN MODE */
@@ -197,12 +218,12 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-family: var(--mono);
-  color: var(--text-tertiary);
-  background: var(--surface-hover);
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  line-height: 1;
+  border-radius: 6px;
+  line-height: 1.2;
 }

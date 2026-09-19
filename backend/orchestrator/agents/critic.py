@@ -23,45 +23,43 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     logger.info("Starting Critic Agent...")
     
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-        
+    db = config.get("configurable", {}).get("db") if config else None
     objective_id = state.get("objective_id")
     workflow_iteration = state.get("workflow_iteration", 1)
     
-    # Deterministic IDs
-    obj_uuid = uuid.UUID(objective_id)
-    workflow_id = uuid.uuid5(obj_uuid, "workflow")
-    step_id = uuid.uuid5(workflow_id, f"critic_{workflow_iteration}")
-    
-    try:
-        step_order = (workflow_iteration * 10) + 3  # 13, 23, 33...
-        step_stmt = insert(WorkflowStep).values(
-            id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="critique",
-            status="running"
-        ).on_conflict_do_update(
-            index_elements=['id'],
-            set_={'status': 'running'}
-        )
-        await db.execute(step_stmt)
+    if db and objective_id:
+        # Deterministic IDs
+        obj_uuid = uuid.UUID(objective_id)
+        workflow_id = uuid.uuid5(obj_uuid, "workflow")
+        step_id = uuid.uuid5(workflow_id, f"critic_{workflow_iteration}")
         
-        run_id = uuid.uuid4()
-        run = AgentRun(
-            id=run_id,
-            workflow_step_id=step_id,
-            agent_type="critic",
-            status="running",
-            started_at=datetime.now(timezone.utc),
-            input_context={"results_count": len(state.get("research_results", []))}
-        )
-        db.add(run)
-        await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating DB records for critic: {e}")
-        await db.rollback()
-        raise
+        try:
+            step_order = (workflow_iteration * 10) + 3  # 13, 23, 33...
+            step_stmt = insert(WorkflowStep).values(
+                id=step_id, workflow_id=workflow_id, step_order=step_order, 
+                iteration=workflow_iteration, intent_type="critique",
+                status="running"
+            ).on_conflict_do_update(
+                index_elements=['id'],
+                set_={'status': 'running'}
+            )
+            await db.execute(step_stmt)
+            
+            run_id = uuid.uuid4()
+            run = AgentRun(
+                id=run_id,
+                workflow_step_id=step_id,
+                agent_type="critic",
+                status="running",
+                started_at=datetime.now(timezone.utc),
+                input_context={"results_count": len(state.get("research_results", []))}
+            )
+            db.add(run)
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Error creating DB records for critic: {e}")
+            await db.rollback()
+            raise
 
     try:
         llm = get_llm(temperature=0.1)
@@ -78,16 +76,16 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
         results_context = []
         for res in state.get("research_results", []):
             if res.get("status") == "completed":
-                ev_str = "\\n".join([f"- {e.get('content')} (Source: {e.get('document_title')})" for e in res.get("evidence", [])])
-                results_context.append(f"Task: {res.get('query')}\\nEvidence:\\n{ev_str}")
+                ev_str = "\n".join([f"- {e.get('content')} (Source: {e.get('document_title')})" for e in res.get("evidence", [])])
+                results_context.append(f"Task: {res.get('query')}\nEvidence:\n{ev_str}")
             elif res.get("status") == "no_evidence":
-                results_context.append(f"Task: {res.get('query')}\\nEvidence: [NO EVIDENCE FOUND]")
+                results_context.append(f"Task: {res.get('query')}\nEvidence: [NO EVIDENCE FOUND]")
             elif res.get("status") == "failed":
-                results_context.append(f"Task: {res.get('query')}\\nEvidence: [RESEARCH FAILED]")
+                results_context.append(f"Task: {res.get('query')}\nEvidence: [RESEARCH FAILED]")
         
-        evidence_str = "\\n\\n".join(results_context)
+        evidence_str = "\n\n".join(results_context)
         
-        human_prompt = f"User Query: {state['raw_query']}\n\nCurrent Evidence:\n{evidence_str}"
+        human_prompt = f"User Query: {state.get('raw_query', '')}\n\nCurrent Evidence:\n{evidence_str}"
         
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(state.get("chat_history", []))
@@ -114,37 +112,45 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
                     })
         
         # Database Logging - Complete
-        run.status = "completed"
-        run.completed_at = datetime.now(timezone.utc)
-        run.output_summary = response.model_dump()
-        db.add(run)
-        # Step 13: Update step status in real-time
-        if 'step_id' in locals() and db:
+        if db and 'run' in locals():
             try:
-                await db.execute(
-                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
-                )
-            except Exception as ex:
-                logger.debug(f"Step status update error: {ex}")
-        await db.commit()
+                run.status = "completed"
+                run.completed_at = datetime.now(timezone.utc)
+                run.output_summary = response.model_dump()
+                db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
+                await db.commit()
+            except Exception as e:
+                logger.warning(f"Telemetry save error in critic: {e}")
         
         return state
         
     except Exception as e:
         logger.error(f"Critic failed: {e}")
-        run.status = "failed"
-        run.error = str(e)
-        run.completed_at = datetime.now(timezone.utc)
-        db.add(run)
-        # Step 13: Update step status in real-time
-        if 'step_id' in locals() and db:
+        if db and 'run' in locals():
             try:
-                await db.execute(
-                    update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
-                )
-            except Exception as ex:
-                logger.debug(f"Step status update error: {ex}")
-        await db.commit()
+                run.status = "failed"
+                run.error = str(e)
+                run.completed_at = datetime.now(timezone.utc)
+                db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
+                await db.commit()
+            except Exception as db_err:
+                logger.warning(f"Telemetry error update failed in critic: {db_err}")
         
         # Safe fallback
         state["workflow_status"] = "failed"

@@ -605,7 +605,7 @@
 }
 
 .ai-suggestion-icon.trend { color: #10B981; }
-.ai-suggestion-icon.lightbulb { color: #F59E0B; }
+.ai-suggestion-icon.lightbulb { color: var(--text-secondary); }
 
 .ai-suggestion-text {
   font-size: var(--t-small);
@@ -631,9 +631,9 @@
 
 /* Bottom Ask AI container */
 .context-ask-ai-bar {
-  background: #F5F3FF;
-  border: 1px solid #DDD6FE;
-  color: #6D28D9;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   border-radius: var(--r-md);
   padding: var(--s-10) var(--s-16);
   display: flex;
@@ -646,7 +646,7 @@
 }
 
 .context-ask-ai-bar:hover {
-  background: #EDE9FE;
+  background: var(--surface-hover);
 }
 
 /* Close & Context Menu */
@@ -1446,31 +1446,31 @@
 /* Space Theme Variables */
 .space-view-container[data-space="research"],
 .space-view-container {
-  --space-color: #10B981;
-  --space-bg: #ECFDF5;
-  --space-border: #D1FAE5;
-  --space-hover: #059669;
+  --space-color: #FFFFFF;
+  --space-bg: #1A1A1A;
+  --space-border: rgba(255, 255, 255, 0.15);
+  --space-hover: #262626;
 }
 
 .space-view-container[data-space="career"] {
-  --space-color: #7C3AED;
-  --space-bg: #F5F3FF;
-  --space-border: #DDD6FE;
-  --space-hover: #6D28D9;
+  --space-color: #FFFFFF;
+  --space-bg: #1A1A1A;
+  --space-border: rgba(255, 255, 255, 0.15);
+  --space-hover: #262626;
 }
 
 .space-view-container[data-space="startup"] {
-  --space-color: #3B82F6;
-  --space-bg: #EFF6FF;
-  --space-border: #BFDBFE;
-  --space-hover: #2563EB;
+  --space-color: #FFFFFF;
+  --space-bg: #1A1A1A;
+  --space-border: rgba(255, 255, 255, 0.15);
+  --space-hover: #262626;
 }
 
 .space-view-container[data-space="personal"] {
-  --space-color: #0D9488;
-  --space-bg: #F0FDFA;
-  --space-border: #CCFBF1;
-  --space-hover: #0F766E;
+  --space-color: #FFFFFF;
+  --space-bg: #1A1A1A;
+  --space-border: rgba(255, 255, 255, 0.15);
+  --space-hover: #262626;
 }
 
 .space-icon-box {
@@ -1738,7 +1738,8 @@
 .space-section-link {
   font-size: var(--t-caption);
   font-weight: var(--w-semi);
-  color: #6366F1;
+  color: var(--text-primary);
+  text-decoration: underline;
   cursor: pointer;
   transition: opacity 150ms var(--ease);
 }
@@ -2643,10 +2644,10 @@
    ========================================================================== */
 
 .space-view-container[data-space="learning"] {
-  --space-color: #7C3AED;
-  --space-bg: #F5F3FF;
-  --space-border: #DDD6FE;
-  --space-hover: #6D28D9;
+  --space-color: #FFFFFF;
+  --space-bg: #1A1A1A;
+  --space-border: rgba(255, 255, 255, 0.15);
+  --space-hover: #262626;
 }
 
 /* Continue Learning Card */
@@ -2691,7 +2692,7 @@
 }
 
 .course-row:hover {
-  border-color: var(--space-color, #7C3AED);
+  border-color: var(--text-primary);
   background: var(--surface-subtle);
 }
 
@@ -2953,8 +2954,8 @@
 }
 
 .learning-note-card:hover {
-  border-color: var(--space-color, #7C3AED);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
+  border-color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .learning-note-icon {
@@ -3019,9 +3020,9 @@
 }
 
 .learning-add-note-card:hover {
-  border-color: var(--space-color, #7C3AED);
-  color: var(--space-color, #7C3AED);
-  background: rgba(124, 58, 237, 0.03);
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 .learning-add-icon {
@@ -3072,7 +3073,7 @@
 .context-course-progress-fill {
   height: 100%;
   border-radius: var(--r-full);
-  background: #7C3AED;
+  background: var(--text-primary);
 }
 
 .context-open-course-btn {
@@ -3081,8 +3082,8 @@
   justify-content: space-between;
   width: 100%;
   padding: 10px 14px;
-  background: #7C3AED;
-  color: #fff;
+  background: #FFFFFF;
+  color: #000000;
   border: none;
   border-radius: var(--r-md);
   font-size: var(--t-small);
@@ -3093,7 +3094,7 @@
 }
 
 .context-open-course-btn:hover {
-  background: #6D28D9;
+  background: #E5E5E5;
 }
 
 .context-resource-row {

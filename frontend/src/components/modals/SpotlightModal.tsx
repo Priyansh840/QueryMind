@@ -20,9 +20,12 @@ export default function SpotlightModal() {
 
   useEffect(() => {
     if (isSpotlightOpen) {
-      setQuery("");
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => {
+        setQuery("");
+        setSelectedIndex(0);
+        inputRef.current?.focus();
+      }, 10);
+      return () => clearTimeout(timer);
     }
   }, [isSpotlightOpen]);
 
@@ -42,12 +45,12 @@ export default function SpotlightModal() {
 
   const matchedSpaces = spaces
     .filter((s) => s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q))
-    .map((s) => ({
-      id: `space-${s.id}`,
+    .map((s, idx) => ({
+      id: `space-${s.id}-${idx}`,
       title: s.name,
       badge: `${s.count} objects`,
       type: "Space",
-      color: s.color || "#8B5CF6",
+      color: s.color || "#FFFFFF",
       action: () => {
         selectSpace(s.id);
         closeSpotlight();
@@ -56,12 +59,12 @@ export default function SpotlightModal() {
 
   const matchedObjects = recentObjects
     .filter((obj) => obj.title.toLowerCase().includes(q) || (obj.summary && obj.summary.toLowerCase().includes(q)))
-    .map((obj) => ({
-      id: obj.id,
+    .map((obj, idx) => ({
+      id: `obj-${obj.id}-${idx}`,
       title: obj.title,
       badge: obj.type,
       type: "Object",
-      color: "#3B82F6",
+      color: "#D4D4D4",
       action: () => {
         openObjectModal(obj);
         closeSpotlight();
@@ -70,12 +73,12 @@ export default function SpotlightModal() {
 
   const matchedCommands = commands
     .filter((c) => c.title.toLowerCase().includes(q))
-    .map((c) => ({
-      id: c.id,
+    .map((c, idx) => ({
+      id: `cmd-${c.id}-${idx}`,
       title: c.title,
       badge: c.type,
       type: "Command",
-      color: "#10B981",
+      color: "#FFFFFF",
       action: () => {
         c.action();
         closeSpotlight();
@@ -137,7 +140,7 @@ export default function SpotlightModal() {
           ) : (
             allResults.map((item, idx) => (
               <div
-                key={item.id}
+                key={`spotlight-res-${item.id}-${idx}`}
                 className={`spotlight-item ${idx === selectedIndex ? "highlighted" : ""}`}
                 style={{
                   display: "flex",
@@ -153,7 +156,7 @@ export default function SpotlightModal() {
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span className="space-dot" style={{ background: item.color }} />
+                  <span className="space-dot" style={{ background: "#FFFFFF", width: "8px", height: "8px" }} />
                   <span style={{ fontSize: "13px", fontWeight: idx === selectedIndex ? "600" : "500", color: "var(--text-primary)" }}>
                     {item.title}
                   </span>

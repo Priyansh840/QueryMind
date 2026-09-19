@@ -1,19 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function WorkspacePage() {
+  const router = useRouter();
   const spaces = useMyndStore((state) => state.spaces);
   const selectSpace = useMyndStore((state) => state.selectSpace);
-  const openSettings = useMyndStore((state) => state.openSettings);
+  const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
   const setRoute = useMyndStore((state) => state.setRoute);
 
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
 
   return (
     <>
-      <div className="workspace-top-bar stagger" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="workspace-top-bar stagger" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
         <div>
           <h1
             className="section-title"
@@ -25,7 +28,26 @@ export default function WorkspacePage() {
             All your knowledge, organized in connected spaces.
           </p>
         </div>
-        <div className="workspace-controls" style={{ display: "flex", gap: "12px" }}>
+        <div className="workspace-controls" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <Link
+            href="/spaces"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              color: "var(--text-primary)",
+              fontSize: "12px",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            <span className="alive-dot" />
+            Spaces Directory
+          </Link>
           <div className="view-toggle" style={{ display: "flex", background: "var(--surface-subtle)", padding: "2px", borderRadius: "6px", border: "1px solid var(--border)" }}>
             <button
               className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
@@ -71,9 +93,9 @@ export default function WorkspacePage() {
           marginTop: "32px",
         }}
       >
-        {spaces.map((s) => (
+        {spaces.map((s, idx) => (
           <div
-            key={s.id}
+            key={`workspace-space-${s.id}-${idx}`}
             className="space-card detailed-space-card"
             style={{
               background: "var(--surface)",
@@ -86,7 +108,10 @@ export default function WorkspacePage() {
               boxShadow: "var(--shadow-xs)",
               transition: "all 180ms ease",
             }}
-            onClick={() => selectSpace(s.id)}
+            onClick={() => {
+              selectSpace(s.id);
+              router.push(`/spaces/${s.id}`);
+            }}
           >
             <div className="space-card-header" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <div
@@ -95,15 +120,16 @@ export default function WorkspacePage() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "8px",
-                  background: `${s.color || "var(--accent-purple)"}15`,
-                  color: s.color || "var(--accent-purple)",
+                  background: "var(--surface-hover)",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
+                  border: "1px solid var(--border)",
                 }}
               >
-                <span className="space-dot" style={{ background: s.color || "var(--accent-purple)", width: "10px", height: "10px" }} />
+                <span className="space-dot" style={{ background: "#FFFFFF", width: "8px", height: "8px", boxShadow: "0 0 4px rgba(255, 255, 255, 0.4)" }} />
               </div>
               <div>
                 <div
@@ -137,7 +163,7 @@ export default function WorkspacePage() {
 
         <div
           className="space-card detailed-space-card"
-          onClick={() => openSettings("integrations")}
+          onClick={openCreateSpace}
           style={{
             border: "1px dashed var(--border-strong)",
             background: "transparent",
@@ -243,7 +269,7 @@ export default function WorkspacePage() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span className="space-dot" style={{ background: "#3B82F6" }} />
+              <span className="space-dot" style={{ background: "var(--text-primary)" }} />
               <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
                 Kalyra Engine commit pushed (7 commits)
               </span>

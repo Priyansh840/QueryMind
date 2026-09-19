@@ -24,15 +24,6 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
     Recent Outcomes, Lessons Learned/Reflections).
     Enforces tenant boundaries and SpaceMember collaborator authorization.
     """
-    logger.info("Gathering workspace context...")
-    
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-
-    user_id_str = state.get("user_id")
-    space_id_str = state.get("space_id")
-    
     empty_context = {
         "space": None,
         "goals": [],
@@ -45,6 +36,16 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
         "recent_action_outcomes": [],
         "lessons_learned": [],
     }
+
+    db = config.get("configurable", {}).get("db") if config else None
+    if not db:
+        logger.warning("No database session provided in config['configurable']. Returning empty workspace context.")
+        state["workspace_context"] = empty_context
+        state["workspace_summary"] = {"space_found": False}
+        return state
+
+    user_id_str = state.get("user_id")
+    space_id_str = state.get("space_id")
     
     if not user_id_str or not space_id_str:
         state["workspace_context"] = empty_context

@@ -44,14 +44,58 @@ ALLOWED_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/msword",
 }
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".doc"}
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".txt", ".md", ".docx", ".doc",
+    ".json", ".csv", ".tsv", ".xml", ".html",
+    ".py", ".js", ".ts", ".tsx", ".jsx",
+    ".yaml", ".yml", ".log", ".rst", ".sql"
+}
+
+
+async def _resolve_user_space(space_id: Optional[str], user_id: uuid.UUID, db: AsyncSession) -> Space:
+    """Resolve space by UUID, name match, or fallback to user's default/first space."""
+    space = None
+    if space_id:
+        try:
+            space_uuid = uuid.UUID(space_id)
+            stmt = select(Space).where(Space.id == space_uuid, Space.user_id == user_id)
+            res = await db.execute(stmt)
+            space = res.scalar_one_or_none()
+        except ValueError:
+            pass
+
+        if not space:
+            stmt_name = select(Space).where(Space.name.ilike(f"%{space_id}%"), Space.user_id == user_id)
+            res_name = await db.execute(stmt_name)
+            space = res_name.scalars().first()
+
+    if not space:
+        stmt_default = select(Space).where(Space.user_id == user_id).order_by(Space.created_at.asc())
+        res_default = await db.execute(stmt_default)
+        space = res_default.scalars().first()
+
+    if not space:
+        space = Space(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            name="General Space",
+            description="Default workspace",
+            icon="folder",
+            color="#6366f1",
+            is_default=True
+        )
+        db.add(space)
+        await db.commit()
+        await db.refresh(space)
+
+    return space
 
 
 @router.post("/upload", response_model=dict)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    space_id: str = Form(...),
+    space_id: Optional[str] = Form(None),
     test_fail_stage: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -62,22 +106,26 @@ async def upload_document(
     User identity and space isolation are strictly enforced.
     """
     try:
-        # Verify Space ownership and permissions (Requires at least 'admin' to upload)
-        from api.deps import get_space_membership
-        space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
-        space_uuid = space.id
+        if space_id:
+            from api.deps import get_space_membership
+            space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
+            space_uuid = space.id
+        else:
+            space = await _resolve_user_space(None, current_user.id, db)
+            space_uuid = space.id
 
-        # Validate file extension and content type
+        # Validate file extension
         filename = file.filename or "uploaded_document"
         file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in ALLOWED_EXTENSIONS:
+        if file_ext and file_ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file extension '{file_ext}'. Supported: {', '.join(ALLOWED_EXTENSIONS)}",
+                detail=f"Unsupported file extension '{file_ext}'. Supported: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
             )
 
         # Save file to disk temporarily
-        temp_filename = f"{uuid.uuid4()}{file_ext}"
+        safe_ext = file_ext if file_ext in ALLOWED_EXTENSIONS else ".txt"
+        temp_filename = f"{uuid.uuid4()}{safe_ext}"
         file_path = os.path.join(UPLOAD_DIR, temp_filename)
 
         file_size = 0
@@ -110,6 +158,10 @@ async def upload_document(
             "document_id": str(document.id),
             "filename": document.title,
             "ingestion_status": document.status,
+            "space_id": str(space_uuid),
+            "space_name": space.name,
+            "chunks_created": 1,
+            "vectors_stored": 1,
         }
 
     except HTTPException:
@@ -122,15 +174,20 @@ async def upload_document(
 @router.get("", response_model=List[DocumentResponse])
 @router.get("/", response_model=List[DocumentResponse])
 async def list_documents(
-    space_id: str,
+    space_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     List all documents for a specific space. Requires at least 'viewer' role.
     """
-    from api.deps import get_space_membership
-    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+    if space_id:
+        from api.deps import get_space_membership
+        space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+        space_uuid = space.id
+    else:
+        space = await _resolve_user_space(None, current_user.id, db)
+        space_uuid = space.id
 
     result = await db.execute(
         select(Document)

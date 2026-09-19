@@ -7,11 +7,11 @@ import { Brain, Lightbulb, Target, BookOpen, Heart, Pencil, Trash2 } from "lucid
 import { useState } from "react";
 
 const categories = [
-  { label: "All", icon: Brain, color: "#00f0ff" },
-  { label: "Facts", icon: Lightbulb, color: "#f97316" },
-  { label: "Skills", icon: Target, color: "#a855f7" },
-  { label: "Goals", icon: BookOpen, color: "#22d3ee" },
-  { label: "Interests", icon: Heart, color: "#f472b6" },
+  { label: "All", icon: Brain, color: "#FFFFFF" },
+  { label: "Facts", icon: Lightbulb, color: "#E5E5E5" },
+  { label: "Skills", icon: Target, color: "#D4D4D4" },
+  { label: "Goals", icon: BookOpen, color: "#A3A3A3" },
+  { label: "Interests", icon: Heart, color: "#737373" },
 ];
 
 const mockMemories = [

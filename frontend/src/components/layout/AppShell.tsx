@@ -9,13 +9,16 @@ import SpotlightModal from "../modals/SpotlightModal";
 import AskAiDrawer from "../modals/AskAiDrawer";
 import SettingsModal from "../modals/SettingsModal";
 import ObjectDetailModal from "../modals/ObjectDetailModal";
+import CreateSpaceModal from "../modals/CreateSpaceModal";
 import { useMyndStore } from "@/lib/mynd-store";
+import { queryMindApi } from "@/lib/api";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isChat = pathname === "/chat" || pathname?.startsWith("/chat/");
 
   const isFocusMode = useMyndStore((state) => state.isFocusMode);
+  const isZenMode = useMyndStore((state) => state.isZenMode);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const closeSpotlight = useMyndStore((state) => state.closeSpotlight);
   const closeSettings = useMyndStore((state) => state.closeSettings);
@@ -26,7 +29,62 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isSpotlightOpen = useMyndStore((state) => state.isSpotlightOpen);
   const isSettingsOpen = useMyndStore((state) => state.isSettingsOpen);
   const isAskAiOpen = useMyndStore((state) => state.isAskAiOpen);
-  const selectedObject = useMyndStore((state) => state.selectedObject);
+  const isObjectModalOpen = useMyndStore((state) => state.isObjectModalOpen);
+  const setSpaces = useMyndStore((state) => state.setSpaces);
+  const setActiveSpaceId = useMyndStore((state) => state.setActiveSpaceId);
+  const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+
+  // Sync body class for focus mode and zen mode
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("focus-mode-active", Boolean(isFocusMode));
+      document.body.classList.toggle("zen-mode-active", Boolean(isZenMode));
+    }
+  }, [isFocusMode, isZenMode]);
+
+  // Sync real spaces from backend while preserving rich personas & milestones
+  useEffect(() => {
+    queryMindApi.getSpaces()
+      .then((realSpaces) => {
+        if (realSpaces && realSpaces.length > 0) {
+          const seen = new Set<string>();
+          const uniqueRealSpaces = realSpaces.filter((s) => {
+            if (!s.id || seen.has(s.id)) return false;
+            seen.add(s.id);
+            return true;
+          });
+
+          const currentSpaces = useMyndStore.getState().spaces;
+          const mapped = uniqueRealSpaces.map((s) => {
+            const existing = currentSpaces.find(
+              (x) => x.id === s.id || x.name.toLowerCase() === s.name.toLowerCase()
+            );
+            return {
+              id: s.id,
+              name: s.name,
+              status: "Active",
+              count: existing?.count || 0,
+              updated: "Just now",
+              pinned: s.is_default ?? existing?.pinned ?? false,
+              desc: s.description || existing?.desc || "Workspace",
+              color: s.color || existing?.color || "#FFFFFF",
+              icon: s.icon || existing?.icon || "folder",
+              goal: existing?.goal || { title: `Master ${s.name}`, progress: 0 },
+              milestones: existing?.milestones,
+              agentPersona: existing?.agentPersona,
+              scratchpad: existing?.scratchpad,
+              sections: existing?.sections || { knowledge: [], notes: [], projects: [] },
+              objects: existing?.objects || [],
+            };
+          });
+          setSpaces(mapped);
+          if (!activeSpaceId || !activeSpaceId.includes("-")) {
+            setActiveSpaceId(uniqueRealSpaces[0].id);
+          }
+        }
+      })
+      .catch((err) => console.warn("Could not sync backend spaces:", err));
+  }, [setSpaces, setActiveSpaceId, activeSpaceId]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -43,7 +101,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (isSpotlightOpen) closeSpotlight();
         else if (isSettingsOpen) closeSettings();
         else if (isAskAiOpen) closeAskAi();
-        else if (selectedObject) closeObjectModal();
+        else if (isObjectModalOpen) closeObjectModal();
         else if (isFocusMode) toggleFocusMode();
         return;
       }
@@ -76,7 +134,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     isSpotlightOpen,
     isSettingsOpen,
     isAskAiOpen,
-    selectedObject,
+    isObjectModalOpen,
     isFocusMode,
     openSpotlight,
     closeSpotlight,
@@ -88,14 +146,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   ]);
 
   return (
-    <div id="app-root">
+    <div
+      id="app-root"
+      style={isFocusMode || isZenMode ? { gridTemplateColumns: "1fr" } : undefined}
+      className={`${isFocusMode ? "focus-mode-active" : ""} ${isZenMode ? "zen-mode-active" : ""}`.trim()}
+    >
       {/* 1. Left Sidebar */}
-      {!isFocusMode && <AppSidebar />}
+      {!isFocusMode && !isZenMode && <AppSidebar />}
 
       {/* 2. Main Body Grid */}
       <div
         className="app-body"
-        style={isFocusMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
+        style={isFocusMode || isZenMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
       >
         <main
           className="app-workspace"
@@ -128,6 +190,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       display: "flex",
                       flexDirection: "column",
                     }
+                  : isFocusMode || isZenMode
+                  ? {
+                      maxWidth: "1200px",
+                      margin: "0 auto",
+                      width: "100%",
+                    }
                   : undefined
               }
             >
@@ -136,8 +204,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
 
-        {/* 3. Right Context Panel (hidden on chat & focus mode) */}
-        {!isFocusMode && !isChat && <ContextPanel />}
+        {/* 3. Right Context Panel (hidden on chat, focus mode & zen mode) */}
+        {!isFocusMode && !isZenMode && !isChat && <ContextPanel />}
       </div>
 
       {/* Modals & Drawers */}
@@ -145,6 +213,31 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <AskAiDrawer />
       <SettingsModal />
       <ObjectDetailModal />
+      <CreateSpaceModal />
+
+      {/* Zen Mode Exit Button */}
+      {isZenMode && (
+        <button
+          onClick={toggleZenMode}
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 9999,
+            padding: "8px 18px",
+            borderRadius: "9999px",
+            background: "#FFFFFF",
+            color: "#000000",
+            border: "none",
+            fontSize: "12px",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.5)",
+          }}
+        >
+          Exit Zen Mode (Esc)
+        </button>
+      )}
     </div>
   );
 }

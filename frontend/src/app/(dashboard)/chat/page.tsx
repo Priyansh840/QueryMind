@@ -16,6 +16,9 @@ import {
   Clock,
   RefreshCw,
   X,
+  FileText,
+  AlertCircle,
+  Paperclip,
 } from "lucide-react";
 import { queryMindApi, TraceEvent, ObjectiveTraceData } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -74,8 +77,64 @@ export default function ChatPage() {
   const [activeTrace, setActiveTrace] = useState<ObjectiveTraceData | null>(null);
   const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
 
+  // File Attachments State
+  const [attachments, setAttachments] = useState<{
+    file: File;
+    name: string;
+    size: string;
+    status: "uploading" | "ready" | "error";
+    documentId?: string;
+    errorMessage?: string;
+  }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleAttachFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newItems = Array.from(files).map((f) => ({
+      file: f,
+      name: f.name,
+      size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+      status: "uploading" as const,
+    }));
+
+    setAttachments((prev) => [...prev, ...newItems]);
+
+    for (const item of newItems) {
+      try {
+        const data = await queryMindApi.uploadDocument(item.file, activeSpaceId);
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.file === item.file
+              ? { ...a, status: "ready", documentId: data.document_id }
+              : a
+          )
+        );
+        useMyndStore.getState().addDocument({
+          name: data.filename || item.name,
+          type: item.name.split(".").pop() || "txt",
+          size: item.size,
+          chunks: data.chunks_created || 1,
+          vectorsStored: data.vectors_stored || 1,
+          summary: `Document uploaded in conversation. Indexed into space.`,
+        });
+      } catch (err: any) {
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.file === item.file
+              ? { ...a, status: "error", errorMessage: err.message || "Upload failed" }
+              : a
+          )
+        );
+      }
+    }
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -91,12 +150,46 @@ export default function ChatPage() {
 
   const router = useRouter();
 
+  useEffect(() => {
+    if (!activeSpaceId || !activeSpaceId.includes("-")) {
+      queryMindApi.getSpaces().then((spaces) => {
+        if (spaces && spaces.length > 0) {
+          useMyndStore.getState().setActiveSpaceId(spaces[0].id);
+        }
+      }).catch((err) => {
+        console.error("Failed to load initial space", err);
+      });
+    }
+  }, [activeSpaceId]);
+
   /* ─── send ────────────────────────────────────────────────── */
   const handleSend = async (queryText?: string) => {
-    const textToSend = queryText || input;
-    if (!textToSend.trim() || isOrchestrating) return;
+    let textToSend = queryText !== undefined ? queryText : input;
+    if ((!textToSend.trim() && attachments.length === 0) || isOrchestrating) return;
 
-    if (!activeSpaceId) {
+    if (!textToSend.trim() && attachments.length > 0) {
+      textToSend = `Please analyze and summarize the attached document "${attachments[0].name}" and highlight key takeaways.`;
+    } else if (attachments.length > 0) {
+      const docNames = attachments.map((a) => `"${a.name}"`).join(", ");
+      textToSend = `${textToSend}\n\n[Referenced Attached Document(s): ${docNames}]`;
+    }
+
+    setAttachments([]);
+
+    let targetSpaceId = activeSpaceId;
+    if (!targetSpaceId || targetSpaceId === "general" || targetSpaceId === "projects" || targetSpaceId === "research" || !targetSpaceId.includes("-")) {
+      try {
+        const spaces = await queryMindApi.getSpaces();
+        if (spaces && spaces.length > 0) {
+          targetSpaceId = spaces[0].id;
+          useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+        }
+      } catch (err) {
+        console.error("Failed to fetch spaces for conversation", err);
+      }
+    }
+
+    if (!targetSpaceId) {
       alert("Please select a space first.");
       return;
     }
@@ -106,7 +199,7 @@ export default function ChatPage() {
     try {
       // Create new conversation
       const conv = await queryMindApi.createConversation(
-        activeSpaceId,
+        targetSpaceId,
         textToSend.substring(0, 40) + (textToSend.length > 40 ? "..." : "")
       );
       
@@ -181,6 +274,61 @@ export default function ChatPage() {
             boxShadow: "var(--shadow-sm)",
           }}
         >
+          {/* File Attachments Pills */}
+          {attachments.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
+              {attachments.map((att, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 12px",
+                    borderRadius: "10px",
+                    background: att.status === "error" ? "#FEF2F2" : "var(--surface)",
+                    border: `1px solid ${att.status === "error" ? "#FECACA" : "var(--border)"}`,
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <span style={{ fontWeight: 600, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {att.name}
+                  </span>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>{att.size}</span>
+                  {att.status === "uploading" && (
+                    <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  )}
+                  {att.status === "ready" && (
+                    <CheckCircle2 style={{ width: "12px", height: "12px", color: "#10B981" }} />
+                  )}
+                  {att.status === "error" && (
+                    <AlertCircle style={{ width: "12px", height: "12px", color: "#EF4444" }} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAttachment(idx);
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      padding: "2px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    <X style={{ width: "12px", height: "12px" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             placeholder="How can I help you today?"
@@ -210,8 +358,20 @@ export default function ChatPage() {
 
           {/* Bottom row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                handleAttachFiles(e.target.files);
+                e.target.value = "";
+              }}
+              multiple
+            />
             <button
+              type="button"
               title="Attach file"
+              onClick={() => fileInputRef.current?.click()}
               style={{
                 width: "32px",
                 height: "32px",
@@ -249,8 +409,9 @@ export default function ChatPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => handleSend()}
-                disabled={!input.trim()}
+                disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
                 style={{
                   width: "34px",
                   height: "34px",
@@ -258,10 +419,10 @@ export default function ChatPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: input.trim() ? "var(--accent)" : "var(--surface-hover)",
-                  color: input.trim() ? "#FFF" : "var(--text-ghost)",
+                  background: (input.trim() || attachments.length > 0) && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
+                  color: (input.trim() || attachments.length > 0) && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
                   border: "none",
-                  cursor: input.trim() ? "pointer" : "default",
+                  cursor: (input.trim() || attachments.length > 0) && !isOrchestrating ? "pointer" : "default",
                   transition: "all 200ms var(--ease)",
                 }}
               >

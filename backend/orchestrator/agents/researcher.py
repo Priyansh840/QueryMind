@@ -26,33 +26,31 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
     """
     logger.info("Starting Research Agent...")
     
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-        
+    db = config.get("configurable", {}).get("db") if config else None
     objective_id = state.get("objective_id")
     workflow_iteration = state.get("workflow_iteration", 1)
     
-    obj_uuid = uuid.UUID(objective_id)
-    workflow_id = uuid.uuid5(obj_uuid, "workflow")
-    step_id = uuid.uuid5(workflow_id, f"researcher_{workflow_iteration}")
-    
-    try:
-        step_order = (workflow_iteration * 10) + 2  # 12, 22, 32...
-        step_stmt = insert(WorkflowStep).values(
-            id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="research",
-            status="running"
-        ).on_conflict_do_update(
-            index_elements=['id'],
-            set_={'status': 'running'}
-        )
-        await db.execute(step_stmt)
-        await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating DB records for researcher step: {e}")
-        await db.rollback()
-        raise
+    if db and objective_id:
+        obj_uuid = uuid.UUID(objective_id)
+        workflow_id = uuid.uuid5(obj_uuid, "workflow")
+        step_id = uuid.uuid5(workflow_id, f"researcher_{workflow_iteration}")
+        
+        try:
+            step_order = (workflow_iteration * 10) + 2  # 12, 22, 32...
+            step_stmt = insert(WorkflowStep).values(
+                id=step_id, workflow_id=workflow_id, step_order=step_order, 
+                iteration=workflow_iteration, intent_type="research",
+                status="running"
+            ).on_conflict_do_update(
+                index_elements=['id'],
+                set_={'status': 'running'}
+            )
+            await db.execute(step_stmt)
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Error creating DB records for researcher step: {e}")
+            await db.rollback()
+            raise
 
     if "research_results" not in state:
         state["research_results"] = []
@@ -62,18 +60,22 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
             continue
             
         # Log Agent Run for this specific task
-        run_id = uuid.uuid4()
-        run = AgentRun(
-            id=run_id,
-            workflow_step_id=step_id,
-            agent_type="researcher",
-            task_id=task["id"],
-            status="running",
-            started_at=datetime.now(timezone.utc),
-            input_context={"query": task["query"], "purpose": task["purpose"]}
-        )
-        db.add(run)
-        await db.commit()
+        if db and 'step_id' in locals():
+            try:
+                run_id = uuid.uuid4()
+                run = AgentRun(
+                    id=run_id,
+                    workflow_step_id=step_id,
+                    agent_type="researcher",
+                    task_id=task["id"],
+                    status="running",
+                    started_at=datetime.now(timezone.utc),
+                    input_context={"query": task["query"], "purpose": task["purpose"]}
+                )
+                db.add(run)
+                await db.commit()
+            except Exception as e:
+                logger.warning(f"Error logging agent run in researcher: {e}")
         
         state["total_research_tasks"] = state.get("total_research_tasks", 0) + 1
         
@@ -175,11 +177,15 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
             task["status"] = "completed"
             state["research_results"].append(result)
             
-            run.status = status
-            run.output_summary = result
-            run.completed_at = datetime.now(timezone.utc)
-            db.add(run)
-            await db.commit()
+            if db and 'run' in locals():
+                try:
+                    run.status = status
+                    run.output_summary = result
+                    run.completed_at = datetime.now(timezone.utc)
+                    db.add(run)
+                    await db.commit()
+                except Exception as e:
+                    logger.warning(f"Telemetry save error in researcher: {e}")
             
         except Exception as e:
             logger.error(f"Researcher failed for task {task['id']}: {e}")
@@ -194,12 +200,16 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
             task["status"] = "failed"
             state["research_results"].append(result)
             
-            run.status = "failed"
-            run.error = str(e)
-            run.output_summary = result
-            run.completed_at = datetime.now(timezone.utc)
-            db.add(run)
-            await db.commit()
+            if db and 'run' in locals():
+                try:
+                    run.status = "failed"
+                    run.error = str(e)
+                    run.output_summary = result
+                    run.completed_at = datetime.now(timezone.utc)
+                    db.add(run)
+                    await db.commit()
+                except Exception as db_err:
+                    logger.warning(f"Telemetry error update failed in researcher: {db_err}")
 
     # Step 13: Update step status after all research tasks complete
     if 'step_id' in locals() and db:

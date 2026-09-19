@@ -12,6 +12,7 @@ export default function AppSidebar() {
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const openSettings = useMyndStore((state) => state.openSettings);
+  const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
   const toggleTheme = useMyndStore((state) => state.toggleTheme);
   const userProfile = useMyndStore((state) => state.userProfile);
 
@@ -70,6 +71,25 @@ export default function AppSidebar() {
             </div>
           </Link>
 
+          <Link
+            href="/vault"
+            className={`nav-item ${isActive("/vault") ? "active" : ""}`}
+            onClick={() => setRoute("vault")}
+          >
+            <div className="nav-item-left">
+              <span className="nav-item-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </span>
+              <span>Documents</span>
+            </div>
+          </Link>
+
           <a
             className={`nav-item ${isActive("/search") ? "active" : ""}`}
             onClick={() => {
@@ -124,35 +144,55 @@ export default function AppSidebar() {
         {/* Spaces Group */}
         <div className="nav-group" style={{ marginTop: "24px" }}>
           <div className="nav-group-header">
-            <span className="nav-group-label">Spaces</span>
+            <Link
+              href="/spaces"
+              className="nav-group-label"
+              style={{ textDecoration: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+              title="View All Spaces"
+            >
+              <span>Spaces</span>
+              <span style={{ fontSize: "10px", opacity: 0.6 }}>({spaces.length})</span>
+            </Link>
             <span
               className="nav-group-add"
-              onClick={() => openSettings("integrations")}
-              title="Add Space"
+              onClick={openCreateSpace}
+              title="Create New Space"
+              style={{ cursor: "pointer" }}
             >
               +
             </span>
           </div>
 
-          {spaces.map((space) => (
-            <a
-              key={space.id}
-              className={`nav-item nav-space ${activeSpaceId === space.id ? "active" : ""}`}
-              onClick={() => selectSpace(space.id)}
-            >
-              <div className="nav-item-left">
-                <span className="nav-item-icon">
-                  <span className="space-dot" style={{ background: space.color || "var(--accent-purple)" }} />
-                </span>
-                <span>{space.name}</span>
-              </div>
-              <span className="nav-item-badge">{space.count}</span>
-            </a>
-          ))}
+          {spaces.map((space, idx) => {
+            const isSpaceActive = pathname === `/spaces/${space.id}`;
+            return (
+              <Link
+                key={`sidebar-space-${space.id}-${idx}`}
+                href={`/spaces/${space.id}`}
+                className={`nav-item nav-space ${isSpaceActive ? "active" : ""}`}
+                onClick={() => selectSpace(space.id)}
+                style={{ textDecoration: "none" }}
+              >
+                <div className="nav-item-left">
+                  <span className="nav-item-icon">
+                    <span
+                      className="space-dot"
+                      style={{
+                        background: isSpaceActive ? "#FFFFFF" : "#737373",
+                        boxShadow: "none",
+                      }}
+                    />
+                  </span>
+                  <span>{space.name}</span>
+                </div>
+                <span className="nav-item-badge">{space.count}</span>
+              </Link>
+            );
+          })}
 
           <a
             className="nav-item nav-add-space"
-            onClick={() => openSettings("integrations")}
+            onClick={openCreateSpace}
             style={{
               marginTop: "8px",
               border: "1px dashed var(--border-strong)",
@@ -171,7 +211,7 @@ export default function AppSidebar() {
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              <span style={{ fontWeight: 600 }}>Add new space</span>
+              <span style={{ fontWeight: 600 }}>Create new space</span>
             </div>
           </a>
         </div>
