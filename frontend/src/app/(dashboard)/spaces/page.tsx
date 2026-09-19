@@ -68,7 +68,7 @@ export default function SpacesDirectoryPage() {
         className="stagger"
         style={{
           position: "relative",
-          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 50%, var(--surface) 100%)",
+          background: "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 50%, var(--surface) 100%)",
           border: "1px solid var(--border)",
           borderRadius: "16px",
           padding: "32px",
@@ -244,7 +244,6 @@ export default function SpacesDirectoryPage() {
         {filteredSpaces.map((space, idx) => {
           const spaceDocs = uploadedDocuments.filter((d) => d.spaceId === space.id);
           const docCount = Math.max(space.count, spaceDocs.length);
-          const spaceColor = space.color || "#FFFFFF";
 
           return (
             <div
@@ -267,9 +266,9 @@ export default function SpacesDirectoryPage() {
                 boxShadow: "var(--shadow-xs)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = spaceColor;
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
                 e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow = `0 8px 24px ${spaceColor}22`;
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.5)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "var(--border)";
@@ -284,8 +283,8 @@ export default function SpacesDirectoryPage() {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: "3px",
-                  background: `linear-gradient(90deg, ${spaceColor} 0%, transparent 100%)`,
+                  height: "2px",
+                  background: "linear-gradient(90deg, rgba(255, 255, 255, 0.25) 0%, transparent 100%)",
                 }}
               />
 
@@ -297,21 +296,21 @@ export default function SpacesDirectoryPage() {
                       width: "40px",
                       height: "40px",
                       borderRadius: "10px",
-                      background: `${spaceColor}18`,
-                      color: spaceColor,
+                      background: "var(--surface-hover)",
+                      color: "#FFFFFF",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      border: `1px solid ${spaceColor}33`,
+                      border: "1px solid var(--border)",
                     }}
                   >
                     <span
                       style={{
-                        width: "12px",
-                        height: "12px",
+                        width: "10px",
+                        height: "10px",
                         borderRadius: "50%",
-                        background: spaceColor,
-                        boxShadow: `0 0 10px ${spaceColor}`,
+                        background: "#FFFFFF",
+                        boxShadow: "0 0 6px rgba(255, 255, 255, 0.4)",
                       }}
                     />
                   </div>
@@ -393,7 +392,7 @@ export default function SpacesDirectoryPage() {
                       {space.agentPersona.specialty}
                     </div>
                   </div>
-                  <span className="alive-dot" style={{ background: spaceColor }} />
+                  <span className="alive-dot" style={{ background: "#FFFFFF" }} />
                 </div>
               )}
 
@@ -402,14 +401,14 @@ export default function SpacesDirectoryPage() {
                 <div style={{ marginBottom: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
                     <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>Objective</span>
-                    <span style={{ color: spaceColor, fontWeight: 700 }}>{space.goal.progress}%</span>
+                    <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{space.goal.progress}%</span>
                   </div>
                   <div style={{ height: "6px", borderRadius: "3px", background: "var(--surface-hover)", overflow: "hidden" }}>
                     <div
                       style={{
                         width: `${space.goal.progress}%`,
                         height: "100%",
-                        background: spaceColor,
+                        background: "#FFFFFF",
                         borderRadius: "3px",
                         transition: "width 400ms ease",
                       }}
@@ -433,7 +432,7 @@ export default function SpacesDirectoryPage() {
                 <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>
                   Updated {space.updated}
                 </span>
-                <span style={{ color: spaceColor, fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: "var(--text-primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
                   Enter Space
                   <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none">
                     <line x1="5" y1="12" x2="19" y2="12" />

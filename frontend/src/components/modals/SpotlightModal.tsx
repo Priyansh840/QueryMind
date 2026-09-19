@@ -156,7 +156,7 @@ export default function SpotlightModal() {
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span className="space-dot" style={{ background: item.color }} />
+                  <span className="space-dot" style={{ background: "#FFFFFF", width: "8px", height: "8px" }} />
                   <span style={{ fontSize: "13px", fontWeight: idx === selectedIndex ? "600" : "500", color: "var(--text-primary)" }}>
                     {item.title}
                   </span>

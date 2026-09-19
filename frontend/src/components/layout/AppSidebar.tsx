@@ -178,8 +178,8 @@ export default function AppSidebar() {
                     <span
                       className="space-dot"
                       style={{
-                        background: space.color || "var(--accent-purple)",
-                        boxShadow: isSpaceActive ? `0 0 8px ${space.color || "var(--accent-purple)"}` : "none",
+                        background: isSpaceActive ? "#FFFFFF" : "#737373",
+                        boxShadow: "none",
                       }}
                     />
                   </span>

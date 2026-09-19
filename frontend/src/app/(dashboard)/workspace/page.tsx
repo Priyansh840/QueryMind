@@ -120,15 +120,16 @@ export default function WorkspacePage() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "8px",
-                  background: `${s.color || "var(--accent-purple)"}15`,
-                  color: s.color || "var(--accent-purple)",
+                  background: "var(--surface-hover)",
+                  color: "var(--text-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
+                  border: "1px solid var(--border)",
                 }}
               >
-                <span className="space-dot" style={{ background: s.color || "var(--accent-purple)", width: "10px", height: "10px" }} />
+                <span className="space-dot" style={{ background: "#FFFFFF", width: "8px", height: "8px", boxShadow: "0 0 4px rgba(255, 255, 255, 0.4)" }} />
               </div>
               <div>
                 <div

@@ -304,7 +304,7 @@ export default function OnboardingPage() {
                             width: "5px",
                             height: "5px",
                             borderRadius: "50%",
-                            backgroundColor: space.color,
+                            backgroundColor: "#FFFFFF",
                           }}
                         />
                         {space.name}
@@ -401,8 +401,8 @@ export default function OnboardingPage() {
                         width: "8px",
                         height: "8px",
                         borderRadius: "50%",
-                        backgroundColor: space.color,
-                        boxShadow: `0 0 6px ${space.color}80`,
+                        backgroundColor: "#FFFFFF",
+                        boxShadow: "0 0 6px rgba(255, 255, 255, 0.4)",
                       }}
                     />
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "#F8FAFC" }}>
