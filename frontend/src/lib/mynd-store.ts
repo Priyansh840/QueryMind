@@ -185,12 +185,280 @@ export interface MyndState {
     agentPersona?: AgentPersona;
     scratchpad?: string;
   }) => void;
+  hasCompletedOnboarding: boolean;
+  setHasCompletedOnboarding: (completed: boolean) => void;
+  provisionSpacesFromInterests: (interestIds: string[]) => void;
   setSpaces: (spaces: Space[]) => void;
   setActiveSpaceId: (spaceId: string) => void;
   clearSpaces: () => void;
   clearAllData: () => void;
   loadSampleData: () => void;
 }
+
+export interface UserInterestDefinition {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  icon: string;
+  spacesToCreate: Array<{
+    id: string;
+    name: string;
+    desc: string;
+    color: string;
+    icon: string;
+    goalTitle: string;
+    agentName: string;
+    agentRole: string;
+    agentSpecialty: string;
+    milestoneTitles: string[];
+    scratchpad: string;
+  }>;
+}
+
+export const PRESET_INTERESTS: UserInterestDefinition[] = [
+  {
+    id: "engineering",
+    title: "Software & Architecture",
+    category: "Technical",
+    description: "System design, distributed databases, code patterns, and engineering RFCs.",
+    icon: "code",
+    spacesToCreate: [
+      {
+        id: "engineering-brain",
+        name: "Engineering Brain",
+        desc: "Code architectures, technical RFCs, API patterns, and design decisions",
+        color: "#3B82F6",
+        icon: "code",
+        goalTitle: "Build production-grade distributed architectures",
+        agentName: "Systems Architect",
+        agentRole: "Staff Engineering Co-pilot",
+        agentSpecialty: "Scalable backend systems, API contracts, and concurrency patterns",
+        milestoneTitles: [
+          "Document core API design standards and rate limiting specs",
+          "Synthesize database schema migrations and indexing patterns",
+          "Map out distributed microservices topology"
+        ],
+        scratchpad: "# Engineering Brain\n\n- Focus: High-performance, maintainable distributed systems.\n- Key stack: Next.js, FastAPI, PostgreSQL, Qdrant, Docker.\n- Invariants: Idempotency, zero-downtime migrations, structured logging."
+      },
+      {
+        id: "system-design",
+        name: "System Design",
+        desc: "High-scale distributed systems, fault tolerance, caching & database schemas",
+        color: "#6366F1",
+        icon: "server",
+        goalTitle: "Master Large-Scale Distributed System Patterns",
+        agentName: "Cluster Strategist",
+        agentRole: "Infrastructure & Scaling Analyst",
+        agentSpecialty: "Consensus protocols, caching strategies, and event sourcing",
+        milestoneTitles: [
+          "Compare Raft vs Paxos trade-offs for distributed consensus",
+          "Design multi-region read-replica failover strategy",
+          "Benchmark vector retrieval latency under 10k QPS load"
+        ],
+        scratchpad: "# System Design Knowledge\n\n- Always design for partial failure.\n- Decouple write paths with async event streaming.\n- Optimize Qdrant HNSW parameters for recall vs latency."
+      }
+    ]
+  },
+  {
+    id: "ai_research",
+    title: "AI & Neural Research",
+    category: "AI & ML",
+    description: "LLMs, vector search, RAG pipelines, autonomous agents, and ML papers.",
+    icon: "brain",
+    spacesToCreate: [
+      {
+        id: "ai-research-lab",
+        name: "AI Research Lab",
+        desc: "Model benchmarks, embedding strategies, attention mechanisms, and research papers",
+        color: "#10B981",
+        icon: "atom",
+        goalTitle: "Track State-of-the-Art Generative & Agentic AI",
+        agentName: "Synthesis Fellow",
+        agentRole: "AI Research Scientist",
+        agentSpecialty: "Dense retrieval, re-ranking benchmarks, and agent reasoning traces",
+        milestoneTitles: [
+          "Benchmark BGE vs Text-Embedding-3-Small retrieval accuracy",
+          "Synthesize paper on speculative decoding speedups",
+          "Document agentic tool reflection and self-correction loops"
+        ],
+        scratchpad: "# AI Research Lab\n\n- Dense embeddings provide semantic clustering, BM25 handles exact symbols.\n- Hybrid search with Reciprocal Rank Fusion (RRF) yields highest overall MRR."
+      },
+      {
+        id: "agentic-workflows",
+        name: "Agentic Workflows",
+        desc: "Multi-agent orchestration, LangGraph state machines, memory compression & tool use",
+        color: "#06B6D4",
+        icon: "sparkles",
+        goalTitle: "Deploy Autonomous Multi-Agent Systems",
+        agentName: "Orchestrator Agent",
+        agentRole: "Workflow Automation Specialist",
+        agentSpecialty: "State graph execution, memory distillation, and tool calling",
+        milestoneTitles: [
+          "Implement cyclic supervisor routing for subagent handoffs",
+          "Build episodic memory compressor for long-running agent threads",
+          "Setup safety guardrails on automated database mutations"
+        ],
+        scratchpad: "# Agentic Workflows\n\n- Maintain short-term context in state graphs.\n- Persist long-term episodic memories in Qdrant collections."
+      }
+    ]
+  },
+  {
+    id: "product_startup",
+    title: "Product & Startups",
+    category: "Business",
+    description: "Product strategy, user feedback, roadmap prioritization, and pitch decks.",
+    icon: "rocket",
+    spacesToCreate: [
+      {
+        id: "product-strategy",
+        name: "Product Strategy",
+        desc: "PRDs, customer interviews, feature roadmaps, and competitive intelligence",
+        color: "#EC4899",
+        icon: "compass",
+        goalTitle: "Deliver High-Impact Products with Product-Market Fit",
+        agentName: "Product Lead",
+        agentRole: "Strategic Product Partner",
+        agentSpecialty: "Feature prioritization, user journey synthesis, and PRD drafting",
+        milestoneTitles: [
+          "Complete user research interviews for onboarding friction",
+          "Draft Q3 product requirements document (PRD)",
+          "Analyze churn drivers from user telemetry feedback"
+        ],
+        scratchpad: "# Product Strategy\n\n- Focus on user clarity: 1 primary action per screen.\n- Optimize first 60 seconds of user activation."
+      },
+      {
+        id: "startup-ops",
+        name: "Startup Ops",
+        desc: "Investor updates, unit economics, fundraising memos, and growth experiments",
+        color: "#F59E0B",
+        icon: "trending-up",
+        goalTitle: "Scale Seed to Series A Operational Velocity",
+        agentName: "Venture Partner",
+        agentRole: "Startup Growth Advisor",
+        agentSpecialty: "Unit economics, investor storytelling, and growth loops",
+        milestoneTitles: [
+          "Refine seed pitch deck executive narrative",
+          "Calculate CAC, LTV, and net dollar retention cohorts",
+          "Set up weekly operating metrics dashboard"
+        ],
+        scratchpad: "# Startup Operations\n\n- Key metrics: Monthly recurring revenue, activation rate, server unit cost.\n- Target: 15% monthly user retention improvement."
+      }
+    ]
+  },
+  {
+    id: "second_brain",
+    title: "Personal Knowledge",
+    category: "Productivity",
+    description: "Book notes, mental models, journaling, reflections, and life systems.",
+    icon: "book-open",
+    spacesToCreate: [
+      {
+        id: "personal-vault",
+        name: "Personal Vault",
+        desc: "Reading notes, philosophical frameworks, mental models, and essays",
+        color: "#8B5CF6",
+        icon: "book-open",
+        goalTitle: "Synthesize 100 Transformative Mental Models",
+        agentName: "Thought Partner",
+        agentRole: "Epistemic Guide",
+        agentSpecialty: "Cross-disciplinary concept synthesis and reflective inquiry",
+        milestoneTitles: [
+          "Extract 5 core principles from latest deep reading book",
+          "Connect decision-making frameworks with personal journals",
+          "Write synthesis essay on compounding knowledge"
+        ],
+        scratchpad: "# Personal Vault\n\n- Knowledge compounds exponentially when connected across domains.\n- Treat notes as evergreen thinking assets."
+      },
+      {
+        id: "daily-systems",
+        name: "Daily Systems",
+        desc: "Weekly reviews, habit trackers, health protocols, and goal tracking",
+        color: "#14B8A6",
+        icon: "calendar",
+        goalTitle: "Establish Consistent High-Performance Routines",
+        agentName: "Performance Coach",
+        agentRole: "Habits & Routine Optimizer",
+        agentSpecialty: "Time blocking, weekly reflection, and operational rhythm",
+        milestoneTitles: [
+          "Complete quarterly priority alignment review",
+          "Track 30-day deep work consistency routine",
+          "Review energy management and sleep optimization protocols"
+        ],
+        scratchpad: "# Daily Systems\n\n- Systems > Goals. Design environments that make execution effortless.\n- Weekly Sunday review to clear open loops."
+      }
+    ]
+  },
+  {
+    id: "academics",
+    title: "Academics & Study",
+    category: "Education",
+    description: "University coursework, lecture notes, exam synthesis, and lab write-ups.",
+    icon: "graduation-cap",
+    spacesToCreate: [
+      {
+        id: "coursework-labs",
+        name: "Coursework & Labs",
+        desc: "Lecture notes, problem sets, experimental results, and lab write-ups",
+        color: "#3B82F6",
+        icon: "graduation-cap",
+        goalTitle: "Master Semester Coursework & Lab Milestones",
+        agentName: "Academic Tutor",
+        agentRole: "Specialized Course TA",
+        agentSpecialty: "Problem solving, concept breakdowns, and literature citations",
+        milestoneTitles: [
+          "Summarize weekly lecture recordings into atomic concepts",
+          "Complete Lab assignment code and technical report",
+          "Cross-reference textbook problems with class slides"
+        ],
+        scratchpad: "# Coursework & Labs\n\n- Break down complex proofs into first principles.\n- Keep clean citations for all lab write-ups."
+      },
+      {
+        id: "exam-synthesis",
+        name: "Exam Synthesis",
+        desc: "High-yield study guides, formula sheets, mock tests, and flash concepts",
+        color: "#EF4444",
+        icon: "check-circle",
+        goalTitle: "Achieve Top-Tier Exam Mastery",
+        agentName: "Exam Strategist",
+        agentRole: "Active Recall Coach",
+        agentSpecialty: "Spaced repetition prompts and high-yield topic prioritization",
+        milestoneTitles: [
+          "Generate practice quiz from last 4 lecture chunks",
+          "Build formula sheet and edge-case cheatsheet",
+          "Complete timed practice exam under realistic constraints"
+        ],
+        scratchpad: "# Exam Preparation\n\n- Test with active recall rather than passive re-reading.\n- Focus on weak areas identified in mock diagnostics."
+      }
+    ]
+  },
+  {
+    id: "finance_wealth",
+    title: "Finance & Wealth",
+    category: "Finance",
+    description: "Portfolio management, investment theses, macro trends, and market models.",
+    icon: "line-chart",
+    spacesToCreate: [
+      {
+        id: "wealth-portfolio",
+        name: "Wealth & Portfolio",
+        desc: "Asset allocation, investment theses, venture deals, and financial models",
+        color: "#10B981",
+        icon: "wallet",
+        goalTitle: "Build Resilient Long-Term Wealth Architecture",
+        agentName: "Portfolio Analyst",
+        agentRole: "Investment Strategist",
+        agentSpecialty: "Risk-adjusted returns, asset allocation, and valuation models",
+        milestoneTitles: [
+          "Document investment thesis for core technology allocations",
+          "Audit quarterly asset distribution and rebalancing targets",
+          "Build discounted cash flow (DCF) model for target asset"
+        ],
+        scratchpad: "# Wealth & Portfolio\n\n- Focus on asymmetry: protect downside, allow upside to run.\n- Regular rebalancing preserves risk parity."
+      }
+    ]
+  }
+];
 
 // Initial Clean Default State (starts with your real workspace)
 const initialSpaces: Space[] = [
@@ -785,6 +1053,61 @@ export const useMyndStore = create<MyndState>()(
         set((state) => ({
           spaces: [...state.spaces, newSpace],
         }));
+      },
+
+      hasCompletedOnboarding: false,
+      setHasCompletedOnboarding: (completed: boolean) => set({ hasCompletedOnboarding: completed }),
+
+      provisionSpacesFromInterests: (interestIds: string[]) => {
+        const selected = PRESET_INTERESTS.filter((p) => interestIds.includes(p.id));
+        const newSpaces: Space[] = [];
+
+        selected.forEach((interest) => {
+          interest.spacesToCreate.forEach((def) => {
+            const newSpace: Space = {
+              id: def.id,
+              name: def.name,
+              status: "Active",
+              count: 0,
+              updated: "Just now",
+              pinned: true,
+              desc: def.desc,
+              color: def.color,
+              icon: def.icon,
+              goal: { title: def.goalTitle, progress: 0 },
+              milestones: def.milestoneTitles.map((title, idx) => ({
+                id: `m-${def.id}-${idx + 1}`,
+                title,
+                completed: false,
+              })),
+              agentPersona: {
+                name: def.agentName,
+                title: def.agentRole,
+                specialty: def.agentSpecialty,
+                status: "active",
+                avatarBg: def.color,
+              },
+              scratchpad: def.scratchpad,
+              sections: { knowledge: [], notes: [], projects: [] },
+              objects: [],
+            };
+            newSpaces.push(newSpace);
+          });
+        });
+
+        if (newSpaces.length > 0) {
+          set((state) => {
+            const existingIds = new Set(newSpaces.map((s) => s.id));
+            const retained = state.spaces.filter((s) => !existingIds.has(s.id));
+            return {
+              spaces: [...newSpaces, ...retained],
+              activeSpaceId: newSpaces[0].id,
+              hasCompletedOnboarding: true,
+            };
+          });
+        } else {
+          set({ hasCompletedOnboarding: true });
+        }
       },
 
       setSpaces: (spaces: Space[]) => {
