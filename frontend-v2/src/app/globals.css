@@ -1,173 +1,174 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-/* ==========================================================================
-   MYND Design System Tokens (Step 9 / Phase 1)
-   Calm, intelligent, tactile workspace tokens with dark-first priority.
-   Restrained teal-slate accent; zero neon, zero excessive glassmorphism.
-   ========================================================================== */
+@theme {
+  --color-bg-app: var(--bg-app);
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-hover: var(--surface-hover);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-text: var(--accent-text);
+  --color-accent-cobalt: var(--accent-cobalt);
+}
 
 :root {
-  /* Neutral scale (Light Mode) */
-  --bg-app: #f8faf9;
-  --surface-primary: #ffffff;
-  --surface-secondary: #f1f4f3;
-  --surface-elevated: #ffffff;
-  --surface-hover: #e8edeb;
-  --surface-active: #dfe5e3;
+  /* Obsidian Monolith Palette */
+  --bg-app: #07080b;                 /* Deepest obsidian canvas */
+  --surface-primary: #0e1117;        /* Precision matte carbon cards */
+  --surface-secondary: #141923;      /* Recessed containers, chips & inputs */
+  --surface-hover: #1c2230;          /* Interactive hover */
 
-  /* Borders & Dividers */
-  --border-subtle: #e2e8e5;
-  --border-default: #d1dbd6;
-  --border-strong: #9eada7;
+  /* Hairline Precision Borders */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-highlight: rgba(255, 255, 255, 0.18);
 
-  /* Typography Colors */
-  --text-primary: #121816;
-  --text-secondary: #4a5954;
-  --text-muted: #788a84;
-  --text-inverse: #ffffff;
+  /* Ice-White & Cool Metallic Typography */
+  --text-primary: #f8fafc;           /* Crisp ice-white */
+  --text-secondary: #94a3b8;         /* Cool metallic slate */
+  --text-muted: #64748b;             /* Monospace tags & timestamps */
 
-  /* MYND Signature Accent: Pine / Deep Sage / Slate */
-  --accent-primary: #0f766e;
-  --accent-hover: #0d635c;
-  --accent-surface: #f0fdfa;
-  --accent-border: #99f6e4;
-  --accent-text: #0f766e;
+  /* Signature Accent: Electric Cobalt (Zero Green / Zero Yellow) */
+  --accent-primary: #3b82f6;         /* Electric Cobalt */
+  --accent-text: #60a5fa;            /* Readable cobalt text */
+  --accent-subtle: rgba(59, 130, 246, 0.10);
 
-  /* Semantic Feedback Tokens */
-  --success-surface: #f0fdf4;
-  --success-border: #bbf7d0;
-  --success-text: #166534;
+  /* Action & Focus Accent */
+  --accent-cobalt: #3b82f6;
 
-  --warning-surface: #fffbeb;
-  --warning-border: #fef08a;
-  --warning-text: #854d0e;
+  /* Depth Shadows for Obsidian Theme */
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --shadow-paper: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+  --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
 
-  --error-surface: #fef2f2;
-  --error-border: #fecaca;
-  --error-text: #991b1b;
-
-  --info-surface: #f0f9ff;
-  --info-border: #bae6fd;
-  --info-text: #075985;
-
-  /* Shadows (Subtle, purposeful) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  --shadow-modal: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-
-  /* Radii */
+  /* Precision Radii */
   --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
-}
-
-/* Dark Mode Defaults */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-app: #0c100f;
-    --surface-primary: #131917;
-    --surface-secondary: #19221f;
-    --surface-elevated: #1e2825;
-    --surface-hover: #26332f;
-    --surface-active: #2f3e3a;
-
-    --border-subtle: #1f2a26;
-    --border-default: #2b3934;
-    --border-strong: #40524b;
-
-    --text-primary: #e6edea;
-    --text-secondary: #9cb1aa;
-    --text-muted: #647872;
-    --text-inverse: #0c100f;
-
-    --accent-primary: #2dd4bf;
-    --accent-hover: #14b8a6;
-    --accent-surface: rgba(45, 212, 191, 0.08);
-    --accent-border: rgba(45, 212, 191, 0.25);
-    --accent-text: #5eead4;
-
-    --success-surface: rgba(34, 197, 94, 0.1);
-    --success-border: rgba(34, 197, 94, 0.25);
-    --success-text: #4ade80;
-
-    --warning-surface: rgba(234, 179, 8, 0.1);
-    --warning-border: rgba(234, 179, 8, 0.25);
-    --warning-text: #facc15;
-
-    --error-surface: rgba(239, 68, 68, 0.1);
-    --error-border: rgba(239, 68, 68, 0.25);
-    --error-text: #f87171;
-
-    --info-surface: rgba(56, 189, 248, 0.1);
-    --info-border: rgba(56, 189, 248, 0.25);
-    --info-text: #38bdf8;
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-    --shadow-modal: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
-  }
-}
-
-/* Explicit theme class overrides */
-.dark {
-  --bg-app: #0c100f;
-  --surface-primary: #131917;
-  --surface-secondary: #19221f;
-  --surface-elevated: #1e2825;
-  --surface-hover: #26332f;
-  --surface-active: #2f3e3a;
-
-  --border-subtle: #1f2a26;
-  --border-default: #2b3934;
-  --border-strong: #40524b;
-
-  --text-primary: #e6edea;
-  --text-secondary: #9cb1aa;
-  --text-muted: #647872;
-  --text-inverse: #0c100f;
-
-  --accent-primary: #2dd4bf;
-  --accent-hover: #14b8a6;
-  --accent-surface: rgba(45, 212, 191, 0.08);
-  --accent-border: rgba(45, 212, 191, 0.25);
-  --accent-text: #5eead4;
-
-  --success-surface: rgba(34, 197, 94, 0.1);
-  --success-border: rgba(34, 197, 94, 0.25);
-  --success-text: #4ade80;
-
-  --warning-surface: rgba(234, 179, 8, 0.1);
-  --warning-border: rgba(234, 179, 8, 0.25);
-  --warning-text: #facc15;
-
-  --error-surface: rgba(239, 68, 68, 0.1);
-  --error-border: rgba(239, 68, 68, 0.25);
-  --error-text: #f87171;
-
-  --info-surface: rgba(56, 189, 248, 0.1);
-  --info-border: rgba(56, 189, 248, 0.25);
-  --info-text: #38bdf8;
 }
 
 body {
   background-color: var(--bg-app);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  letter-spacing: -0.011em;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
 }
 
-/* Micro-interaction utility transitions (150-250ms) */
-.transition-mynd {
-  transition-property: color, background-color, border-color, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  transition-duration: 180ms;
+/* Studio Hardware & Beveled Card Styles */
+.studio-canvas-glow {
+  background: radial-gradient(ellipse 80% 320px at 50% -20px, rgba(59, 130, 246, 0.09), transparent 70%),
+              radial-gradient(ellipse 50% 200px at 85% 10%, rgba(99, 102, 241, 0.05), transparent 60%);
+}
+
+.studio-card {
+  background: linear-gradient(180deg, #0e131d 0%, #080b11 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
+  position: relative;
+  overflow: hidden;
+}
+
+.studio-card-hero {
+  background: linear-gradient(180deg, #101625 0%, #090c13 100%);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.9), 
+              0 0 25px -5px rgba(59, 130, 246, 0.12),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  position: relative;
+}
+
+.studio-card-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.8), transparent);
+}
+
+.studio-tile {
+  background: rgba(16, 22, 33, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-tile:hover {
+  background: rgba(22, 30, 46, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Tactile physical keyboard keycaps */
+.kbd-tactile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom-width: 2px;
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Cobalt Primary Action Button */
+.titanium-btn {
+  background-color: #3b82f6;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 12px rgba(59, 130, 246, 0.35);
+  transition: all 130ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.titanium-btn:hover {
+  background-color: #2563eb;
+  transform: translateY(-0.5px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.45);
+}
+.titanium-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Crisp dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c2230;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2d3748;
+}
+
+/* Hide Next.js dev indicator if present */
+nextjs-portal,
+#nextjs-dev-tools,
+[data-nextjs-dev-tools],
+[data-nextjs-toast] {
+  display: none !important;
 }
 
 /* Reduced motion preference */

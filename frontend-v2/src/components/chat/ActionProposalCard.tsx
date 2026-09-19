@@ -22,46 +22,56 @@ export const ActionProposalCard: React.FC<ActionProposalCardProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [executionResult, setExecutionResult] = useState<{ message?: string; status?: string } & Record<string, unknown> | null>(null);
+
   const handleApprove = async () => {
+    if (isProcessing || status !== "pending") return;
     setIsProcessing(true);
     setError(null);
     try {
-      // Backend action execution / approval endpoint
-      const res = await apiClient<any>(`/api/v1/actions/${proposal.proposal_id || proposal.id}/approve`, {
-        method: "POST",
-      });
-      const newStatus = res?.status || "approved";
+      const res = await apiClient<{ status?: string } & Record<string, unknown>>(
+        `/api/v1/actions/${proposal.proposal_id || proposal.id}/approve`,
+        { method: "POST" }
+      );
+      const newStatus = (res?.status || "executed") as ActionProposal["status"];
       setStatus(newStatus);
+      setExecutionResult(res);
       if (onStatusChange) {
         onStatusChange({ ...proposal, status: newStatus });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to approve action:", err);
-      setError(err?.message || "Action approval failed.");
+      const msg = err instanceof Error ? err.message : "Action approval failed.";
+      setError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleReject = async () => {
+    if (isProcessing || status !== "pending") return;
     setIsProcessing(true);
     setError(null);
     try {
-      const res = await apiClient<any>(`/api/v1/actions/${proposal.proposal_id || proposal.id}/reject`, {
-        method: "POST",
-      });
-      const newStatus = res?.status || "rejected";
+      const res = await apiClient<{ status?: string } & Record<string, unknown>>(
+        `/api/v1/actions/${proposal.proposal_id || proposal.id}/reject`,
+        { method: "POST" }
+      );
+      const newStatus = (res?.status || "rejected") as ActionProposal["status"];
       setStatus(newStatus);
       if (onStatusChange) {
         onStatusChange({ ...proposal, status: newStatus });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to reject action:", err);
-      setError(err?.message || "Action rejection failed.");
+      const msg = err instanceof Error ? err.message : "Action rejection failed.";
+      setError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const isExecuted = status === "executed" || status === "approved";
 
   return (
     <Surface
@@ -78,7 +88,7 @@ export const ActionProposalCard: React.FC<ActionProposalCardProps> = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
                 Proposed Action: {proposal.action_type.replace(/_/g, " ")}
               </span>
-              <StatusIndicator status={status as any} label={status} size="sm" />
+              <StatusIndicator status={status as "pending" | "approved" | "rejected" | "executed" | "failed"} label={status} size="sm" />
               <Badge variant="outline" size="sm">
                 {proposal.confidence} confidence
               </Badge>
@@ -119,6 +129,45 @@ export const ActionProposalCard: React.FC<ActionProposalCardProps> = ({
           </div>
         )}
       </div>
+
+      {isExecuted && (() => {
+        const targetId = executionResult?.target_id || proposal.executed_target_id;
+        const isProject = proposal.action_type === "create_project";
+        const isGoal = proposal.action_type === "create_goal";
+
+        let outcomeHref = proposal.space_id ? `/spaces/${proposal.space_id}/work` : "#";
+        let outcomeLabel = "View in Work →";
+
+        if (isProject && targetId && proposal.space_id) {
+          outcomeHref = `/spaces/${proposal.space_id}/work/projects/${targetId}`;
+          outcomeLabel = "View Project →";
+        } else if (isGoal && targetId && proposal.space_id) {
+          outcomeHref = `/spaces/${proposal.space_id}/work/goals/${targetId}`;
+          outcomeLabel = "View Goal →";
+        }
+
+        return (
+          <div className="mt-3 p-3 rounded-[var(--radius-sm)] bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium min-w-0">
+              <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span className="truncate">
+                {executionResult?.message ||
+                  (isProject
+                    ? `✓ Project created: ${proposal.parameters?.name || "New Project"}`
+                    : isGoal
+                    ? `✓ Goal created: ${proposal.parameters?.description || "New Goal"}`
+                    : "✓ Action executed successfully")}
+              </span>
+            </div>
+            <a
+              href={outcomeHref}
+              className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-semibold shrink-0"
+            >
+              {outcomeLabel}
+            </a>
+          </div>
+        );
+      })()}
 
       {error && (
         <div className="mt-2.5 p-2 bg-[var(--error-surface)] border border-[var(--error-border)] rounded-[var(--radius-xs)] text-xs text-[var(--error-text)] flex items-center gap-1.5">

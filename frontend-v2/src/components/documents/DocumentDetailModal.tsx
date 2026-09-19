@@ -36,8 +36,9 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
       try {
         const data = await apiClient<DocumentItem>(`/api/v1/documents/${documentId}`);
         setDoc(data);
-      } catch (err: any) {
-        setError(err?.message || "Failed to load document details.");
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to load document details.";
+        setError(msg);
       } finally {
         setIsLoading(false);
       }
@@ -51,7 +52,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={doc?.title || "Document Knowledge Details"}
-      description="Detailed inspection of parsed text chunks and vector indexing status in Qdrant."
+      description="Detailed inspection of verified evidence excerpts and indexing status."
     >
       {isLoading ? (
         <div className="space-y-3">

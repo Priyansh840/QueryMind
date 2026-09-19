@@ -99,6 +99,23 @@ export interface DocumentSearchResult {
   source_type: string;
 }
 
+export interface KnowledgeItem {
+  id: string;
+  user_id: string;
+  space_id?: string | null;
+  document_id?: string | null;
+  document_title?: string | null;
+  source_chunk_id?: string | null;
+  title?: string | null;
+  content: string;
+  knowledge_type: string;
+  page_number?: number | null;
+  confidence: number;
+  metadata_json?: Record<string, any> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Citation {
   document_title: string;
   chunk_id?: string | null;
@@ -157,8 +174,16 @@ export interface ActionProposal {
   created_at: string;
   approved_at?: string | null;
   executed_at?: string | null;
+  executed_target_id?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+}
+
+export interface ActionProposalListResponse {
+  items: ActionProposal[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ProjectItem {

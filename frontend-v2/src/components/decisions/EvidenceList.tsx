@@ -62,7 +62,13 @@ export const EvidenceList: React.FC<EvidenceListProps> = ({ evidence, spaceId })
               </div>
             </div>
 
-            <Link href={`/spaces/${spaceId}/documents`}>
+            <Link
+              href={
+                item.document_id
+                  ? `/spaces/${spaceId}/knowledge/documents/${item.document_id}`
+                  : `/spaces/${spaceId}/knowledge`
+              }
+            >
               <Button
                 variant="ghost"
                 size="sm"

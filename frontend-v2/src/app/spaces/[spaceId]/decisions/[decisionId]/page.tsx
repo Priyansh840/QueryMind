@@ -26,6 +26,7 @@ import {
   AlertCircle,
   RefreshCw,
   Zap,
+  ArrowRight,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -169,6 +170,55 @@ export default function DecisionDetailPage({ params }: DecisionDetailPageProps) 
           )}
         </Surface>
 
+        {/* Outcome Section (if executed) */}
+        {(decision.status === "executed" || decision.outcome) && (() => {
+          const targetId = decision.outcome?.target_id;
+          const isProject = decision.action_type === "create_project";
+          const isGoal = decision.action_type === "create_goal";
+
+          let outcomeHref = `/spaces/${spaceId}/work`;
+          let outcomeLabel = "View in Work";
+
+          if (isProject && targetId) {
+            outcomeHref = `/spaces/${spaceId}/work/projects/${targetId}`;
+            outcomeLabel = "View Project";
+          } else if (isGoal && targetId) {
+            outcomeHref = `/spaces/${spaceId}/work/goals/${targetId}`;
+            outcomeLabel = "View Goal";
+          }
+
+          return (
+            <Surface variant="primary" className="p-5 border-l-4 border-l-emerald-500 bg-[var(--surface-primary)] space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      Outcome
+                    </span>
+                    <Badge variant="success" size="sm">
+                      Executed
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">
+                    {decision.outcome?.summary ||
+                      (isProject
+                        ? `Project created: ${decision.parameters?.name || "Initiative"}`
+                        : isGoal
+                        ? `Goal created: ${decision.parameters?.description || "Goal"}`
+                        : "Action executed successfully")}
+                  </p>
+                </div>
+
+                <Link href={outcomeHref}>
+                  <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                    {outcomeLabel}
+                  </Button>
+                </Link>
+              </div>
+            </Surface>
+          );
+        })()}
+
         {/* Section 2: Action Approval Control (if pending) */}
         {decision.status === "pending" && (
           <div className="space-y-3">
@@ -209,9 +259,9 @@ export default function DecisionDetailPage({ params }: DecisionDetailPageProps) 
                 Supporting Evidence ({decision.evidence.length})
               </h2>
             </div>
-            <Link href={`/spaces/${spaceId}/documents`}>
+            <Link href={`/spaces/${spaceId}/knowledge`}>
               <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
-                Document Repository →
+                Knowledge Base →
               </span>
             </Link>
           </div>
