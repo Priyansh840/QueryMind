@@ -196,9 +196,9 @@ export default function LoginPage() {
         style={{
           maxWidth: "420px",
           background: "#121212",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
           borderRadius: "22px",
-          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.06)",
+          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08)",
           backdropFilter: "blur(20px)",
           padding: "32px 28px",
         }}
@@ -249,7 +249,7 @@ export default function LoginPage() {
           <p 
             style={{
               fontSize: "12.5px",
-              color: "#94A3B8",
+              color: "#A3A3A3",
               marginTop: "4px",
               marginBottom: 0,
               fontWeight: 500,
@@ -312,7 +312,7 @@ export default function LoginPage() {
               borderRadius: "8px",
               border: mode === "signin" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
               background: mode === "signin" ? "#212121" : "transparent",
-              color: mode === "signin" ? "#FFFFFF" : "#737373",
+              color: mode === "signin" ? "#FFFFFF" : "#A3A3A3",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",
@@ -345,7 +345,7 @@ export default function LoginPage() {
               borderRadius: "8px",
               border: mode === "signup" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
               background: mode === "signup" ? "#212121" : "transparent",
-              color: mode === "signup" ? "#FFFFFF" : "#737373",
+              color: mode === "signup" ? "#FFFFFF" : "#A3A3A3",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",

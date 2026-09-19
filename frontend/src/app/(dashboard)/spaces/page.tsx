@@ -113,19 +113,19 @@ export default function SpacesDirectoryPage() {
               padding: "10px 20px",
               borderRadius: "10px",
               border: "none",
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "#FFFFFF",
+              color: "#000000",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(99, 102, 241, 0.35)",
+              boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
               display: "flex",
               alignItems: "center",
               gap: "8px",
               transition: "transform 150ms ease",
             }}
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="#000000" strokeWidth="2.5" fill="none">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -217,11 +217,11 @@ export default function SpacesDirectoryPage() {
               style={{
                 padding: "6px 14px",
                 borderRadius: "20px",
-                border: selectedCategory === cat.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-                background: selectedCategory === cat.id ? "var(--accent-soft)" : "var(--surface)",
-                color: selectedCategory === cat.id ? "var(--accent)" : "var(--text-secondary)",
+                border: selectedCategory === cat.id ? "1px solid #FFFFFF" : "1px solid var(--border)",
+                background: selectedCategory === cat.id ? "#FFFFFF" : "var(--surface)",
+                color: selectedCategory === cat.id ? "#000000" : "var(--text-secondary)",
                 fontSize: "12px",
-                fontWeight: selectedCategory === cat.id ? 600 : 500,
+                fontWeight: selectedCategory === cat.id ? 700 : 500,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 transition: "all 150ms ease",
@@ -328,10 +328,11 @@ export default function SpacesDirectoryPage() {
                 <span
                   className="badge"
                   style={{
-                    fontSize: "10px",
-                    background: `${spaceColor}15`,
-                    color: spaceColor,
-                    padding: "3px 8px",
+                    fontSize: "11px",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    color: "#FFFFFF",
+                    border: "1px solid rgba(255, 255, 255, 0.18)",
+                    padding: "3px 10px",
                     borderRadius: "12px",
                     fontWeight: 600,
                   }}
@@ -372,8 +373,9 @@ export default function SpacesDirectoryPage() {
                       width: "24px",
                       height: "24px",
                       borderRadius: "6px",
-                      background: space.agentPersona.avatarBg || spaceColor,
-                      color: "#fff",
+                      background: "#262626",
+                      color: "#FFFFFF",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
                       fontSize: "11px",
                       fontWeight: 700,
                       display: "flex",

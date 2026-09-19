@@ -629,14 +629,14 @@ export default function ContextPanel() {
                           width: "36px",
                           height: "36px",
                           borderRadius: "10px",
-                          background: spaceColor,
-                          color: "#fff",
+                          background: "#262626",
+                          color: "#FFFFFF",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
                           fontWeight: 700,
                           fontSize: "13px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          boxShadow: `0 0 12px ${spaceColor}44`,
                         }}
                       >
                         AI

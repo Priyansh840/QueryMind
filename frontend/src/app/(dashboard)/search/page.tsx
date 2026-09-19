@@ -160,19 +160,19 @@ export default function SearchPage() {
             </p>
             <Link
               href="/vault"
-              className="kbd"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
                 padding: "8px 16px",
-                background: "var(--accent)",
-                color: "#FFF",
+                background: "#FFFFFF",
+                color: "#000000",
                 border: "none",
                 borderRadius: "8px",
                 textDecoration: "none",
                 fontSize: "12px",
                 fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               <Upload className="w-3.5 h-3.5" />

@@ -295,18 +295,18 @@ export default function SpaceDetailPage({
                 padding: "8px 18px",
                 borderRadius: "8px",
                 border: "none",
-                background: spaceColor,
-                color: "#FFFFFF",
+                background: "#FFFFFF",
+                color: "#000000",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                boxShadow: `0 2px 12px ${spaceColor}44`,
+                boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
               }}
             >
-              <span className="alive-dot" style={{ background: "#FFFFFF" }} />
+              <span className="alive-dot" style={{ background: "#000000" }} />
               <span>Ask Resident AI</span>
             </button>
           </div>
@@ -354,14 +354,14 @@ export default function SpaceDetailPage({
                     width: "38px",
                     height: "38px",
                     borderRadius: "10px",
-                    background: space.agentPersona.avatarBg || spaceColor,
+                    background: "#262626",
                     color: "#FFFFFF",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "14px",
                     fontWeight: 700,
-                    boxShadow: `0 0 12px ${spaceColor}44`,
                   }}
                 >
                   AI
@@ -677,8 +677,8 @@ export default function SpaceDetailPage({
                       width: "18px",
                       height: "18px",
                       borderRadius: "5px",
-                      border: m.completed ? `2px solid ${spaceColor}` : "2px solid var(--border-strong)",
-                      background: m.completed ? spaceColor : "transparent",
+                      border: m.completed ? "2px solid #10B981" : "2px solid var(--border-strong)",
+                      background: m.completed ? "#10B981" : "transparent",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -780,8 +780,8 @@ export default function SpaceDetailPage({
                       padding: "8px 16px",
                       borderRadius: "6px",
                       border: "none",
-                      background: spaceColor,
-                      color: "#FFFFFF",
+                      background: "#FFFFFF",
+                      color: "#000000",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: "pointer",

@@ -205,7 +205,7 @@ export default function OnboardingPage() {
                   background: isSelected ? "#1A1A1A" : "#121212",
                   border: isSelected 
                     ? "1px solid #FFFFFF" 
-                    : "1px solid rgba(255, 255, 255, 0.08)",
+                    : "1px solid rgba(255, 255, 255, 0.14)",
                   borderRadius: "16px",
                   padding: "18px",
                   cursor: "pointer",
@@ -259,7 +259,7 @@ export default function OnboardingPage() {
                       style={{
                         fontSize: "10px",
                         fontFamily: "'IBM Plex Mono', monospace",
-                        color: isSelected ? "#FFFFFF" : "#737373",
+                        color: isSelected ? "#FFFFFF" : "#A3A3A3",
                         textTransform: "uppercase",
                         letterSpacing: "0.05em",
                         fontWeight: 600,
@@ -274,13 +274,13 @@ export default function OnboardingPage() {
                 </div>
 
                 {/* Description */}
-                <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 12px 0", lineHeight: 1.4 }}>
+                <p style={{ fontSize: "12px", color: "#D4D4D4", margin: "0 0 12px 0", lineHeight: 1.4 }}>
                   {interest.description}
                 </p>
 
                 {/* Generates Tag List */}
-                <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: "10px" }}>
-                  <div style={{ fontSize: "10px", color: "#64748B", marginBottom: "6px", fontWeight: 500 }}>
+                <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "10px" }}>
+                  <div style={{ fontSize: "10px", color: "#A3A3A3", marginBottom: "6px", fontWeight: 500 }}>
                     PROVISIONS SPACES:
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -337,7 +337,7 @@ export default function OnboardingPage() {
                   Pre-Configured Spaces Ready for Generation ({previewSpaces.length})
                 </h4>
               </div>
-              <p style={{ fontSize: "12px", color: "#737373", margin: "2px 0 0 0" }}>
+              <p style={{ fontSize: "12px", color: "#A3A3A3", margin: "2px 0 0 0" }}>
                 Each space is paired with a domain-expert agent and starter synthesis milestones.
               </p>
             </div>

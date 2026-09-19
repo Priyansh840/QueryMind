@@ -5,27 +5,27 @@
      Calm, elegant, minimal, Indigo-Purple Accents, soft borders
      ========================================================================== */
 
-  /* DARK THEME (CLASSIC BLACK & WHITE) */
+  /* DARK THEME (CLASSIC BLACK & WHITE - HIGH CONTRAST) */
   --bg: #000000;
   --bg-translucent: rgba(0, 0, 0, 0.85);
-  --surface: #121212;
-  --surface-subtle: #181818;
-  --surface-hover: #222222;
-  --sidebar-bg: #0A0A0A;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --divider: rgba(255, 255, 255, 0.08);
+  --surface: #141414;
+  --surface-subtle: #1C1C1C;
+  --surface-hover: #262626;
+  --sidebar-bg: #0D0D0D;
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --divider: rgba(255, 255, 255, 0.12);
 
   --text-primary: #FFFFFF;
-  --text-secondary: #A1A1A1;
-  --text-tertiary: #737373;
-  --text-ghost: #404040;
+  --text-secondary: #D4D4D4; /* Crisp readable secondary text */
+  --text-tertiary: #A3A3A3;  /* High contrast readable metadata */
+  --text-ghost: #737373;     /* Visible subtle elements */
 
   --accent: #FFFFFF;
-  --accent-purple: #E5E5E5;
+  --accent-purple: #FFFFFF;
   --accent-contrast: #000000;
-  --accent-soft: rgba(255, 255, 255, 0.08);
-  --accent-soft-purple: rgba(255, 255, 255, 0.05);
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --accent-soft-purple: rgba(255, 255, 255, 0.08);
 
   /* Functional Status Colors (Green tick, Red cross) */
   --color-success: #10B981; /* Green for tick mark */
@@ -218,12 +218,12 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-family: var(--mono);
-  color: var(--text-tertiary);
-  background: var(--surface-hover);
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  line-height: 1;
+  border-radius: 6px;
+  line-height: 1.2;
 }

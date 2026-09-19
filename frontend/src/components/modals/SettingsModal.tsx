@@ -94,11 +94,10 @@ export default function SettingsModal() {
 
               <button
                 type="submit"
-                className="kbd"
                 style={{
                   alignSelf: "flex-end",
-                  background: "var(--accent)",
-                  color: "#FFF",
+                  background: "#FFFFFF",
+                  color: "#000000",
                   border: "none",
                   padding: "8px 16px",
                   cursor: "pointer",
