@@ -16,6 +16,9 @@ import {
   Clock,
   RefreshCw,
   X,
+  FileText,
+  AlertCircle,
+  Paperclip,
 } from "lucide-react";
 import { queryMindApi, TraceEvent, ObjectiveTraceData } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -100,8 +103,68 @@ export default function ConversationPage() {
   const [agentStatus, setAgentStatus] = useState<string>("");
   const [decisionInsight, setDecisionInsight] = useState<DecisionAnalysis | null>(null);
 
+  // File Attachments State
+  const [attachments, setAttachments] = useState<{
+    file: File;
+    name: string;
+    size: string;
+    status: "uploading" | "ready" | "error";
+    documentId?: string;
+    errorMessage?: string;
+  }[]>([]);
+  const fileInputRef1 = useRef<HTMLInputElement>(null);
+  const fileInputRef2 = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const queryExecutedRef = useRef(false);
+  const isSendingRef = useRef(false);
+
+  const handleAttachFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newItems = Array.from(files).map((f) => ({
+      file: f,
+      name: f.name,
+      size: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,
+      status: "uploading" as const,
+    }));
+
+    setAttachments((prev) => [...prev, ...newItems]);
+
+    for (const item of newItems) {
+      try {
+        const data = await queryMindApi.uploadDocument(item.file, activeSpaceId);
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.file === item.file
+              ? { ...a, status: "ready", documentId: data.document_id }
+              : a
+          )
+        );
+        useMyndStore.getState().addDocument({
+          name: data.filename || item.name,
+          type: item.name.split(".").pop() || "txt",
+          size: item.size,
+          chunks: data.chunks_created || 1,
+          vectorsStored: data.vectors_stored || 1,
+          summary: `Document uploaded in conversation. Indexed into space.`,
+        });
+      } catch (err: any) {
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a.file === item.file
+              ? { ...a, status: "error", errorMessage: err.message || "Upload failed" }
+              : a
+          )
+        );
+      }
+    }
+  };
+
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   // Load History
   useEffect(() => {
@@ -110,7 +173,7 @@ export default function ConversationPage() {
       .then((data) => {
         const mapped: Message[] = data.map((m: any) => ({
           id: m.id,
-          role: m.role,
+          role: m.role === "assistant" ? "ai" : m.role,
           content: m.content,
           citations: m.citations,
           objectiveId: m.metadata_json?.objective_id,
@@ -124,9 +187,10 @@ export default function ConversationPage() {
   // Initial query execution from redirect
   useEffect(() => {
     const q = searchParams.get("q");
-    if (q) {
-      handleSend(q);
+    if (q && !queryExecutedRef.current) {
+      queryExecutedRef.current = true;
       router.replace(`/chat/${conversationId}`);
+      handleSend(q);
     }
   }, [searchParams, conversationId, router]);
 
@@ -142,11 +206,20 @@ export default function ConversationPage() {
     }
   }, [input]);
 
-
   /* ─── send ────────────────────────────────────────────────── */
   const handleSend = async (queryText?: string) => {
-    const textToSend = queryText || input;
-    if (!textToSend.trim() || isOrchestrating) return;
+    let textToSend = queryText !== undefined ? queryText : input;
+    if ((!textToSend.trim() && attachments.length === 0) || isSendingRef.current) return;
+    isSendingRef.current = true;
+
+    if (!textToSend.trim() && attachments.length > 0) {
+      textToSend = `Please analyze and summarize the attached document "${attachments[0].name}" and highlight key takeaways.`;
+    } else if (attachments.length > 0) {
+      const docNames = attachments.map((a) => `"${a.name}"`).join(", ");
+      textToSend = `${textToSend}\n\n[Referenced Attached Document(s): ${docNames}]`;
+    }
+
+    setAttachments([]);
 
     if (!hasStartedChat) setHasStartedChat(true);
 
@@ -179,18 +252,33 @@ export default function ConversationPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
 
       const response = await fetch(`/api/v1/conversations/${conversationId}/messages`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           role: "user",
-          content: textToSend
-        })
+          content: textToSend,
+        }),
       });
+
+      if (!response.ok) {
+        let errDetail = `Server error (${response.status})`;
+        try {
+          const errJson = await response.json();
+          errDetail = errJson.detail || errJson.message || JSON.stringify(errJson);
+        } catch {
+          const errText = await response.text();
+          if (errText) errDetail = errText;
+        }
+        throw new Error(errDetail);
+      }
 
       if (!response.body) throw new Error("No response body");
 
@@ -198,88 +286,112 @@ export default function ConversationPage() {
       const decoder = new TextDecoder("utf-8");
       
       let done = false;
+      let buffer = "";
+
+      const handleSseLine = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+        try {
+          const jsonStr = line.replace("data: ", "").trim();
+          if (!jsonStr) return;
+          const data = JSON.parse(jsonStr);
+          
+          if (data.event === "workflow.started") {
+            // Handled by step.started
+          } else if (data.event === "workflow.step.started") {
+            setWorkflowSteps((prev) => {
+              const exists = prev.find(s => s.step === data.data.step && s.iteration === data.data.iteration);
+              if (exists) return prev;
+              return [...prev, { ...data.data, status: "running" }];
+            });
+          } else if (data.event === "workflow.step.completed") {
+            setWorkflowSteps((prev) => prev.map(s => 
+              (s.step === data.data.step && (s.iteration === data.data.iteration || !data.data.iteration)) 
+                ? { ...s, status: "completed", ...data.data } 
+                : s
+            ));
+            
+            if (data.data.step === "decision_analyzer" && data.data.output) {
+              try {
+                const output = data.data.output;
+                if (Array.isArray(output.recommendations) && Array.isArray(output.blockers) && Array.isArray(output.uncertainties)) {
+                  const validRecs = output.recommendations.filter((r: any) => 
+                    ["high", "medium", "low"].includes(r.confidence) && Array.isArray(r.evidence)
+                  ).map((r: any) => ({
+                    ...r,
+                    evidence: r.evidence.filter((e: any) => ["workspace", "document", "conversation"].includes(e.source_type))
+                  }));
+                  setDecisionInsight({ ...output, recommendations: validRecs });
+                }
+              } catch (err) {
+                console.error("Invalid decision insight payload", err);
+              }
+            }
+          } else if (data.event === "agent.status") {
+            setAgentStatus(data.data.status);
+          } else if (data.event === "token") {
+            setMessages((prev) => prev.map(msg => 
+              msg.id === tempAiId ? { ...msg, content: (msg.content || "") + data.data.text } : msg
+            ));
+          } else if (data.event === "citation") {
+            setMessages((prev) => prev.map(msg => 
+              msg.id === tempAiId ? { ...msg, citations: [...(msg.citations || []), `${data.data.document_title || 'Document'} (p. ${data.data.page_number || 1})`] } : msg
+            ));
+          } else if (data.event === "message.completed") {
+            setMessages((prev) => prev.map(msg => 
+              msg.id === tempAiId ? { ...msg, id: data.data.message_id, content: data.data.content } : msg
+            ));
+          } else if (data.event === "error") {
+             throw new Error(data.data.detail);
+          }
+        } catch (err) {
+           console.error("SSE parse error", err, line);
+        }
+      };
       
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const jsonStr = line.replace("data: ", "").trim();
-                if (!jsonStr) continue;
-                const data = JSON.parse(jsonStr);
-                
-                if (data.event === "workflow.started") {
-                  // Ignore for now, handled by step.started
-                } else if (data.event === "workflow.step.started") {
-                  setWorkflowSteps((prev) => {
-                    const exists = prev.find(s => s.step === data.data.step && s.iteration === data.data.iteration);
-                    if (exists) return prev;
-                    return [...prev, { ...data.data, status: "running" }];
-                  });
-                } else if (data.event === "workflow.step.completed") {
-                  setWorkflowSteps((prev) => prev.map(s => 
-                    (s.step === data.data.step && (s.iteration === data.data.iteration || !data.data.iteration)) 
-                      ? { ...s, status: "completed", ...data.data } 
-                      : s
-                  ));
-                  
-                  if (data.data.step === "decision_analyzer" && data.data.output) {
-                    try {
-                      const output = data.data.output;
-                      if (Array.isArray(output.recommendations) && Array.isArray(output.blockers) && Array.isArray(output.uncertainties)) {
-                        const validRecs = output.recommendations.filter((r: any) => 
-                          ["high", "medium", "low"].includes(r.confidence) && Array.isArray(r.evidence)
-                        ).map((r: any) => ({
-                          ...r,
-                          evidence: r.evidence.filter((e: any) => ["workspace", "document", "conversation"].includes(e.source_type))
-                        }));
-                        setDecisionInsight({ ...output, recommendations: validRecs });
-                      }
-                    } catch (err) {
-                      console.error("Invalid decision insight payload", err);
-                    }
-                  }
-                } else if (data.event === "agent.status") {
-                  setAgentStatus(data.data.status);
-                } else if (data.event === "token") {
-                  setMessages((prev) => prev.map(msg => 
-                    msg.id === tempAiId ? { ...msg, content: msg.content + data.data.text } : msg
-                  ));
-                } else if (data.event === "citation") {
-                  setMessages((prev) => prev.map(msg => 
-                    msg.id === tempAiId ? { ...msg, citations: [...(msg.citations || []), `${data.data.document_title || 'Document'} (p. ${data.data.page_number || 1})`] } : msg
-                  ));
-                } else if (data.event === "message.completed") {
-                  setMessages((prev) => prev.map(msg => 
-                    msg.id === tempAiId ? { ...msg, id: data.data.message_id, content: data.data.content } : msg
-                  ));
-                } else if (data.event === "error") {
-                   throw new Error(data.data.detail);
-                }
-              } catch (err) {
-                 console.error("SSE parse error", err, line);
-              }
-            }
+            handleSseLine(line);
           }
         }
       }
+
+      if (buffer.trim()) {
+        handleSseLine(buffer.trim());
+      }
     } catch (err: any) {
       console.error(err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: "ai",
-          content: `⚠️ Error: ${err.message}.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          isError: true,
-        },
-      ]);
+      setMessages((prev) => {
+        const hasTemp = prev.some((m) => m.id === tempAiId);
+        if (hasTemp) {
+          return prev.map((m) =>
+            m.id === tempAiId
+              ? {
+                  ...m,
+                  content: `⚠️ Error: ${err.message}.`,
+                  isError: true,
+                }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            role: "ai",
+            content: `⚠️ Error: ${err.message}.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            isError: true,
+          },
+        ];
+      });
     } finally {
+      isSendingRef.current = false;
       setIsOrchestrating(false);
     }
   };
@@ -346,6 +458,61 @@ export default function ConversationPage() {
             boxShadow: "var(--shadow-sm)",
           }}
         >
+          {/* File Attachments Pills */}
+          {attachments.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
+              {attachments.map((att, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 12px",
+                    borderRadius: "10px",
+                    background: att.status === "error" ? "#FEF2F2" : "var(--surface)",
+                    border: `1px solid ${att.status === "error" ? "#FECACA" : "var(--border)"}`,
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <span style={{ fontWeight: 600, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {att.name}
+                  </span>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>{att.size}</span>
+                  {att.status === "uploading" && (
+                    <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  )}
+                  {att.status === "ready" && (
+                    <CheckCircle2 style={{ width: "12px", height: "12px", color: "#10B981" }} />
+                  )}
+                  {att.status === "error" && (
+                    <AlertCircle style={{ width: "12px", height: "12px", color: "#EF4444" }} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAttachment(idx);
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      padding: "2px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    <X style={{ width: "12px", height: "12px" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             placeholder="How can I help you today?"
@@ -375,8 +542,20 @@ export default function ConversationPage() {
 
           {/* Bottom row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <input
+              type="file"
+              ref={fileInputRef1}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                handleAttachFiles(e.target.files);
+                e.target.value = "";
+              }}
+              multiple
+            />
             <button
+              type="button"
               title="Attach file"
+              onClick={() => fileInputRef1.current?.click()}
               style={{
                 width: "32px",
                 height: "32px",
@@ -414,8 +593,9 @@ export default function ConversationPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => handleSend()}
-                disabled={!input.trim()}
+                disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
                 style={{
                   width: "34px",
                   height: "34px",
@@ -423,10 +603,10 @@ export default function ConversationPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: input.trim() ? "var(--accent)" : "var(--surface-hover)",
-                  color: input.trim() ? "#FFF" : "var(--text-ghost)",
+                  background: (input.trim() || attachments.length > 0) && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
+                  color: (input.trim() || attachments.length > 0) && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
                   border: "none",
-                  cursor: input.trim() ? "pointer" : "default",
+                  cursor: (input.trim() || attachments.length > 0) && !isOrchestrating ? "pointer" : "default",
                   transition: "all 200ms var(--ease)",
                 }}
               >
@@ -891,9 +1071,64 @@ export default function ConversationPage() {
             boxShadow: "var(--shadow-sm)",
           }}
         >
+          {/* File Attachments Pills */}
+          {attachments.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
+              {attachments.map((att, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 12px",
+                    borderRadius: "10px",
+                    background: att.status === "error" ? "#FEF2F2" : "var(--surface)",
+                    border: `1px solid ${att.status === "error" ? "#FECACA" : "var(--border)"}`,
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <span style={{ fontWeight: 600, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {att.name}
+                  </span>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>{att.size}</span>
+                  {att.status === "uploading" && (
+                    <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  )}
+                  {att.status === "ready" && (
+                    <CheckCircle2 style={{ width: "12px", height: "12px", color: "#10B981" }} />
+                  )}
+                  {att.status === "error" && (
+                    <AlertCircle style={{ width: "12px", height: "12px", color: "#EF4444" }} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAttachment(idx);
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      padding: "2px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--text-tertiary)",
+                    }}
+                  >
+                    <X style={{ width: "12px", height: "12px" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
-            placeholder="Ask a follow-up..."
+            placeholder="Ask a follow-up or discuss attached files..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -920,8 +1155,20 @@ export default function ConversationPage() {
             }}
           />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <input
+              type="file"
+              ref={fileInputRef2}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                handleAttachFiles(e.target.files);
+                e.target.value = "";
+              }}
+              multiple
+            />
             <button
+              type="button"
               title="Attach file"
+              onClick={() => fileInputRef2.current?.click()}
               style={{
                 width: "32px",
                 height: "32px",
@@ -957,8 +1204,9 @@ export default function ConversationPage() {
                 <span style={{ opacity: 0.5 }}>Multi-Agent</span>
               </div>
               <button
+                type="button"
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isOrchestrating}
+                disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
                 style={{
                   width: "34px",
                   height: "34px",
@@ -966,10 +1214,10 @@ export default function ConversationPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: input.trim() && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
-                  color: input.trim() && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
+                  background: (input.trim() || attachments.length > 0) && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
+                  color: (input.trim() || attachments.length > 0) && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
                   border: "none",
-                  cursor: input.trim() && !isOrchestrating ? "pointer" : "default",
+                  cursor: (input.trim() || attachments.length > 0) && !isOrchestrating ? "pointer" : "default",
                   transition: "all 200ms var(--ease)",
                 }}
               >

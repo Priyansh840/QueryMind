@@ -25,13 +25,6 @@ app.use('/api/v1/agent', require('./routes/agent'));
 app.use('/api/v1/memory', require('./routes/memory'));
 app.use('/api/v1/files', require('./routes/files'));
 
-// Serve Frontend Static Files
-app.use(express.static(path.join(__dirname, '../frontend/mynd')));
-
-// Fallback to index.html for SPA routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/mynd', 'index.html'));
-});
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

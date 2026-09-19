@@ -96,11 +96,11 @@ async def global_space_search(
                     id=str(doc.id),
                     type="document",
                     title=doc.title,
-                    snippet=f"Document ({doc.file_type or 'knowledge'}) — {doc.status}",
+                    snippet=f"Document ({doc.type or 'knowledge'}) — {doc.status}",
                     score=0.95,
                     space_id=str(space_uuid),
                     created_at=doc.created_at,
-                    metadata={"file_type": doc.file_type, "status": doc.status},
+                    metadata={"file_type": doc.type, "status": doc.status},
                     href=f"/spaces/{space_id}/documents",
                 )
             )

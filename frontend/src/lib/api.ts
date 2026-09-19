@@ -164,6 +164,17 @@ export const queryMindApi = {
     return res.data;
   },
 
+  createKnowledge: async (data: {
+    title?: string;
+    content: string;
+    space_id?: string;
+    knowledge_type?: string;
+    metadata_json?: Record<string, any>;
+  }): Promise<KnowledgeItemData> => {
+    const res = await api.post<KnowledgeItemData>("/knowledge", data);
+    return res.data;
+  },
+
   getKnowledgeItem: async (knowledgeId: string): Promise<KnowledgeItemData> => {
     const res = await api.get<KnowledgeItemData>(`/knowledge/${knowledgeId}`);
     return res.data;
@@ -312,10 +323,12 @@ export const queryMindApi = {
   },
 
   // Document Management (Postgres + Qdrant)
-  uploadDocument: async (file: File, spaceId: string) => {
+  uploadDocument: async (file: File, spaceId?: string) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("space_id", spaceId);
+    if (spaceId) {
+      formData.append("space_id", spaceId);
+    }
 
     const res = await api.post("/documents/upload", formData, {
       headers: {
@@ -325,9 +338,10 @@ export const queryMindApi = {
     return res.data;
   },
 
-  listDocuments: async (spaceId: string) => {
+  listDocuments: async (spaceId?: string) => {
     try {
-      const res = await api.get(`/documents/?space_id=${spaceId}`);
+      const url = spaceId ? `/documents/?space_id=${spaceId}` : `/documents/`;
+      const res = await api.get(url);
       return res.data;
     } catch {
       return [];

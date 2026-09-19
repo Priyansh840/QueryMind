@@ -19,6 +19,8 @@ from api.deps import get_db, get_current_user
 from core.config import settings
 from models.knowledge import Knowledge, Document
 from models.user import User
+from api.v1.documents import _resolve_user_space
+from llm.embeddings import get_embeddings
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,14 @@ router = APIRouter()
 # -------------------------------------------------------------
 # Schemas
 # -------------------------------------------------------------
+class KnowledgeCreateRequest(BaseModel):
+    title: Optional[str] = None
+    content: str
+    space_id: Optional[str] = None
+    knowledge_type: str = "note"
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
 class KnowledgeResponse(BaseModel):
     id: str
     user_id: str
@@ -51,6 +61,80 @@ class KnowledgeResponse(BaseModel):
 # -------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------
+@router.post("", response_model=KnowledgeResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=KnowledgeResponse, status_code=status.HTTP_201_CREATED)
+async def create_knowledge_item(
+    payload: KnowledgeCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a structured knowledge item, embed it into Qdrant, and persist to database.
+    """
+    space = await _resolve_user_space(payload.space_id, current_user.id, db)
+    
+    k_item = Knowledge(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        space_id=space.id if space else None,
+        title=payload.title or (payload.content[:50] + "..."),
+        content=payload.content,
+        knowledge_type=payload.knowledge_type.lower().strip(),
+        confidence=1.0,
+        metadata_json=payload.metadata_json or {},
+    )
+    db.add(k_item)
+    await db.commit()
+    await db.refresh(k_item)
+
+    # Embed into Qdrant
+    collection_name = settings.QDRANT_COLLECTION_KNOWLEDGE or "querymind_knowledge"
+    if settings.qdrant_client_url:
+        try:
+            embeddings_model = get_embeddings()
+            vector = await embeddings_model.aembed_query(k_item.content)
+            qdrant = AsyncQdrantClient(
+                url=settings.qdrant_client_url,
+                api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
+            )
+            await qdrant.upsert(
+                collection_name=collection_name,
+                points=[
+                    qmodels.PointStruct(
+                        id=str(k_item.id),
+                        vector=vector,
+                        payload={
+                            "knowledge_id": str(k_item.id),
+                            "user_id": str(current_user.id),
+                            "space_id": str(space.id) if space else None,
+                            "title": k_item.title,
+                            "content": k_item.content,
+                            "knowledge_type": k_item.knowledge_type,
+                        },
+                    )
+                ],
+            )
+        except Exception as q_err:
+            logger.warning(f"Failed to index knowledge item in Qdrant: {q_err}")
+
+    return KnowledgeResponse(
+        id=str(k_item.id),
+        user_id=str(k_item.user_id),
+        space_id=str(k_item.space_id) if k_item.space_id else None,
+        document_id=None,
+        document_title=k_item.title,
+        source_chunk_id=None,
+        title=k_item.title,
+        content=k_item.content,
+        knowledge_type=k_item.knowledge_type,
+        page_number=None,
+        confidence=k_item.confidence,
+        metadata_json=k_item.metadata_json,
+        created_at=k_item.created_at,
+        updated_at=k_item.updated_at,
+    )
+
+
 @router.get("", response_model=List[KnowledgeResponse])
 @router.get("/", response_model=List[KnowledgeResponse])
 async def list_knowledge(
@@ -71,11 +155,9 @@ async def list_knowledge(
     )
 
     if space_id:
-        try:
-            space_uuid = uuid.UUID(space_id)
-            stmt = stmt.where(Knowledge.space_id == space_uuid)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid space_id UUID format")
+        resolved_space = await _resolve_user_space(space_id, current_user.id, db)
+        if resolved_space:
+            stmt = stmt.where(Knowledge.space_id == resolved_space.id)
 
     if document_id:
         try:

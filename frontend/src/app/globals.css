@@ -1,7 +1,7 @@
+@import "../styles/design-system.css";
+@import "../styles/shell.css";
+@import "../styles/components.css";
 @import "tailwindcss";
-@import "../../mynd/css/design-system.css";
-@import "../../mynd/css/shell.css";
-@import "../../mynd/css/components.css";
 
 @layer utilities {
   .text-balance {

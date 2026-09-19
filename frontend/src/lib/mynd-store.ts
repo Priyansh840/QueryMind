@@ -30,6 +30,20 @@ export interface KnowledgeObject {
   vectorsStored?: number;
 }
 
+export interface SpaceMilestone {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface AgentPersona {
+  name: string;
+  title: string;
+  specialty: string;
+  status: "idle" | "indexing" | "synthesizing" | "active";
+  avatarBg: string;
+}
+
 export interface SpaceGoal {
   title: string;
   progress: number;
@@ -56,7 +70,12 @@ export interface Space {
   pinned: boolean;
   desc: string;
   color?: string;
+  icon?: string;
+  slug?: string;
   goal?: SpaceGoal;
+  milestones?: SpaceMilestone[];
+  agentPersona?: AgentPersona;
+  scratchpad?: string;
   liveUpdate?: { text: string; time: string };
   sections?: SpaceSections;
   objects?: KnowledgeObject[];
@@ -94,6 +113,7 @@ export interface MyndState {
   activeSpaceTab: "overview" | "objects" | "graph" | "insights" | "notes" | "journals" | "habits" | "goals" | "timeline";
   activeSpaceSection: string;
   selectedObject: KnowledgeObject | null;
+  isObjectModalOpen: boolean;
 
   isFocusMode: boolean;
   isZenMode: boolean;
@@ -115,6 +135,7 @@ export interface MyndState {
   selectSpace: (spaceId: string, tab?: MyndState["activeSpaceTab"]) => void;
   setSpaceTab: (tab: MyndState["activeSpaceTab"]) => void;
   setSpaceSection: (section: string) => void;
+  setSelectedObject: (obj: KnowledgeObject | null) => void;
   openObjectModal: (obj: KnowledgeObject) => void;
   closeObjectModal: () => void;
 
@@ -130,8 +151,18 @@ export interface MyndState {
   openSettings: (tab?: MyndState["activeSettingsTab"]) => void;
   closeSettings: () => void;
 
+  isCreateSpaceOpen: boolean;
+  openCreateSpace: () => void;
+  closeCreateSpace: () => void;
+
+  toggleMilestone: (spaceId: string, milestoneId: string) => void;
+  addMilestone: (spaceId: string, title: string) => void;
+  updateSpaceScratchpad: (spaceId: string, text: string) => void;
+  updateSpaceGoal: (spaceId: string, title: string, progress: number) => void;
+
   setUserProfile: (profile: Partial<UserProfile>) => void;
   addDocument: (doc: {
+    id?: string;
     name: string;
     type: string;
     size: string;
@@ -143,7 +174,17 @@ export interface MyndState {
   }) => KnowledgeObject;
   addCapturedItem: (text: string, spaceId?: string) => void;
   deleteDocument: (id: string) => void;
-  addSpace: (space: { name: string; desc?: string; color?: string; id?: string }) => void;
+  addSpace: (space: {
+    name: string;
+    desc?: string;
+    color?: string;
+    id?: string;
+    icon?: string;
+    goal?: SpaceGoal;
+    milestones?: SpaceMilestone[];
+    agentPersona?: AgentPersona;
+    scratchpad?: string;
+  }) => void;
   setSpaces: (spaces: Space[]) => void;
   setActiveSpaceId: (spaceId: string) => void;
   clearSpaces: () => void;
@@ -154,74 +195,293 @@ export interface MyndState {
 // Initial Clean Default State (starts with your real workspace)
 const initialSpaces: Space[] = [
   {
-    id: "general",
-    name: "General",
+    id: "career",
+    name: "Career",
     status: "Active",
-    count: 0,
+    count: 8,
     updated: "Just now",
     pinned: true,
     color: "#8B5CF6",
-    desc: "Primary workspace for uploaded documents, notes, and research",
-    goal: { title: "Index Knowledge & Documents", progress: 0 },
-    liveUpdate: { text: "Ready for document ingestion", time: "Now" },
-    sections: {
-      knowledge: [],
-      projects: [],
-      notes: [],
+    icon: "briefcase",
+    desc: "Career progression, resume, system design interviews, and engineering leadership",
+    goal: { title: "Senior Systems Architect Mastery & Career Growth", progress: 85 },
+    agentPersona: {
+      name: "Apex Strategist",
+      title: "Staff Systems Career Architect",
+      specialty: "Distributed systems, technical leadership & interview synthesis",
+      status: "active",
+      avatarBg: "#8B5CF6",
     },
-    objects: [],
-  },
-  {
-    id: "projects",
-    name: "Projects",
-    status: "Active",
-    count: 0,
-    updated: "Today",
-    pinned: true,
-    color: "#3B82F6",
-    desc: "Code repositories, architecture specs, and system designs",
-    goal: { title: "Track Project Architecture", progress: 0 },
-    sections: { knowledge: [], projects: [] },
+    milestones: [
+      { id: "m-1", title: "Resume 2026 tuned for Backend & Distributed Systems roles", completed: true },
+      { id: "m-2", title: "Google Interview Prep — System Design & Graphs completed", completed: true },
+      { id: "m-3", title: "Kalyra Streaming Engine v2 architecture benchmark", completed: false },
+      { id: "m-4", title: "Finalize 3 mock system design architecture sessions", completed: false },
+    ],
+    scratchpad: `# Career Vision 2026\n\n- Focus on large-scale distributed systems and real-time streaming architectures.\n- Target role: Staff / Lead Engineer with autonomous agents focus.\n- Strengths: C++, Python, Next.js, Qdrant vector retrieval.`,
+    liveUpdate: { text: "Resume 2026 optimized for backend roles", time: "2h ago" },
+    sections: { knowledge: [], projects: [], notes: [] },
     objects: [],
   },
   {
     id: "research",
     name: "Research",
     status: "Active",
-    count: 0,
+    count: 12,
+    updated: "Today",
+    pinned: true,
+    color: "#10B981",
+    icon: "atom",
+    desc: "AI research papers, vector search benchmarks, and distributed consensus studies",
+    goal: { title: "Explore Distributed AI & Dense Hybrid Retrieval", progress: 70 },
+    agentPersona: {
+      name: "Synthesis Fellow",
+      title: "Senior AI & Literature Researcher",
+      specialty: "Distributed computing papers, vector retrieval, architecture proofs",
+      status: "active",
+      avatarBg: "#10B981",
+    },
+    milestones: [
+      { id: "r-1", title: "Survey Raft vs Paxos consensus implementations", completed: true },
+      { id: "r-2", title: "Benchmark HNSW vs Flat indexing performance in Qdrant", completed: true },
+      { id: "r-3", title: "Draft research briefing on Hybrid BM25 + Dense Retrieval", completed: false },
+      { id: "r-4", title: "Synthesize findings into Second Brain autonomous agent report", completed: false },
+    ],
+    scratchpad: `# Research Notes\n\n- Dense embeddings provide semantic clustering, but keyword BM25 handles precise terminology.\n- Re-ranking with cross-encoders improves MRR@10 by 18% on technical documents.`,
+    sections: { knowledge: [], notes: [] },
+    objects: [],
+  },
+  {
+    id: "startup",
+    name: "Startup",
+    status: "Active",
+    count: 6,
     updated: "Today",
     pinned: false,
-    color: "#10B981",
-    desc: "Technical papers, papers, and AI engineering notes",
-    goal: { title: "Explore AI Paradigms", progress: 0 },
+    color: "#3B82F6",
+    icon: "rocket",
+    desc: "Product roadmap, pitch decks, technical specifications, and beta tester feedback",
+    goal: { title: "Launch QueryMind MVP Beta to 100 Power Users", progress: 60 },
+    agentPersona: {
+      name: "Venture Architect",
+      title: "Product Strategist & Systems Technologist",
+      specialty: "GTM execution, tech specs, product roadmaps & investor decks",
+      status: "active",
+      avatarBg: "#3B82F6",
+    },
+    milestones: [
+      { id: "s-1", title: "Product MVP Core Feature Matrix defined", completed: true },
+      { id: "s-2", title: "Streaming SSE Chat with agent telemetry verified", completed: true },
+      { id: "s-3", title: "Complete Seed Pitch Deck narrative and slide flow", completed: false },
+      { id: "s-4", title: "Deploy Beta testing environment with metrics instrumentation", completed: false },
+    ],
+    scratchpad: `# QueryMind Beta Milestones\n\n1. Frictionless document drag-and-drop\n2. Real-time token streaming with citation highlighting\n3. Creative spaces for context-isolated agent reasoning`,
+    sections: { knowledge: [], projects: [] },
+    objects: [],
+  },
+  {
+    id: "college",
+    name: "College",
+    status: "Active",
+    count: 4,
+    updated: "Yesterday",
+    pinned: false,
+    color: "#F97316",
+    icon: "graduation",
+    desc: "Academic coursework, semester projects, exam revisions, and group milestones",
+    goal: { title: "Final Semester Capstone Project & Honors Distinction", progress: 75 },
+    agentPersona: {
+      name: "Academic Scholar",
+      title: "Curriculum & Exam Synthesizer",
+      specialty: "Coursework distillation, problem set breakdowns & revision notes",
+      status: "active",
+      avatarBg: "#F97316",
+    },
+    milestones: [
+      { id: "c-1", title: "Operating Systems assignment 3 complete", completed: true },
+      { id: "c-2", title: "Review Distributed Systems lecture notes", completed: true },
+      { id: "c-3", title: "Prepare Distributed Consensus presentation slides", completed: false },
+    ],
+    scratchpad: `# Semester Capstone\n\n- Team: 3 members\n- Deliverable: Second Brain autonomous assistant with vector embeddings and multi-space isolation.`,
+    sections: { knowledge: [], notes: [] },
+    objects: [],
+  },
+  {
+    id: "personal",
+    name: "Personal",
+    status: "Active",
+    count: 7,
+    updated: "2 days ago",
+    pinned: false,
+    color: "#EAB308",
+    icon: "user",
+    desc: "Personal journals, book summaries, fitness logs, and long-term reflection",
+    goal: { title: "Read 12 Deep Technical Books & Maintain Habit Tracker", progress: 50 },
+    agentPersona: {
+      name: "Reflective Mind",
+      title: "Life Strategy & Habits Co-pilot",
+      specialty: "Habit loops, long-term reading synthesis, life logs",
+      status: "idle",
+      avatarBg: "#EAB308",
+    },
+    milestones: [
+      { id: "p-1", title: "Designing Data-Intensive Applications (Kleppmann) finished", completed: true },
+      { id: "p-2", title: "Database Internals (Petrov) chapter 1-5", completed: false },
+    ],
+    scratchpad: `# Notes to Self\n\n"The art of knowledge work is turning passive information consumption into active synthesis and creation."`,
+    sections: { knowledge: [], notes: [] },
+    objects: [],
+  },
+  {
+    id: "ideas",
+    name: "Ideas",
+    status: "Active",
+    count: 3,
+    updated: "3 days ago",
+    pinned: false,
+    color: "#EC4899",
+    icon: "sparkles",
+    desc: "Raw brain dumps, high-variance creative concepts, and rapid prototyping notes",
+    goal: { title: "Prototype 5 Autonomous Agent Experiments", progress: 40 },
+    agentPersona: {
+      name: "Creative Catalyst",
+      title: "Lateral Brain Dump Co-pilot",
+      specialty: "High-variance idea collisions, rapid prototyping & brainstorm mapping",
+      status: "active",
+      avatarBg: "#EC4899",
+    },
+    milestones: [
+      { id: "i-1", title: "Agentic tool-calling memory architecture sketch", completed: true },
+      { id: "i-2", title: "Multi-agent consensus protocol prototype", completed: false },
+      { id: "i-3", title: "Voice-driven ambient capture experiment", completed: false },
+    ],
+    scratchpad: `# Crazy Ideas\n\n- What if agents autonomously cross-referenced research papers and opened PRs with suggested refactors?\n- Interactive 3D constellation map of knowledge nodes.`,
     sections: { knowledge: [], notes: [] },
     objects: [],
   },
 ];
 
 const initialProfile: UserProfile = {
-  name: "User",
-  email: "user@querymind.os",
-  role: "Knowledge Explorer",
+  name: "Aryan Kulkarni",
+  email: "aryan@querymind.os",
+  role: "Systems Architect & Full Stack",
   timezone: "UTC+05:30 (India Standard Time)",
-  focusDomain: "General & Projects",
+  focusDomain: "Career & Systems Architecture",
   stats: {
-    knowledgeObjects: 0,
-    connections: 0,
-    daemonsRunning: 1,
-    learningHours: "0.0 hrs",
+    knowledgeObjects: 40,
+    connections: 128,
+    daemonsRunning: 2,
+    learningHours: "14.5 hrs",
   },
 };
+
+const sampleObjects: KnowledgeObject[] = [
+  {
+    id: "resume-2026",
+    title: "Resume 2026",
+    type: "PDF",
+    badge: "PDF",
+    updated: "2h ago",
+    time: "2h ago",
+    spaceId: "career",
+    progress: 95,
+    iconBg: "#F5F3FF",
+    iconColor: "#8B5CF6",
+    summary: "Your resume is optimized for software engineering roles with a strong focus on system design, backend development and problem solving.",
+    keyIdeas: [
+      "3 Major Projects",
+      "Backend Development",
+      "System Design",
+      "Problem Solving",
+    ],
+    tags: ["Resume", "Software Engineering", "Career"],
+    meta: "PDF Document • Updated 2h ago",
+  },
+  {
+    id: "google-prep",
+    title: "Google Interview Prep",
+    type: "Notes",
+    badge: "Notes",
+    updated: "5h ago",
+    time: "5h ago",
+    spaceId: "career",
+    progress: 80,
+    iconBg: "#ECFDF5",
+    iconColor: "#10B981",
+    summary: "Comprehensive notes covering Distributed Systems, System Design, Graph Algorithms, and Dynamic Programming.",
+    tags: ["Interview", "System Design", "Algorithms"],
+    meta: "Notes • Updated 5h ago",
+  },
+  {
+    id: "kalyra-engine",
+    title: "Kalyra Streaming Engine",
+    type: "Code",
+    badge: "Code",
+    updated: "Yesterday",
+    time: "Yesterday",
+    spaceId: "career",
+    progress: 72,
+    iconBg: "#EFF6FF",
+    iconColor: "#3B82F6",
+    summary: "Low-latency streaming architecture built with C++ and WebSockets.",
+    tags: ["Code", "Streaming", "Architecture"],
+    meta: "Code • Updated yesterday",
+  },
+];
+
+const sampleActivityFeed: ActivityItem[] = [
+  {
+    id: "act-1",
+    title: "Resume 2026 updated",
+    text: "Updated system design highlights & project metrics",
+    time: "2h ago",
+    space: "Career",
+    iconType: "document",
+    color: "#8B5CF6",
+    bg: "#F5F3FF",
+  },
+  {
+    id: "act-2",
+    title: "New connection created Resume ↔ Projects",
+    text: "Linked 3 repository nodes to resume experience",
+    time: "3h ago",
+    space: "Career",
+    iconType: "sparkles",
+    color: "#F59E0B",
+    bg: "#FEF3C7",
+  },
+  {
+    id: "act-3",
+    title: "Google Interview Prep Notes updated",
+    text: "Added 4 distributed system design patterns",
+    time: "5h ago",
+    space: "Career",
+    iconType: "document",
+    color: "#10B981",
+    bg: "#ECFDF5",
+  },
+  {
+    id: "act-4",
+    title: "Kalyra Engine commit pushed",
+    text: "7 commits synchronized to repository index",
+    time: "Yesterday",
+    space: "Career",
+    iconType: "code",
+    color: "#3B82F6",
+    bg: "#EFF6FF",
+  },
+];
 
 export const useMyndStore = create<MyndState>()(
   persist(
     (set, get) => ({
       theme: "light",
       activeRoute: "home",
-      activeSpaceId: "general",
+      activeSpaceId: "career",
       activeSpaceTab: "overview",
       activeSpaceSection: "all",
-      selectedObject: null,
+      selectedObject: sampleObjects[0],
+      isObjectModalOpen: false,
 
       isFocusMode: false,
       isZenMode: false,
@@ -233,20 +493,9 @@ export const useMyndStore = create<MyndState>()(
 
       userProfile: initialProfile,
       spaces: initialSpaces,
-      activityFeed: [
-        {
-          id: "init-act",
-          title: "QueryMind OS Initialized",
-          text: "Ready for live document ingestion into Qdrant & Gemini",
-          time: "Just now",
-          space: "General",
-          iconType: "sparkles",
-          color: "#8B5CF6",
-          bg: "#F5F3FF",
-        },
-      ],
-      recentObjects: [],
-      uploadedDocuments: [],
+      activityFeed: sampleActivityFeed,
+      recentObjects: sampleObjects,
+      uploadedDocuments: sampleObjects,
       captureQueue: [],
 
       setRoute: (route) => set({ activeRoute: route }),
@@ -261,8 +510,9 @@ export const useMyndStore = create<MyndState>()(
       },
       setSpaceTab: (tab) => set({ activeSpaceTab: tab }),
       setSpaceSection: (section) => set({ activeSpaceSection: section }),
-      openObjectModal: (obj) => set({ selectedObject: obj }),
-      closeObjectModal: () => set({ selectedObject: null }),
+      setSelectedObject: (obj) => set({ selectedObject: obj }),
+      openObjectModal: (obj) => set({ selectedObject: obj, isObjectModalOpen: true }),
+      closeObjectModal: () => set({ isObjectModalOpen: false }),
 
       toggleTheme: () => {
         const cur = get().theme;
@@ -288,6 +538,64 @@ export const useMyndStore = create<MyndState>()(
       openSettings: (tab) => set({ isSettingsOpen: true, activeSettingsTab: tab || "general" }),
       closeSettings: () => set({ isSettingsOpen: false }),
 
+      isCreateSpaceOpen: false,
+      openCreateSpace: () => set({ isCreateSpaceOpen: true }),
+      closeCreateSpace: () => set({ isCreateSpaceOpen: false }),
+
+      toggleMilestone: (spaceId, milestoneId) => {
+        set((state) => ({
+          spaces: state.spaces.map((s) => {
+            if (s.id !== spaceId) return s;
+            const updated = (s.milestones || []).map((m) =>
+              m.id === milestoneId ? { ...m, completed: !m.completed } : m
+            );
+            const completedCount = updated.filter((m) => m.completed).length;
+            const progress = updated.length > 0 ? Math.round((completedCount / updated.length) * 100) : s.goal?.progress || 0;
+            return {
+              ...s,
+              milestones: updated,
+              goal: s.goal ? { ...s.goal, progress } : undefined,
+            };
+          }),
+        }));
+      },
+
+      addMilestone: (spaceId, title) => {
+        if (!title.trim()) return;
+        set((state) => ({
+          spaces: state.spaces.map((s) => {
+            if (s.id !== spaceId) return s;
+            const newMilestone: SpaceMilestone = {
+              id: `m-${Date.now()}`,
+              title: title.trim(),
+              completed: false,
+            };
+            const updated = [...(s.milestones || []), newMilestone];
+            const completedCount = updated.filter((m) => m.completed).length;
+            const progress = Math.round((completedCount / updated.length) * 100);
+            return {
+              ...s,
+              milestones: updated,
+              goal: s.goal ? { ...s.goal, progress } : { title: title.trim(), progress },
+            };
+          }),
+        }));
+      },
+
+      updateSpaceScratchpad: (spaceId, text) => {
+        set((state) => ({
+          spaces: state.spaces.map((s) => (s.id === spaceId ? { ...s, scratchpad: text } : s)),
+        }));
+      },
+
+      updateSpaceGoal: (spaceId, title, progress) => {
+        set((state) => ({
+          spaces: state.spaces.map((s) =>
+            s.id === spaceId ? { ...s, goal: { title, progress } } : s
+          ),
+        }));
+      },
+
       setUserProfile: (profile) =>
         set((state) => ({
           userProfile: { ...state.userProfile, ...profile },
@@ -295,8 +603,9 @@ export const useMyndStore = create<MyndState>()(
 
       addDocument: (doc) => {
         const targetSpaceId = doc.spaceId || get().activeSpaceId || "general";
+        const docId = doc.id || `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const newObj: KnowledgeObject = {
-          id: `doc-${Date.now()}`,
+          id: docId,
           title: doc.name,
           type: doc.type.toUpperCase(),
           badge: doc.type.toUpperCase(),
@@ -319,7 +628,7 @@ export const useMyndStore = create<MyndState>()(
         };
 
         const newActivity: ActivityItem = {
-          id: `act-${Date.now()}`,
+          id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           title: `Uploaded ${doc.name}`,
           text: `${doc.chunks || 1} chunks indexed in Qdrant Vector Store`,
           time: "Just now",
@@ -350,8 +659,8 @@ export const useMyndStore = create<MyndState>()(
 
           return {
             spaces: updatedSpaces,
-            uploadedDocuments: [newObj, ...state.uploadedDocuments],
-            recentObjects: [newObj, ...state.recentObjects],
+            uploadedDocuments: [newObj, ...state.uploadedDocuments.filter((d) => d.id !== newObj.id)],
+            recentObjects: [newObj, ...state.recentObjects.filter((d) => d.id !== newObj.id)],
             activityFeed: [newActivity, ...state.activityFeed],
             userProfile: {
               ...state.userProfile,
@@ -417,7 +726,7 @@ export const useMyndStore = create<MyndState>()(
 
           return {
             spaces: updatedSpaces,
-            recentObjects: [newNote, ...state.recentObjects],
+            recentObjects: [newNote, ...state.recentObjects.filter((d) => d.id !== newNote.id)],
             activityFeed: [newActivity, ...state.activityFeed],
             captureQueue: [text, ...state.captureQueue],
           };
@@ -456,6 +765,20 @@ export const useMyndStore = create<MyndState>()(
           pinned: false,
           desc: space.desc || "Custom knowledge space",
           color: space.color || "#6366F1",
+          icon: space.icon || "sparkles",
+          goal: space.goal || { title: `Master ${space.name} Domain`, progress: 0 },
+          milestones: space.milestones || [
+            { id: `m-${Date.now()}-1`, title: `Upload initial knowledge documents to ${space.name}`, completed: false },
+            { id: `m-${Date.now()}-2`, title: `Synthesize first space insights briefing`, completed: false },
+          ],
+          agentPersona: space.agentPersona || {
+            name: `${space.name} Specialist`,
+            title: `Dedicated ${space.name} Co-pilot`,
+            specialty: `Autonomous synthesis and domain analysis for ${space.name}`,
+            status: "active",
+            avatarBg: space.color || "#6366F1",
+          },
+          scratchpad: space.scratchpad || `# ${space.name} Notes\n\n- Space created on ${new Date().toLocaleDateString()}.\n- Ready for knowledge ingestion and autonomous agent synthesis.`,
           sections: { knowledge: [], notes: [], projects: [] },
           objects: [],
         };
@@ -465,7 +788,13 @@ export const useMyndStore = create<MyndState>()(
       },
 
       setSpaces: (spaces: Space[]) => {
-        set({ spaces });
+        const seen = new Set<string>();
+        const unique = spaces.filter((s) => {
+          if (!s.id || seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        });
+        set({ spaces: unique });
       },
 
       setActiveSpaceId: (spaceId: string) => {
@@ -532,6 +861,21 @@ export const useMyndStore = create<MyndState>()(
     }),
     {
       name: "querymind_storage_v2",
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const dedupe = <T extends { id?: string }>(arr: T[] | undefined): T[] => {
+          if (!Array.isArray(arr)) return [];
+          const seen = new Set<string>();
+          return arr.filter((item) => {
+            if (!item || !item.id || seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+          });
+        };
+        state.spaces = dedupe(state.spaces);
+        state.recentObjects = dedupe(state.recentObjects);
+        state.uploadedDocuments = dedupe(state.uploadedDocuments);
+      },
     }
   )
 );
