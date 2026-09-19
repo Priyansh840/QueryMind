@@ -3,656 +3,474 @@
 import React, { useEffect, useState, useRef, use } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { SpaceLayout } from "@/components/layout/SpaceLayout";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { apiClient } from "@/lib/api/client";
-import { streamMessageSSE } from "@/lib/api/stream";
 import {
   ConversationItem,
   MessageItem,
-  Citation,
-  AgentActivityStep,
-  Space,
-  DocumentItem,
   ActionProposal,
+  Space,
 } from "@/types/api";
-import { AgentActivityDrawer } from "@/components/chat/AgentActivityDrawer";
-import { DocumentDetailModal } from "@/components/documents/DocumentDetailModal";
+import { CommandSidebar } from "@/components/layout/CommandSidebar";
 import {
-  ArrowLeft,
+  MessageSquare,
+  Plus,
+  ArrowRight,
   Sparkles,
-  AlertCircle,
-  RefreshCw,
-  Layers,
-  ChevronRight,
   Check,
-  Send,
+  ShieldCheck,
   FileText,
-  CheckCircle2,
+  User,
+  Bot,
+  ExternalLink,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-interface ConversationDetailPageProps {
+interface ConversationPageProps {
   params: Promise<{ spaceId: string; conversationId: string }>;
 }
 
-function getDocFormat(doc: DocumentItem): string {
-  if (!doc) return "DOC";
-  if (doc.type && doc.type.length <= 4) {
-    return doc.type.toUpperCase();
-  }
-  const ext = doc.title?.split(".").pop();
-  if (ext && ext.length <= 4 && ext !== doc.title) {
-    return ext.toUpperCase();
-  }
-  if (doc.type?.includes("pdf")) return "PDF";
-  if (doc.type?.includes("markdown") || doc.type?.includes("md")) return "MD";
-  if (doc.type?.includes("word") || doc.type?.includes("docx")) return "DOC";
-  return "DOC";
-}
-
-function cleanProposalReason(reason: string): string {
-  if (!reason) return "Batch processing optimization recommended based on recent benchmarks.";
-  if (
-    reason.toLowerCase().includes("vector throughput") ||
-    reason.toLowerCase().includes("threshold limit") ||
-    reason.toLowerCase().includes("batch")
-  ) {
-    return "Batch processing optimization recommended based on recent benchmarks.";
-  }
-  return reason;
-}
-
-// Editorial Markdown Typography Renderer
-const EditorialMarkdown: React.FC<{ content: string }> = ({ content }) => {
-  const lines = content.split("\n");
-
-  const renderLineWithBold = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, idx) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={idx} className="font-semibold text-[#0f172a]">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      return <span key={idx}>{part}</span>;
-    });
-  };
-
-  return (
-    <div className="space-y-3 font-normal text-xs text-[#334155] leading-relaxed">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={idx} className="h-1.5" />;
-        }
-
-        // Heading 1 / 2
-        if (trimmed.startsWith("# ") || trimmed.startsWith("## ")) {
-          const headingText = trimmed.replace(/^#{1,2}\s+/, "");
-          return (
-            <div key={idx} className="pt-2">
-              <h3 className="text-sm font-bold text-[#0f172a] tracking-tight border-b border-[#f1f5f9] pb-1">
-                {headingText}
-              </h3>
-            </div>
-          );
-        }
-
-        // Heading 3
-        if (trimmed.startsWith("### ")) {
-          const headingText = trimmed.replace(/^###\s+/, "");
-          return (
-            <h4
-              key={idx}
-              className="text-xs font-semibold text-[#2563eb] font-mono uppercase tracking-wider pt-2"
-            >
-              {headingText}
-            </h4>
-          );
-        }
-
-        // Bullet point
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-          const itemText = trimmed.replace(/^[-*]\s+/, "");
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-2 my-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb] mt-1.5 shrink-0" />
-              <div className="flex-1">{renderLineWithBold(itemText)}</div>
-            </div>
-          );
-        }
-
-        // Numbered list
-        if (/^\d+\.\s+/.test(trimmed)) {
-          const num = trimmed.match(/^(\d+)\.\s+/)?.[1] || "1";
-          const itemText = trimmed.replace(/^\d+\.\s+/, "");
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-2 my-0.5">
-              <span className="font-mono text-[10px] font-bold text-[#2563eb] bg-[#eff6ff] px-1.5 py-0.2 rounded shrink-0">
-                {num}
-              </span>
-              <div className="flex-1">{renderLineWithBold(itemText)}</div>
-            </div>
-          );
-        }
-
-        // Regular paragraph
-        return (
-          <p key={idx} className="leading-relaxed">
-            {renderLineWithBold(line)}
-          </p>
-        );
-      })}
-    </div>
-  );
-};
-
-export default function ConversationDetailPage({ params }: ConversationDetailPageProps) {
+export default function ConversationPage({ params }: ConversationPageProps) {
   const resolvedParams = use(params);
   const spaceId = resolvedParams.spaceId;
   const conversationId = resolvedParams.conversationId;
   const router = useRouter();
-
-  const [space, setSpace] = useState<Space | null>(null);
-  const [conversation, setConversation] = useState<ConversationItem | null>(null);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [activeActivitySteps, setActiveActivitySteps] = useState<AgentActivityStep[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [inspectingDocId, setInspectingDocId] = useState<string | null>(null);
-  const [inputPrompt, setInputPrompt] = useState("");
-  const [approvedActionIds, setApprovedActionIds] = useState<Set<string>>(new Set());
-  const [approvingActionId, setApprovingActionId] = useState<string | null>(null);
-
   const searchParams = useSearchParams();
-  const initialMessageProcessed = useRef(false);
+  const initialPrompt = searchParams.get("prompt");
+
+  const { currentSpace, spaces, user } = useAuth();
+  const [space, setSpace] = useState<Space | null>(currentSpace);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
+  const [executingProposalId, setExecutingProposalId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialPromptSent = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const loadConversationData = async () => {
-    try {
-      setError(null);
-      const [spaceData, convData, msgData, docsData] = await Promise.all([
-        apiClient<Space>(`/api/v1/spaces/${spaceId}`).catch(() => null),
-        apiClient<ConversationItem>(`/api/v1/conversations/${conversationId}`),
-        apiClient<MessageItem[]>(`/api/v1/conversations/${conversationId}/messages`),
-        apiClient<DocumentItem[]>(`/api/v1/documents/?space_id=${spaceId}&limit=20`).catch(() => []),
-      ]);
-
-      if (spaceData) setSpace(spaceData);
-      setConversation(convData);
-      setMessages(msgData || []);
-      setDocuments(docsData || []);
-
-      const initialMessage = searchParams.get("initialMessage");
-      if (initialMessage && !initialMessageProcessed.current && (!msgData || msgData.length === 0)) {
-        initialMessageProcessed.current = true;
-        router.replace(`/spaces/${spaceId}/conversations/${conversationId}`);
-        setTimeout(() => {
-          handleSendMessage(initialMessage);
-        }, 50);
-      }
-    } catch (err: unknown) {
-      console.error("Failed to load conversation:", err);
-      const msg = err instanceof Error ? err.message : "Failed to load conversation thread.";
-      setError(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setIsLoading(true);
-    loadConversationData();
-  }, [spaceId, conversationId]);
-
   useEffect(() => {
     scrollToBottom();
-  }, [messages, streamingText, activeActivitySteps]);
+  }, [messages, agentStatus]);
 
-  // Handle Action Proposal Approval
-  const handleApproveAction = async (proposal: ActionProposal) => {
-    const targetId = proposal.proposal_id || proposal.id;
-    if (!targetId || approvingActionId) return;
+  // Load Space, Conversation List, and Messages
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const [spaceRes, convsRes, msgsRes] = await Promise.all([
+          apiClient<Space>(`/api/v1/spaces/${spaceId}`).catch(() => null),
+          apiClient<ConversationItem[]>(`/api/v1/conversations?space_id=${spaceId}`).catch(() => []),
+          apiClient<MessageItem[]>(`/api/v1/conversations/${conversationId}/messages`).catch(() => []),
+        ]);
 
-    setApprovingActionId(targetId);
+        if (spaceRes) setSpace(spaceRes);
+        setConversations(convsRes || []);
+        setMessages(msgsRes || []);
+      } catch (err) {
+        console.error("Failed to load conversation messages:", err);
+      }
+    };
+    loadSession();
+  }, [conversationId, spaceId]);
+
+  // Handle Initial Prompt auto-send if arrived with ?prompt=...
+  useEffect(() => {
+    if (initialPrompt && !initialPromptSent.current && !isStreaming) {
+      initialPromptSent.current = true;
+      handleSendMessage(initialPrompt);
+    }
+  }, [initialPrompt]);
+
+  const handleSendMessage = async (queryText?: string) => {
+    const textToSend = (queryText || input).trim();
+    if (!textToSend || isStreaming) return;
+
+    setInput("");
+    setIsStreaming(true);
+    setAgentStatus("Gathering workspace context...");
+
+    // Optimistically append user message
+    const tempUserMsg: MessageItem = {
+      id: `user-${Date.now()}`,
+      conversation_id: conversationId,
+      role: "user",
+      content: textToSend,
+      created_at: new Date().toISOString(),
+    };
+
+    // Optimistically create empty assistant placeholder
+    const assistantMsgId = `asst-${Date.now()}`;
+    const tempAssistantMsg: MessageItem = {
+      id: assistantMsgId,
+      conversation_id: conversationId,
+      role: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
+
     try {
-      await apiClient(`/api/v1/actions/${targetId}/approve`, {
-        method: "POST",
-      });
-      setApprovedActionIds((prev) => new Set([...prev, targetId]));
-    } catch (err: unknown) {
-      console.error("Failed to approve inline action:", err);
-      const msg = err instanceof Error ? err.message : "Failed to approve action.";
-      alert(msg);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/conversations/${conversationId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content: textToSend }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                const event = parsed.event;
+                const data = parsed.data;
+
+                if (event === "token") {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantMsgId
+                        ? { ...msg, content: msg.content + (data.text || "") }
+                        : msg
+                    )
+                  );
+                } else if (event === "agent.status") {
+                  setAgentStatus(data.status || "Reasoning...");
+                } else if (event === "action_proposals" || event === "proposals") {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantMsgId
+                        ? {
+                            ...msg,
+                            metadata_json: {
+                              ...msg.metadata_json,
+                              action_proposals: data.proposals || [data],
+                            },
+                          }
+                        : msg
+                    )
+                  );
+                } else if (event === "citations") {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === assistantMsgId
+                        ? { ...msg, citations: data.citations }
+                        : msg
+                    )
+                  );
+                }
+              } catch {
+                // Ignore parse errors on partial frames
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Streaming error:", err);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? {
+                ...msg,
+                content: msg.content || "Autonomous agent completed reasoning.",
+              }
+            : msg
+        )
+      );
     } finally {
-      setApprovingActionId(null);
+      setIsStreaming(false);
+      setAgentStatus(null);
     }
   };
 
-  // Send message and stream SSE
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend !== undefined ? textToSend : inputPrompt).trim();
-    if (!text || isStreaming) return;
+  const handleApproveProposal = async (proposal: ActionProposal, messageId: string) => {
+    const propId = proposal.proposal_id || proposal.id;
+    if (!propId || executingProposalId) return;
 
-    setError(null);
-    setIsStreaming(true);
-    setStreamingText("");
-    setActiveActivitySteps([]);
-    setInputPrompt("");
-
-    // Optimistically add user message
-    const tempUserMsg: MessageItem = {
-      id: `temp-${Date.now()}`,
-      conversation_id: conversationId,
-      role: "user",
-      content: text,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-
+    setExecutingProposalId(propId);
     try {
-      await streamMessageSSE(conversationId, text, {
-        onToken: (tokenText) => {
-          setStreamingText((prev) => prev + tokenText);
-        },
-        onAgentStatus: (agent, status) => {
-          setActiveActivitySteps((prev) => [
-            ...prev,
-            { agent, status, timestamp: Date.now() },
-          ]);
-        },
-        onStepStarted: (data) => {
-          if (data?.step) {
-            setActiveActivitySteps((prev) => [
-              ...prev,
-              {
-                agent: data.step,
-                status: `Started ${data.step.replace(/_/g, " ")}`,
-                step: data.step,
-                timestamp: Date.now(),
-              },
-            ]);
-          }
-        },
-        onStepCompleted: (data) => {
-          if (data?.step) {
-            setActiveActivitySteps((prev) => [
-              ...prev,
-              {
-                agent: data.step,
-                status: `Completed ${data.step.replace(/_/g, " ")}`,
-                step: data.step,
-                output: data.output,
-                timestamp: Date.now(),
-              },
-            ]);
-          }
-        },
-        onMessageCompleted: async () => {
-          const refreshed = await apiClient<MessageItem[]>(
-            `/api/v1/conversations/${conversationId}/messages`
+      const result = await apiClient<{ success: boolean; target_id?: string; message?: string }>(
+        `/api/v1/actions/${propId}/approve`,
+        {
+          method: "POST",
+        }
+      );
+
+      // Update proposal state locally in message metadata
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          const proposals = msg.metadata_json?.action_proposals || [];
+          const updated = proposals.map((p: ActionProposal) =>
+            (p.proposal_id || p.id) === propId
+              ? { ...p, status: "executed" as const, executed_target_id: result.target_id }
+              : p
           );
-          setMessages(refreshed || []);
-          setIsStreaming(false);
-          setStreamingText("");
-          setActiveActivitySteps([]);
-        },
-        onError: (errData) => {
-          console.error("SSE Stream Error:", errData);
-          setError(typeof errData === "string" ? errData : JSON.stringify(errData));
-          setIsStreaming(false);
-        },
+          return {
+            ...msg,
+            metadata_json: { ...msg.metadata_json, action_proposals: updated },
+          };
+        })
+      );
+    } catch (err) {
+      console.error("Failed to approve proposal:", err);
+      alert("Failed to execute action proposal.");
+    } finally {
+      setExecutingProposalId(null);
+    }
+  };
+
+  const handleNewSession = async () => {
+    try {
+      const created = await apiClient<ConversationItem>(`/api/v1/conversations`, {
+        method: "POST",
+        body: JSON.stringify({
+          space_id: spaceId,
+          title: "New Reasoning Thread",
+        }),
       });
-    } catch (err: unknown) {
-      console.error("Failed to stream message:", err);
-      const msg = err instanceof Error ? err.message : "Failed to communicate with MYND orchestrator.";
-      setError(msg);
-      setIsStreaming(false);
+      router.push(`/spaces/${spaceId}/conversations/${created.id}`);
+    } catch (err) {
+      console.error("Failed to create session:", err);
     }
   };
 
   return (
-    <SpaceLayout spaceId={spaceId}>
-      <DocumentDetailModal
-        isOpen={!!inspectingDocId}
-        onClose={() => setInspectingDocId(null)}
-        documentId={inspectingDocId}
-      />
+    <div className="h-screen w-screen bg-[#09090b] text-[#f8fafc] flex overflow-hidden select-none">
+      {/* 1. Command Sidebar */}
+      <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
-      <div className="flex flex-col h-full space-y-4 max-w-7xl mx-auto">
-        {/* =========================================================================
-            HEADER BAR: CONVERSATION ANCHOR
-            ========================================================================= */}
-        <header className="flex items-center justify-between gap-4 pb-3 border-b border-[#e2e8f0]">
+      {/* 2. Main Reasoning View */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Header Bar */}
+        <header className="h-16 px-8 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#09090b]/80 backdrop-blur-md z-20">
           <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href={`/spaces/${spaceId}`}
-              className="p-1.5 rounded-lg text-[#64748b] hover:text-[#0f172a] hover:bg-white border border-transparent hover:border-[#e2e8f0] transition-colors"
-              title="Back to Overview"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-
-            <div className="min-w-0 flex items-center gap-2.5">
-              <h1 className="text-base font-semibold text-[#0f172a] tracking-tight truncate">
-                {conversation?.title || "Thinking Session"}
+            <div className="space-y-0.5 min-w-0">
+              <h1 className="text-sm font-semibold tracking-tight text-white truncate">
+                Autonomous Reasoning Session
               </h1>
-              <span className="text-[#cbd5e1] font-normal">•</span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-700 font-mono font-medium shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>ACTIVE</span>
-              </span>
+              <p className="text-[11px] text-slate-400 font-mono truncate">
+                Multi-Agent Synthesis • Space Grounded
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={loadConversationData}
-              disabled={isLoading || isStreaming}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#e2e8f0] text-[#475569] hover:text-[#0f172a] hover:border-[#cbd5e1] transition-all shadow-xs cursor-pointer"
-            >
-              <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
-              <span>Refresh</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleNewSession}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/[0.08] transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Thread</span>
+          </button>
         </header>
 
-        {/* =========================================================================
-            SPLIT-PANE THINKING CANVAS
-            Left: 60% Reasoning Stream | Right: 40% Grounding & Citations Dock
-            ========================================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8.5rem)] min-h-[560px]">
-          {/* =======================================================================
-              LEFT PANE (60% WIDTH) — THE REASONING STREAM
-              ======================================================================= */}
-          <div className="lg:col-span-7 flex flex-col h-full min-w-0 bg-white border border-[#e2e8f0] rounded-xl shadow-card overflow-hidden">
-            {/* Reasoning Pane Header */}
-            <div className="px-5 py-3.5 border-b border-[#e2e8f0] bg-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#2563eb]" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#0f172a]">
-                  Reasoning Stream
-                </span>
+        {/* Messages Stream */}
+        <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full space-y-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-16">
+              <div className="w-10 h-10 rounded-2xl bg-white/[0.04] text-[#818cf8] flex items-center justify-center border border-white/[0.08]">
+                <Sparkles className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-mono text-[#94a3b8]">
-                {isStreaming ? "Synthesizing Live..." : `${messages.length} Exchanges`}
-              </span>
+              <div className="text-sm font-semibold text-white">
+                Ready for Contextual Reasoning
+              </div>
+              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                Ask questions about your uploaded documents, request architectural reviews, or have MYND synthesize action proposals for your projects.
+              </p>
             </div>
+          ) : (
+            messages.map((msg) => {
+              const isUser = msg.role === "user";
+              const proposals: ActionProposal[] = msg.metadata_json?.action_proposals || [];
+              const citations = msg.citations || [];
 
-            {/* Stream Viewport */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {isLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-14 w-3/4 ml-auto rounded-xl" />
-                  <Skeleton className="h-28 w-full rounded-xl" />
-                  <Skeleton className="h-14 w-2/3 ml-auto rounded-xl" />
-                </div>
-              ) : messages.length === 0 && !isStreaming ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
-                  <div className="w-10 h-10 rounded-full bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] flex items-center justify-center">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-[#0f172a]">
-                    Start Contextual Reasoning
-                  </h3>
-                  <p className="text-xs text-[#64748b] max-w-sm leading-relaxed">
-                    Submit an inquiry below to synthesize grounded knowledge, evaluate trade-offs, and establish concrete execution initiatives.
-                  </p>
-                </div>
-              ) : (
-                messages.map((msg) => {
-                  const isUser = msg.role === "user";
-                  const proposals = msg.metadata_json?.action_proposals || [];
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex gap-3.5 ${isUser ? "justify-end" : "justify-start"}`}
+                >
+                  {!isUser && (
+                    <div className="w-7 h-7 rounded-lg bg-[#141522] border border-[#818cf8]/25 flex items-center justify-center text-[#818cf8] shrink-0 mt-1">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                  )}
 
-                  if (isUser) {
-                    return (
-                      <div key={msg.id} className="flex justify-end">
-                        <div className="bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] p-4 rounded-xl max-w-xl text-xs sm:text-sm font-medium leading-relaxed shadow-xs space-y-1">
-                          <div className="text-[10px] font-mono text-[#94a3b8] uppercase tracking-wider">
-                            User Inquiry
-                          </div>
-                          <div>{msg.content.replace(/^\[Intent:.*?\]\s*/, "")}</div>
-                        </div>
-                      </div>
-                    );
-                  }
+                  <div className={`space-y-3 max-w-2xl ${isUser ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`p-4 rounded-2xl text-xs leading-relaxed ${
+                        isUser
+                          ? "bg-[#181926] text-white border border-white/[0.08]"
+                          : "bg-[#0c0d12] text-slate-200 border border-white/[0.06]"
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
 
-                  return (
-                    <div key={msg.id} className="space-y-3 border-l-2 border-[#2563eb] pl-4 py-1">
-                      <div className="flex items-center gap-2 text-xs font-mono font-semibold text-[#2563eb]">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>MYND SYNTHESIS</span>
-                        <span className="text-[#cbd5e1] font-normal">·</span>
-                        <span className="text-[10px] text-[#94a3b8] font-normal">
-                          {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
-                        </span>
-                      </div>
-
-                      {/* Editorial Markdown Response */}
-                      <EditorialMarkdown content={msg.content} />
-
-                      {/* Inline Action Proposal Card */}
-                      {proposals && proposals.length > 0 && (
-                        <div className="pt-2 space-y-3">
-                          {proposals.map((proposal) => {
-                            const propId = proposal.proposal_id || proposal.id;
-                            const isApproved = approvedActionIds.has(propId) || proposal.status === "approved" || proposal.status === "executed";
-                            const isProcessing = approvingActionId === propId;
-                            const title = proposal.action_type === "create_project" || proposal.action_type === "create_goal"
-                              ? "Architecture Decision Proposal"
-                              : `${proposal.action_type.replace(/_/g, " ")} Proposal`;
-                            const subtitle = cleanProposalReason(proposal.reason);
-
+                      {/* Source Citations */}
+                      {citations.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center gap-2 flex-wrap text-[10px] font-mono text-slate-400">
+                          <span className="text-slate-500">GROUNDING:</span>
+                          {citations.map((c, i) => {
+                            const title = typeof c === "string" ? c : c.document_title;
                             return (
-                              <div
-                                key={propId}
-                                className="p-4 rounded-xl border border-[#e2e8f0] bg-white shadow-card space-y-3 transition-all"
+                              <span
+                                key={i}
+                                className="px-1.5 py-0.5 rounded-sm bg-white/[0.04] text-slate-300 border border-white/[0.06]"
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <h4 className="text-xs font-semibold text-[#0f172a]">
-                                    {title}
-                                  </h4>
-                                  <span className="font-mono text-[10px] font-semibold text-[#2563eb] bg-[#eff6ff] px-2 py-0.5 rounded">
-                                    {proposal.confidence ? `${proposal.confidence.toUpperCase()} CONFIDENCE` : "HIGH CONFIDENCE"}
-                                  </span>
-                                </div>
-
-                                <p className="text-xs text-[#475569] leading-relaxed">
-                                  {subtitle}
-                                </p>
-
-                                <div className="flex items-center justify-between pt-2 border-t border-[#e2e8f0]">
-                                  <Link
-                                    href={`/spaces/${spaceId}/decisions/${propId}`}
-                                    className="text-xs text-[#2563eb] hover:underline font-mono text-[11px]"
-                                  >
-                                    Create Decision Brief →
-                                  </Link>
-
-                                  {isApproved ? (
-                                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
-                                      <CheckCircle2 className="w-3.5 h-3.5" />
-                                      <span>Approved</span>
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled={isProcessing}
-                                      onClick={() => handleApproveAction(proposal)}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#2563eb] text-white hover:bg-[#1d4ed8] shadow-sm transition-colors cursor-pointer"
-                                    >
-                                      {isProcessing ? (
-                                        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Check className="w-3.5 h-3.5" />
-                                          <span>Approve Action</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
+                                {title}
+                              </span>
                             );
                           })}
                         </div>
                       )}
                     </div>
-                  );
-                })
-              )}
 
-              {/* Streaming Assistant In-Flight Bubble */}
-              {isStreaming && (
-                <div className="space-y-3 border-l-2 border-[#2563eb] pl-4 py-1">
-                  <div className="flex items-center justify-between text-xs font-mono font-semibold text-[#2563eb]">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                      <span>MYND REASONING...</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-sans">
-                      Synthesizing Live
-                    </span>
+                    {/* Embedded Action Proposals */}
+                    {proposals.length > 0 && (
+                      <div className="space-y-2 w-full">
+                        {proposals.map((prop) => {
+                          const propId = prop.proposal_id || prop.id;
+                          const isExecuting = executingProposalId === propId;
+                          const isExecuted = prop.status === "executed";
+                          const title =
+                            prop.parameters?.name ||
+                            prop.parameters?.description ||
+                            prop.reason ||
+                            `${prop.action_type.replace(/_/g, " ")} Proposal`;
+
+                          return (
+                            <div
+                              key={propId}
+                              className="rounded-xl border border-[#818cf8]/20 bg-[#12131e] p-4 space-y-2.5 shadow-md"
+                            >
+                              <div className="flex items-center justify-between text-[10px] font-mono">
+                                <span className="px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-[#818cf8]/15 text-[#818cf8] font-bold">
+                                  PROPOSAL: {prop.action_type.replace(/_/g, " ")}
+                                </span>
+                                {prop.confidence && (
+                                  <span className="text-slate-400">
+                                    {prop.confidence} Confidence
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-xs font-semibold text-white">
+                                {title}
+                              </div>
+
+                              {prop.reason && (
+                                <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                                  {prop.reason}
+                                </p>
+                              )}
+
+                              <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+                                {isExecuted ? (
+                                  <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Executed into Workspace</span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isExecuting}
+                                    onClick={() => handleApproveProposal(prop, msg.id)}
+                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#6366f1] hover:bg-[#4f46e5] text-white transition-colors cursor-pointer disabled:opacity-50"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{isExecuting ? "Executing..." : "Approve & Execute"}</span>
+                                  </button>
+                                )}
+
+                                <Link
+                                  href={`/spaces/${spaceId}/work`}
+                                  className="text-[11px] text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+                                >
+                                  <span>Work Hub</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {activeActivitySteps.length > 0 && (
-                    <AgentActivityDrawer steps={activeActivitySteps} isLive={true} />
-                  )}
-
-                  {streamingText ? (
-                    <EditorialMarkdown content={streamingText} />
-                  ) : (
-                    <div className="text-xs text-[#94a3b8] italic">
-                      Gathering workspace evidence and constructing synthesis...
+                  {isUser && (
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white shrink-0 mt-1">
+                      <User className="w-4 h-4" />
                     </div>
                   )}
                 </div>
-              )}
+              );
+            })
+          )}
 
-              <div ref={messagesEndRef} />
+          {/* Agent Streaming Indicator */}
+          {isStreaming && agentStatus && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+              <span className="w-2 h-2 rounded-full bg-[#818cf8] animate-pulse" />
+              <span className="font-mono text-[11px]">{agentStatus}</span>
             </div>
+          )}
 
-            {/* Stream Error Notice */}
-            {error && (
-              <div className="mx-5 mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 flex items-center gap-2 shrink-0">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="truncate">{error}</span>
-              </div>
-            )}
-
-            {/* Message Composer Footer */}
-            <div className="p-4 border-t border-[#e2e8f0] bg-white shrink-0">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage();
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={inputPrompt}
-                  onChange={(e) => setInputPrompt(e.target.value)}
-                  placeholder="Ask a follow-up inquiry, explore trade-offs, or request next actions..."
-                  disabled={isStreaming}
-                  className="flex-1 px-3.5 py-2.5 rounded-lg border border-[#e2e8f0] bg-white text-xs text-[#0f172a] placeholder-[#94a3b8] focus:outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10 transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={!inputPrompt.trim() || isStreaming}
-                  className="px-4 py-2.5 rounded-lg bg-[#2563eb] text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xs flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Send</span>
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {/* =======================================================================
-              RIGHT PANE (40% WIDTH) — LIVE GROUNDING & CITATIONS DOCK
-              ======================================================================= */}
-          <div className="lg:col-span-5 flex flex-col h-full min-w-0 bg-white border border-[#e2e8f0] rounded-xl shadow-card overflow-hidden">
-            {/* Dock Header */}
-            <div className="p-4 border-b border-[#e2e8f0] flex items-center justify-between bg-white shrink-0">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#2563eb]" />
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-[#0f172a]">
-                  Supporting Evidence & Provenance
-                </h2>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#f1f5f9] text-[#64748b] border border-[#e2e8f0]">
-                {documents.length} SOURCES
-              </span>
-            </div>
-
-            {/* Citations & Evidence List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {documents.length === 0 ? (
-                <div className="py-16 px-4 text-center space-y-2">
-                  <div className="w-9 h-9 rounded-full bg-[#f1f5f9] border border-[#e2e8f0] text-[#94a3b8] flex items-center justify-center mx-auto">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div className="text-xs font-medium text-[#0f172a]">
-                    No Sources Grounded
-                  </div>
-                  <p className="text-[11px] text-[#64748b] max-w-xs mx-auto leading-relaxed">
-                    Upload specifications, manuals, or benchmark reports to ground reasoning in this workspace.
-                  </p>
-                </div>
-              ) : (
-                documents.map((doc) => {
-                  const format = getDocFormat(doc);
-                  return (
-                    <div
-                      key={doc.id}
-                      onClick={() => setInspectingDocId(doc.id)}
-                      className="p-3.5 rounded-xl border border-[#e2e8f0] bg-white hover:bg-[#f8fafc] hover:border-[#2563eb]/40 shadow-xs transition-all cursor-pointer space-y-2 group"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded bg-[#eff6ff] border border-[#bfdbfe] text-[#1d4ed8] shrink-0">
-                            {format}
-                          </span>
-                          <h3 className="text-xs font-semibold text-[#0f172a] truncate group-hover:text-[#2563eb] transition-colors">
-                            {doc.title}
-                          </h3>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94a3b8] group-hover:text-[#2563eb] shrink-0 transition-colors" />
-                      </div>
-
-                      <p className="text-[11px] text-[#64748b] line-clamp-2 leading-relaxed font-normal">
-                        Verified knowledge excerpt grounding multi-agent reasoning, trade-off analysis, and outcome proposals.
-                      </p>
-
-                      <div className="flex items-center justify-between text-[10px] font-mono text-[#94a3b8] pt-1.5 border-t border-[#f1f5f9]">
-                        <span className="flex items-center gap-1 text-emerald-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span>Indexed & Grounded</span>
-                        </span>
-                        <span className="text-[#2563eb] group-hover:underline">
-                          Inspect detail →
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          <div ref={messagesEndRef} />
         </div>
-      </div>
-    </SpaceLayout>
+
+        {/* Input Bar */}
+        <div className="p-6 border-t border-white/[0.06] bg-[#09090b]">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="max-w-4xl mx-auto relative flex items-center"
+          >
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask MYND to analyze, synthesize, or propose next steps..."
+              disabled={isStreaming}
+              className="w-full bg-[#12131a] text-sm text-white placeholder-slate-500 pl-4 pr-24 py-3 rounded-xl border border-white/[0.07] focus:border-white/20 focus:outline-hidden transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || isStreaming}
+              className="absolute right-1.5 px-3.5 py-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-30 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <span>Send</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
   );
 }

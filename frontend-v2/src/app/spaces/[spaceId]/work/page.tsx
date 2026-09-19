@@ -2,104 +2,66 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { AppShell } from "@/components/layout/AppShell";
-import { Surface } from "@/components/ui/Surface";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { StatusIndicator } from "@/components/ui/StatusIndicator";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { apiClient } from "@/lib/api/client";
+import { ProjectItem, GoalItem, ActionProposal, Space } from "@/types/api";
+import { CommandSidebar } from "@/components/layout/CommandSidebar";
 import {
-  ProjectItem,
-  GoalItem,
-  ActionProposal,
-  ActionProposalListResponse,
-  WorkflowListItem,
-  Space,
-} from "@/types/api";
-import { DecisionCard } from "@/components/decisions/DecisionCard";
-import {
-  CheckSquare,
-  Target,
   Layers,
-  ArrowRight,
-  RefreshCw,
-  Clock,
-  Cpu,
-  AlertCircle,
-  Folder,
-  ShieldCheck,
   CheckCircle2,
+  Circle,
+  Plus,
+  ArrowRight,
+  ShieldCheck,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
-import { formatRelativeTime } from "@/lib/utils";
 
 interface WorkPageProps {
   params: Promise<{ spaceId: string }>;
 }
 
-type FilterTab = "all" | "projects" | "goals" | "decisions" | "background";
-
 export default function WorkPage({ params }: WorkPageProps) {
   const resolvedParams = use(params);
   const spaceId = resolvedParams.spaceId;
+  const router = useRouter();
 
-  const [space, setSpace] = useState<Space | null>(null);
+  const { currentSpace, spaces } = useAuth();
+  const [space, setSpace] = useState<Space | null>(currentSpace);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [goals, setGoals] = useState<GoalItem[]>([]);
-  const [actions, setActions] = useState<ActionProposal[]>([]);
-  const [workflows, setWorkflows] = useState<WorkflowListItem[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
-
+  const [decisions, setDecisions] = useState<ActionProposal[]>([]);
+  const [activeTab, setActiveTab] = useState<"all" | "projects" | "goals" | "decisions">("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [togglingGoalId, setTogglingGoalId] = useState<string | null>(null);
 
-  const loadWorkData = async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    else setIsRefreshing(true);
-    setError(null);
+  // New Project State
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
 
+  const loadWorkData = async () => {
     try {
-      const [spaceData, projectsData, goalsData, actionsData, workflowsData] = await Promise.all([
+      const [spaceRes, projsRes, goalsRes, decisionsRes] = await Promise.all([
         apiClient<Space>(`/api/v1/spaces/${spaceId}`).catch(() => null),
         apiClient<ProjectItem[]>(`/api/v1/projects?space_id=${spaceId}`).catch(() => []),
         apiClient<GoalItem[]>(`/api/v1/goals`).catch(() => []),
-        apiClient<ActionProposalListResponse>(`/api/v1/actions?space_id=${spaceId}&limit=50`).catch(() => ({
-          items: [],
-          total: 0,
-          limit: 50,
-          offset: 0,
-        })),
-        apiClient<WorkflowListItem[]>(`/api/v1/workflows?space_id=${spaceId}`).catch(() => []),
+        apiClient<{ items: ActionProposal[] }>(`/api/v1/actions?space_id=${spaceId}&limit=50`).catch(
+          () => ({ items: [] })
+        ),
       ]);
 
-      if (spaceData) setSpace(spaceData);
-      setProjects(projectsData || []);
+      if (spaceRes) setSpace(spaceRes);
+      setProjects(projsRes || []);
 
-      // Filter goals strictly isolated to this space:
-      // Either linked to a project in this space, or created by an action executed in this space
-      const projectIds = new Set((projectsData || []).map((p: ProjectItem) => p.id));
-      const spaceActionGoalTargetIds = new Set(
-        (actionsData?.items || [])
-          .filter((a: ActionProposal) => a.action_type === "create_goal" && a.executed_target_id)
-          .map((a: ActionProposal) => a.executed_target_id)
-      );
-      const spaceGoals = (goalsData || []).filter(
-        (g: GoalItem) =>
-          (g.project_id && projectIds.has(g.project_id)) ||
-          spaceActionGoalTargetIds.has(g.id)
-      );
-      setGoals(spaceGoals);
-
-      setActions(actionsData?.items || []);
-      setWorkflows(workflowsData || []);
-    } catch (err: any) {
+      const projectIds = new Set((projsRes || []).map((p) => p.id));
+      const spaceGoals = (goalsRes || []).filter((g) => g.project_id && projectIds.has(g.project_id));
+      setGoals(spaceGoals.length > 0 ? spaceGoals : goalsRes || []);
+      setDecisions(decisionsRes.items || []);
+    } catch (err) {
       console.error("Failed to load work data:", err);
-      setError(err?.message || "Failed to load initiatives and work.");
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -107,405 +69,310 @@ export default function WorkPage({ params }: WorkPageProps) {
     loadWorkData();
   }, [spaceId]);
 
-  // Derived counts for filters
-  const pendingActions = actions.filter((a) => a.status === "pending");
-  const recordedDecisions = actions.filter((a) => a.status !== "pending");
-  const runningWorkflows = workflows.filter(
-    (w) => w.status === "running" || w.status === "planning" || w.status === "awaiting_approval"
-  );
+  const handleToggleGoal = async (goal: GoalItem) => {
+    setTogglingGoalId(goal.id);
+    const newStatus = goal.status === "completed" ? "active" : "completed";
+    try {
+      await apiClient<GoalItem>(`/api/v1/goals/${goal.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setGoals((prev) =>
+        prev.map((g) => (g.id === goal.id ? { ...g, status: newStatus } : g))
+      );
+    } catch (err) {
+      console.error("Failed to toggle goal status:", err);
+      alert("Failed to update milestone status.");
+    } finally {
+      setTogglingGoalId(null);
+    }
+  };
 
-  const filterTabs: { id: FilterTab; label: string; count?: number }[] = [
-    { id: "all", label: "All Work" },
-    { id: "projects", label: "Projects", count: projects.length },
-    { id: "goals", label: "Goals", count: goals.length },
-    { id: "decisions", label: "Decisions", count: actions.length },
-    { id: "background", label: "Background Work", count: workflows.length },
-  ];
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
 
-  if (isLoading && !space && projects.length === 0) {
-    return (
-      <AppShell>
-        <div className="space-y-6 max-w-6xl mx-auto pb-12">
-          <Skeleton className="h-16 w-full" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Skeleton className="h-36 w-full" />
-            <Skeleton className="h-36 w-full" />
-          </div>
-          <Skeleton className="h-48 w-full" />
-        </div>
-      </AppShell>
-    );
-  }
+    try {
+      const created = await apiClient<ProjectItem>(`/api/v1/projects`, {
+        method: "POST",
+        body: JSON.stringify({
+          space_id: spaceId,
+          name: newProjectName.trim(),
+        }),
+      });
+      setProjects((prev) => [created, ...prev]);
+      setNewProjectName("");
+      setIsCreatingProject(false);
+    } catch (err) {
+      console.error("Failed to create project:", err);
+      alert("Failed to create project.");
+    }
+  };
 
   return (
-    <AppShell>
-      <div className="space-y-8 pb-16 max-w-6xl mx-auto">
-        {/* =========================================================================
-            1. HEADER
-            ========================================================================= */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 border-b border-[var(--border-subtle)] pb-5">
-          <div className="flex items-start gap-3.5">
-            <div className="w-11 h-11 rounded-[var(--radius-md)] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-xl shrink-0 font-bold text-[var(--accent-primary)] shadow-sm">
-              <CheckSquare className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-                  Work & Initiatives
-                </h1>
-                <span className="text-xs text-[var(--text-muted)]">•</span>
-                <span className="text-xs font-semibold text-[var(--accent-text)]">
-                  {space?.name || "Workspace"}
-                </span>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5 max-w-xl leading-relaxed">
-                What the team is working toward and what has already been decided.
-              </p>
-            </div>
+    <div className="h-screen w-screen bg-[#09090b] text-[#f8fafc] flex overflow-hidden select-none">
+      {/* 1. Command Sidebar */}
+      <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
+
+      {/* 2. Main Work Substrate */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+        {/* Header Bar */}
+        <header className="h-16 px-8 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
+          <div className="space-y-0.5 min-w-0">
+            <h1 className="text-base font-semibold tracking-tight text-white truncate">
+              Work & Initiatives Hub
+            </h1>
+            <p className="text-xs text-slate-400 truncate">
+              Real outcomes, deliverables, and decisions executed in this space
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadWorkData(true)}
-              disabled={isLoading || isRefreshing}
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />}
-            >
-              Refresh
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsCreatingProject(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#6366f1] hover:bg-[#4f46e5] text-white transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Project</span>
+          </button>
         </header>
 
-        {/* Global Error Banner */}
-        {error && (
-          <Surface variant="primary" className="p-3.5 border-l-4 border-l-[var(--error-border)] bg-[var(--error-surface)]">
-            <div className="flex items-center justify-between gap-3 text-xs text-[var(--error-text)]">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => loadWorkData()}>
-                Retry
-              </Button>
+        {/* Work Body */}
+        <div className="flex-1 p-8 pb-16 max-w-7xl mx-auto w-full space-y-6 min-w-0">
+          {/* New Project Modal Form */}
+          {isCreatingProject && (
+            <div className="rounded-2xl border border-white/[0.1] bg-[#0c0d12] p-4 space-y-3">
+              <div className="text-xs font-semibold text-white">Create New Project</div>
+              <form onSubmit={handleCreateProject} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="e.g. Q4 Vector Search Migration"
+                  autoFocus
+                  className="flex-1 bg-[#12131a] text-sm text-white placeholder-slate-500 px-3.5 py-2 rounded-xl border border-white/[0.08] focus:border-white/20 focus:outline-hidden"
+                />
+                <button
+                  type="submit"
+                  disabled={!newProjectName.trim()}
+                  className="px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-xs font-semibold text-white disabled:opacity-40 cursor-pointer"
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingProject(false)}
+                  className="px-3.5 py-2 rounded-xl bg-white/[0.04] text-xs text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </form>
             </div>
-          </Surface>
-        )}
+          )}
 
-        {/* Filter Navigation Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border-subtle)] pb-2">
-          {filterTabs.map((tab) => {
-            const isActive = activeFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveFilter(tab.id)}
-                className={`px-3 py-1.5 text-xs rounded-[var(--radius-sm)] font-medium transition-mynd flex items-center gap-2 cursor-pointer ${
-                  isActive
-                    ? "bg-[var(--surface-hover)] text-[var(--text-primary)] border border-[var(--border-subtle)] font-semibold"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-secondary)]"
-                }`}
-              >
-                <span>{tab.label}</span>
-                {typeof tab.count === "number" && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isActive
-                        ? "bg-[var(--accent-primary)]/20 text-[var(--accent-text)] font-semibold"
-                        : "bg-[var(--surface-secondary)] text-[var(--text-muted)]"
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === "all" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              All Work
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("projects")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === "projects" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Projects ({projects.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("goals")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === "goals" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Goals & Milestones ({goals.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("decisions")}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === "decisions" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Decisions Log ({decisions.length})
+            </button>
+          </div>
 
-        {/* =========================================================================
-            SECTION 1: ACTIVE WORK (Projects & Goals)
-            ========================================================================= */}
-        {(activeFilter === "all" || activeFilter === "projects" || activeFilter === "goals") && (
-          <section aria-labelledby="active-work-heading" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-[var(--accent-primary)]" />
-                <h2 id="active-work-heading" className="text-xs font-semibold tracking-wider text-[var(--text-primary)] uppercase">
-                  Active Work
-                </h2>
-              </div>
-              <span className="text-xs text-[var(--text-muted)]">
-                {projects.length} {projects.length === 1 ? "Project" : "Projects"} • {goals.length}{" "}
-                {goals.length === 1 ? "Goal" : "Goals"}
-              </span>
-            </div>
+          {/* Projects Section */}
+          {activeTab !== "goals" && activeTab !== "decisions" && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold text-white">Active Projects</div>
+              {projects.length === 0 ? (
+                <div className="p-6 rounded-2xl border border-dashed border-white/[0.08] text-center text-xs text-slate-500">
+                  No projects active. Create a project or approve a proposal from a reasoning session.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {projects.map((proj) => {
+                    const projGoals = goals.filter((g) => g.project_id === proj.id);
+                    const completed = projGoals.filter((g) => g.status === "completed").length;
 
-            {projects.length > 0 || goals.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {/* Projects */}
-                {(activeFilter === "all" || activeFilter === "projects") &&
-                  projects.map((project) => {
-                    const projectGoals = goals.filter((g) => g.project_id === project.id);
                     return (
-                      <Surface
-                        key={project.id}
-                        variant="primary"
-                        className="p-4 border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-mynd flex flex-col justify-between gap-4"
+                      <Link
+                        key={proj.id}
+                        href={`/spaces/${spaceId}/work/projects/${proj.id}`}
+                        className="rounded-2xl border border-white/[0.06] bg-[#0c0d12] p-4 space-y-3 hover:border-white/20 transition-all text-decoration-none block group"
                       >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                                  Project
-                                </span>
-                                <Badge variant={project.status === "active" ? "default" : "outline"} size="sm">
-                                  {project.status}
-                                </Badge>
-                              </div>
-                              <h3 className="text-sm font-semibold text-[var(--text-primary)] mt-1">
-                                {project.name}
-                              </h3>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 min-w-0">
+                            <div className="text-sm font-semibold text-white group-hover:text-[#818cf8] transition-colors truncate">
+                              {proj.name}
                             </div>
-                            <span className="text-[11px] text-[var(--text-muted)] shrink-0">
-                              {formatRelativeTime(project.created_at)}
-                            </span>
+                            <div className="text-[11px] text-slate-400">
+                              {projGoals.length} {projGoals.length === 1 ? "milestone" : "milestones"} • {completed} completed
+                            </div>
                           </div>
-
-                          {projectGoals.length > 0 && (
-                            <div className="pt-1 text-[11px] text-[var(--text-secondary)]">
-                              <span>{projectGoals.length} associated {projectGoals.length === 1 ? "goal" : "goals"}</span>
-                            </div>
-                          )}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-[#818cf8]/10 text-[#818cf8] border border-[#818cf8]/20">
+                            {proj.status || "Active"}
+                          </span>
                         </div>
 
-                        <div className="pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
-                          <span className="text-[11px] text-[var(--text-muted)]">Tracked Outcome</span>
-                          <Link
-                            href={`/spaces/${spaceId}/work/projects/${project.id}`}
-                            className="text-[var(--accent-text)] hover:underline flex items-center gap-1 font-semibold"
-                          >
-                            Open Project <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                        </div>
-                      </Surface>
+                        {projGoals.length > 0 && (
+                          <div className="w-full h-1 rounded-full bg-[#1b1b24] overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[#818cf8]"
+                              style={{
+                                width: `${Math.round((completed / projGoals.length) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </Link>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
 
-                {/* Goals */}
-                {(activeFilter === "all" || activeFilter === "goals") &&
-                  goals.map((goal) => {
-                    const parentProject = projects.find((p) => p.id === goal.project_id);
+          {/* Goals & Milestones Section */}
+          {activeTab !== "projects" && activeTab !== "decisions" && (
+            <div className="space-y-3 pt-4">
+              <div className="text-xs font-semibold text-white">Tracked Milestones</div>
+              {goals.length === 0 ? (
+                <div className="p-6 rounded-2xl border border-dashed border-white/[0.08] text-center text-xs text-slate-500">
+                  No milestones tracked yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {goals.map((goal) => {
+                    const isCompleted = goal.status === "completed";
+                    const isToggling = togglingGoalId === goal.id;
+
                     return (
-                      <Surface
+                      <div
                         key={goal.id}
-                        variant="primary"
-                        className="p-4 border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-mynd flex flex-col justify-between gap-4"
+                        className="p-3.5 rounded-xl border border-white/[0.06] bg-[#0c0d12] flex items-center justify-between gap-3 hover:border-white/[0.12] transition-colors"
                       >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                                  Goal
-                                </span>
-                                <Badge variant={goal.status === "active" ? "default" : "outline"} size="sm">
-                                  {goal.status}
-                                </Badge>
-                              </div>
-                              <h3 className="text-sm font-semibold text-[var(--text-primary)] mt-1 leading-snug">
-                                {goal.description}
-                              </h3>
-                            </div>
-                            <span className="text-[11px] text-[var(--text-muted)] shrink-0">
-                              {formatRelativeTime(goal.created_at)}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            type="button"
+                            disabled={isToggling}
+                            onClick={() => handleToggleGoal(goal)}
+                            className="text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-slate-500 hover:text-[#818cf8]" />
+                            )}
+                          </button>
+                          <span
+                            className={`text-xs font-medium truncate ${
+                              isCompleted ? "line-through text-slate-500" : "text-slate-200"
+                            }`}
+                          >
+                            {goal.description}
+                          </span>
+                        </div>
+
+                        <span className="text-[10px] font-mono uppercase text-slate-500 shrink-0">
+                          {goal.status}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Decisions Section */}
+          {(activeTab === "all" || activeTab === "decisions") && (
+            <div className="space-y-3 pt-4">
+              <div className="text-xs font-semibold text-white">Decisions & Proposals Log</div>
+              {decisions.length === 0 ? (
+                <div className="p-6 rounded-2xl border border-dashed border-white/[0.08] text-center text-xs text-slate-500">
+                  No decision proposals recorded yet.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {decisions.map((dec) => {
+                    const isExecuted = dec.status === "executed";
+                    const title =
+                      dec.parameters?.name ||
+                      dec.parameters?.description ||
+                      dec.reason ||
+                      `${dec.action_type.replace(/_/g, " ")} Proposal`;
+
+                    return (
+                      <div
+                        key={dec.id}
+                        className="p-3.5 rounded-xl border border-white/[0.06] bg-[#0c0d12] flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.2 rounded-sm text-[9px] font-mono uppercase bg-white/[0.04] text-slate-300 border border-white/[0.06]">
+                              {dec.action_type.replace(/_/g, " ")}
+                            </span>
+                            <span className="text-xs font-semibold text-white truncate">
+                              {title}
                             </span>
                           </div>
-
-                          {parentProject && (
-                            <div className="pt-1 text-[11px] text-[var(--text-secondary)] flex items-center gap-1">
-                              <span className="text-[var(--text-muted)]">Part of:</span>
-                              <span className="font-medium text-[var(--text-primary)]">{parentProject.name}</span>
-                            </div>
+                          {dec.reason && (
+                            <p className="text-[11px] text-slate-400 line-clamp-1">
+                              {dec.reason}
+                            </p>
                           )}
                         </div>
 
-                        <div className="pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between text-xs">
-                          <span className="text-[11px] text-[var(--text-muted)]">Target Outcome</span>
-                          <Link
-                            href={`/spaces/${spaceId}/work/goals/${goal.id}`}
-                            className="text-[var(--accent-text)] hover:underline flex items-center gap-1 font-semibold"
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md ${
+                              isExecuted
+                                ? "bg-emerald-400/10 text-emerald-400 border border-emerald-400/20"
+                                : "bg-white/[0.04] text-slate-400 border border-white/[0.06]"
+                            }`}
                           >
-                            Open Goal <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
+                            {dec.status}
+                          </span>
                         </div>
-                      </Surface>
+                      </div>
                     );
                   })}
-              </div>
-            ) : (
-              <Surface variant="primary" className="p-6 text-center border border-[var(--border-subtle)]">
-                <h3 className="text-xs font-semibold text-[var(--text-primary)]">
-                  No active initiatives yet.
-                </h3>
-                <p className="text-[11px] text-[var(--text-secondary)] mt-1 max-w-md mx-auto">
-                  Projects and goals appear here when decisions turn into tracked work. Use the Space Overview to
-                  ask MYND a question and approve an initiative proposal.
-                </p>
-              </Surface>
-            )}
-          </section>
-        )}
-
-        {/* =========================================================================
-            SECTION 2: DECISIONS (Recorded Choices & Rationale)
-            ========================================================================= */}
-        {(activeFilter === "all" || activeFilter === "decisions") && (
-          <section aria-labelledby="decisions-heading" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[var(--accent-primary)]" />
-                <h2 id="decisions-heading" className="text-xs font-semibold tracking-wider text-[var(--text-primary)] uppercase">
-                  Decisions
-                </h2>
-                {pendingActions.length > 0 && (
-                  <Badge variant="accent" size="sm">
-                    {pendingActions.length} Pending
-                  </Badge>
-                )}
-              </div>
-              <span className="text-xs text-[var(--text-muted)]">
-                {actions.length} {actions.length === 1 ? "Record" : "Records"}
-              </span>
+                </div>
+              )}
             </div>
-
-            {actions.length > 0 ? (
-              <div className="space-y-3">
-                {actions.map((proposal) => (
-                  <DecisionCard
-                    key={proposal.id || proposal.proposal_id}
-                    proposal={proposal}
-                    spaceId={spaceId}
-                    onStatusChange={() => loadWorkData(true)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <Surface variant="primary" className="p-6 text-center border border-[var(--border-subtle)]">
-                <h3 className="text-xs font-semibold text-[var(--text-primary)]">
-                  No decisions recorded yet.
-                </h3>
-                <p className="text-[11px] text-[var(--text-secondary)] mt-1 max-w-md mx-auto">
-                  Important choices made with MYND can be preserved with their rationale and evidence.
-                  When MYND synthesizes options in a session, you can sign off and record the decision here.
-                </p>
-              </Surface>
-            )}
-          </section>
-        )}
-
-        {/* =========================================================================
-            SECTION 3: BACKGROUND WORK (Long-Running MYND Requests)
-            ========================================================================= */}
-        {(activeFilter === "all" || activeFilter === "background") && (
-          <section aria-labelledby="background-work-heading" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-[var(--accent-primary)]" />
-                <h2 id="background-work-heading" className="text-xs font-semibold tracking-wider text-[var(--text-primary)] uppercase">
-                  Background Work
-                </h2>
-                {runningWorkflows.length > 0 && (
-                  <Badge variant="default" size="sm">
-                    {runningWorkflows.length} Running
-                  </Badge>
-                )}
-              </div>
-              <span className="text-xs text-[var(--text-muted)]">
-                {workflows.length} {workflows.length === 1 ? "Job" : "Jobs"}
-              </span>
-            </div>
-
-            {workflows.length > 0 ? (
-              <div className="space-y-2.5">
-                {workflows.map((wf) => {
-                  const isRunning = wf.status === "running" || wf.status === "planning";
-                  const isCompleted = wf.status === "completed";
-                  const isAwaiting = wf.status === "awaiting_approval";
-
-                  const humanStatus = isRunning
-                    ? "MYND is researching"
-                    : isCompleted
-                    ? "Research completed"
-                    : isAwaiting
-                    ? "Needs your review"
-                    : wf.status;
-
-                  return (
-                    <Surface
-                      key={wf.id}
-                      variant="primary"
-                      className={`p-3.5 border transition-mynd flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                        isRunning
-                          ? "border-l-4 border-l-[var(--accent-primary)] bg-[var(--surface-primary)]"
-                          : "border-[var(--border-subtle)]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`p-2 rounded-[var(--radius-xs)] shrink-0 ${
-                            isRunning
-                              ? "bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]"
-                              : "bg-[var(--surface-secondary)] text-[var(--text-muted)]"
-                          }`}
-                        >
-                          <Cpu className={`w-4 h-4 ${isRunning ? "animate-spin" : ""}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                              {wf.goal}
-                            </span>
-                            <StatusIndicator status={wf.status as any} label={humanStatus} size="sm" />
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)] mt-1">
-                            {wf.steps_count > 0 && (
-                              <span>
-                                Step {wf.completed_steps_count} of {wf.steps_count}
-                                {wf.current_step ? ` • ${wf.current_step}` : ""}
-                              </span>
-                            )}
-                            <span>{formatRelativeTime(wf.created_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                        <Link href={`/spaces/${spaceId}/tasks/${wf.id}`}>
-                          <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                            {isRunning ? "View Progress" : "Execution Details"}
-                          </Button>
-                        </Link>
-                      </div>
-                    </Surface>
-                  );
-                })}
-              </div>
-            ) : (
-              <Surface variant="primary" className="p-6 text-center border border-[var(--border-subtle)]">
-                <h3 className="text-xs font-semibold text-[var(--text-primary)]">
-                  No background work right now.
-                </h3>
-                <p className="text-[11px] text-[var(--text-secondary)] mt-1 max-w-md mx-auto">
-                  Long-running MYND requests will appear here while they're being processed.
-                </p>
-              </Surface>
-            )}
-          </section>
-        )}
-      </div>
-    </AppShell>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

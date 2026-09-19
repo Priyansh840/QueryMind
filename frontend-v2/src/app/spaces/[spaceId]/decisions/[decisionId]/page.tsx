@@ -2,33 +2,21 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { AppShell } from "@/components/layout/AppShell";
-import { Surface } from "@/components/ui/Surface";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { StatusIndicator } from "@/components/ui/StatusIndicator";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { apiClient } from "@/lib/api/client";
-import { DecisionDetail } from "@/types/api";
-import { EvidenceList } from "@/components/decisions/EvidenceList";
-import { EvidenceChainGraph } from "@/components/decisions/EvidenceChainGraph";
-import { ActionProposalCard } from "@/components/chat/ActionProposalCard";
+import { DecisionDetail, Space } from "@/types/api";
+import { CommandSidebar } from "@/components/layout/CommandSidebar";
 import {
-  ShieldAlert,
   ArrowLeft,
-  MessageSquare,
+  ShieldCheck,
+  Check,
   FileText,
   Clock,
-  Sparkles,
-  Layers,
   CheckCircle2,
+  ExternalLink,
   AlertCircle,
-  RefreshCw,
-  Zap,
-  ArrowRight,
 } from "lucide-react";
-import { formatRelativeTime } from "@/lib/utils";
 
 interface DecisionDetailPageProps {
   params: Promise<{ spaceId: string; decisionId: string }>;
@@ -36,274 +24,186 @@ interface DecisionDetailPageProps {
 
 export default function DecisionDetailPage({ params }: DecisionDetailPageProps) {
   const resolvedParams = use(params);
-  const { spaceId, decisionId } = resolvedParams;
+  const spaceId = resolvedParams.spaceId;
+  const decisionId = resolvedParams.decisionId;
+  const router = useRouter();
 
+  const { currentSpace, spaces } = useAuth();
+  const [space, setSpace] = useState<Space | null>(currentSpace);
   const [decision, setDecision] = useState<DecisionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
 
-  const loadDecision = async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    else setIsRefreshing(true);
-    setError(null);
+  useEffect(() => {
+    const loadDecision = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [decRes, spaceRes] = await Promise.all([
+          apiClient<DecisionDetail>(`/api/v1/actions/${decisionId}/decision`),
+          apiClient<Space>(`/api/v1/spaces/${spaceId}`).catch(() => null),
+        ]);
+        setDecision(decRes);
+        if (spaceRes) setSpace(spaceRes);
+      } catch (err: any) {
+        console.error("Failed to load decision detail:", err);
+        setError(err.message || "Decision not found.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadDecision();
+  }, [decisionId, spaceId]);
 
+  const handleApprove = async () => {
+    if (!decision || isApproving) return;
+    setIsApproving(true);
     try {
-      const data = await apiClient<DecisionDetail>(`/api/v1/actions/${decisionId}/decision`);
-      setDecision(data);
-    } catch (err: any) {
-      console.error("Failed to load decision detail:", err);
-      setError(err?.message || "Decision not found or unauthorized.");
+      await apiClient(`/api/v1/actions/${decisionId}/approve`, {
+        method: "POST",
+      });
+      setDecision((prev) => (prev ? { ...prev, status: "executed" } : null));
+    } catch (err) {
+      console.error("Failed to approve action:", err);
+      alert("Failed to execute action.");
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      setIsApproving(false);
     }
   };
 
-  useEffect(() => {
-    loadDecision();
-  }, [decisionId]);
-
-  if (isLoading && !decision) {
+  if (isLoading) {
     return (
-      <AppShell>
-        <div className="space-y-6 max-w-5xl mx-auto pb-12">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-64 w-full" />
+      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white">
+        <div className="text-xs font-mono text-slate-400 animate-pulse">
+          AUDITING DECISION LINEAGE...
         </div>
-      </AppShell>
+      </div>
     );
   }
 
   if (error || !decision) {
     return (
-      <AppShell>
-        <div className="max-w-4xl mx-auto py-12">
-          <EmptyState
-            icon={<AlertCircle className="w-8 h-8 text-[var(--error-text)]" />}
-            title="Decision Not Found"
-            description={error || "The requested decision trace could not be loaded or is unauthorized."}
-            actionLabel="Return to Workspace"
-            onAction={() => {
-              window.location.href = `/spaces/${spaceId}`;
-            }}
-          />
+      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white p-6">
+        <div className="max-w-md w-full p-6 rounded-2xl bg-[#0c0d12] border border-white/[0.08] text-center space-y-4">
+          <AlertCircle className="w-8 h-8 text-[#f87171] mx-auto" />
+          <h2 className="text-sm font-semibold text-white">Decision Not Found</h2>
+          <p className="text-xs text-slate-400">{error || "Unable to locate decision."}</p>
+          <button
+            type="button"
+            onClick={() => router.push(`/spaces/${spaceId}/work`)}
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/[0.08] hover:bg-white/[0.14] text-white transition-colors"
+          >
+            Return to Work Hub
+          </button>
         </div>
-      </AppShell>
+      </div>
     );
   }
 
+  const isExecuted = decision.status === "executed";
+
   return (
-    <AppShell>
-      <div className="space-y-8 pb-16 max-w-5xl mx-auto">
-        {/* Navigation Breadcrumb & Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-b border-[var(--border-subtle)] pb-4">
-          <div className="flex items-center gap-3">
-            <Link href={`/spaces/${spaceId}`}>
-              <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
-                Workspace
-              </Button>
-            </Link>
-            <span className="text-xs text-[var(--border-strong)]">/</span>
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              Decision Intelligence
-            </span>
-          </div>
+    <div className="h-screen w-screen bg-[#09090b] text-[#f8fafc] flex overflow-hidden select-none">
+      {/* 1. Command Sidebar */}
+      <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadDecision(true)}
-              disabled={isRefreshing}
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />}
+      {/* 2. Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+        {/* Header Bar */}
+        <header className="h-16 px-8 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href={`/spaces/${spaceId}/work`}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
             >
-              Refresh
-            </Button>
-            <Link href={`/spaces/${spaceId}/conversations/${decision.conversation_id}`}>
-              <Button variant="primary" size="sm" leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
-                Open Conversation
-              </Button>
+              <ArrowLeft className="w-4 h-4" />
             </Link>
-          </div>
-        </div>
-
-        {/* Section 1: Decision Header Brief */}
-        <Surface variant="primary" className="p-6 border-l-4 border-l-[var(--accent-primary)] space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--accent-text)]">
-                  Proposed Action: {decision.action_type.replace(/_/g, " ")}
-                </span>
-                <StatusIndicator status={decision.status as any} label={decision.status} size="sm" />
-                <Badge variant="outline" size="sm">
-                  {decision.confidence} confidence
-                </Badge>
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-                {decision.title}
+            <div className="space-y-0.5 min-w-0">
+              <h1 className="text-sm font-semibold tracking-tight text-white truncate">
+                Decision Forensic Trace
               </h1>
-            </div>
-            <div className="text-xs text-[var(--text-muted)] shrink-0 self-start">
-              {formatRelativeTime(decision.created_at)}
+              <p className="text-[11px] text-slate-400 font-mono">
+                Lineage • Grounding Evidence ➔ Outcome
+              </p>
             </div>
           </div>
 
-          <div className="pt-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-              Conclusion & Grounded Rationale
-            </h3>
-            <p className="text-sm text-[var(--text-primary)] leading-relaxed">
-              {decision.conclusion}
-            </p>
-          </div>
-
-          {decision.parameters && Object.keys(decision.parameters).length > 0 && (
-            <div className="p-3 bg-[var(--surface-secondary)]/80 rounded-[var(--radius-xs)] text-xs font-mono text-[var(--text-secondary)]">
-              <span className="text-[var(--text-muted)] uppercase block text-[10px] mb-1 font-sans font-semibold">
-                Action Parameters:
-              </span>
-              {JSON.stringify(decision.parameters, null, 2)}
-            </div>
+          {!isExecuted && (
+            <button
+              type="button"
+              disabled={isApproving}
+              onClick={handleApprove}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#6366f1] hover:bg-[#4f46e5] text-white transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>{isApproving ? "Executing..." : "Authorize Sign-Off"}</span>
+            </button>
           )}
-        </Surface>
+        </header>
 
-        {/* Outcome Section (if executed) */}
-        {(decision.status === "executed" || decision.outcome) && (() => {
-          const targetId = decision.outcome?.target_id;
-          const isProject = decision.action_type === "create_project";
-          const isGoal = decision.action_type === "create_goal";
-
-          let outcomeHref = `/spaces/${spaceId}/work`;
-          let outcomeLabel = "View in Work";
-
-          if (isProject && targetId) {
-            outcomeHref = `/spaces/${spaceId}/work/projects/${targetId}`;
-            outcomeLabel = "View Project";
-          } else if (isGoal && targetId) {
-            outcomeHref = `/spaces/${spaceId}/work/goals/${targetId}`;
-            outcomeLabel = "View Goal";
-          }
-
-          return (
-            <Surface variant="primary" className="p-5 border-l-4 border-l-emerald-500 bg-[var(--surface-primary)] space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Outcome
-                    </span>
-                    <Badge variant="success" size="sm">
-                      Executed
-                    </Badge>
-                  </div>
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">
-                    {decision.outcome?.summary ||
-                      (isProject
-                        ? `Project created: ${decision.parameters?.name || "Initiative"}`
-                        : isGoal
-                        ? `Goal created: ${decision.parameters?.description || "Goal"}`
-                        : "Action executed successfully")}
-                  </p>
-                </div>
-
-                <Link href={outcomeHref}>
-                  <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                    {outcomeLabel}
-                  </Button>
-                </Link>
-              </div>
-            </Surface>
-          );
-        })()}
-
-        {/* Section 2: Action Approval Control (if pending) */}
-        {decision.status === "pending" && (
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-              Decision Approval
-            </h2>
-            <ActionProposalCard
-              proposal={{
-                id: decision.id,
-                proposal_id: decision.proposal_id,
-                user_id: "",
-                space_id: decision.space_id,
-                conversation_id: decision.conversation_id,
-                message_id: decision.message_id,
-                action_type: decision.action_type,
-                parameters: decision.parameters,
-                reason: decision.conclusion,
-                confidence: decision.confidence,
-                status: decision.status,
-                created_at: decision.created_at,
-              }}
-              onStatusChange={() => loadDecision(true)}
-            />
-          </div>
-        )}
-
-        {/* Section 3: Grounded Lineage Graph */}
-        <section aria-labelledby="lineage-graph-heading" className="space-y-3">
-          <EvidenceChainGraph decision={decision} />
-        </section>
-
-        {/* Section 4: Supporting Evidence Citations */}
-        <section aria-labelledby="evidence-heading" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[var(--accent-text)]" />
-              <h2 id="evidence-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                Supporting Evidence ({decision.evidence.length})
-              </h2>
-            </div>
-            <Link href={`/spaces/${spaceId}/knowledge`}>
-              <span className="text-xs text-[var(--accent-text)] hover:underline flex items-center gap-1 font-medium">
-                Knowledge Base →
+        {/* Forensic Body */}
+        <div className="flex-1 p-8 pb-16 max-w-4xl mx-auto w-full space-y-6 min-w-0">
+          {/* Decision Brief Card */}
+          <div className="rounded-2xl border border-white/[0.06] bg-[#0c0d12] p-6 space-y-4">
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <span className="px-2 py-0.5 rounded-md uppercase tracking-wider bg-[#818cf8]/15 text-[#818cf8] border border-[#818cf8]/25 font-bold">
+                {decision.action_type.replace(/_/g, " ")}
               </span>
-            </Link>
+              <span className="text-slate-400">
+                Confidence: {decision.confidence || "High"}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-base font-semibold text-white">
+                {decision.title}
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {decision.conclusion}
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
+              <span>Status: <strong className="text-white uppercase font-mono">{decision.status}</strong></span>
+              {decision.outcome?.target_id && (
+                <Link
+                  href={`/spaces/${spaceId}/work`}
+                  className="text-[#818cf8] hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <span>View Created Resource</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              )}
+            </div>
           </div>
 
-          <EvidenceList evidence={decision.evidence} spaceId={spaceId} />
-        </section>
-
-        {/* Section 5: Chronological Decision Audit Timeline */}
-        <section aria-labelledby="timeline-heading" className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[var(--text-secondary)]" />
-            <h2 id="timeline-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-              Decision Audit Timeline
-            </h2>
-          </div>
-
-          <Surface variant="primary" className="p-4 divide-y divide-[var(--border-subtle)]">
-            {decision.timeline.map((evt, idx) => (
-              <div key={idx} className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="p-1.5 rounded-[var(--radius-xs)] bg-[var(--surface-secondary)] text-[var(--accent-text)] mt-0.5 shrink-0">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[var(--text-primary)]">
-                      {evt.title}
+          {/* Supporting Evidence Citations */}
+          {decision.evidence && decision.evidence.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold text-white">Supporting Grounding Evidence</div>
+              <div className="space-y-2">
+                {decision.evidence.map((ev, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl border border-white/[0.06] bg-[#0c0d12] space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-mono text-[#818cf8]">
+                      <span>{ev.document_title}</span>
+                      {ev.page_number && <span>Page {ev.page_number}</span>}
                     </div>
-                    {evt.status && (
-                      <Badge variant="outline" size="sm" className="mt-1">
-                        {evt.status}
-                      </Badge>
+                    {ev.snippet && (
+                      <p className="text-xs text-slate-300 font-mono leading-relaxed">
+                        &ldquo;{ev.snippet}&rdquo;
+                      </p>
                     )}
                   </div>
-                </div>
-                <div className="text-[11px] text-[var(--text-muted)] shrink-0 whitespace-nowrap">
-                  {formatRelativeTime(evt.timestamp)}
-                </div>
+                ))}
               </div>
-            ))}
-          </Surface>
-        </section>
-      </div>
-    </AppShell>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

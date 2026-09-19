@@ -1,129 +1,75 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { AppShell } from "@/components/layout/AppShell";
-import { Surface } from "@/components/ui/Surface";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { CreateSpaceDialog } from "@/components/spaces/CreateSpaceDialog";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { Folder, Plus, ArrowRight, Star, Clock } from "lucide-react";
+import { Folder, ArrowRight } from "lucide-react";
 
 export default function SpacesDirectoryPage() {
   const { spaces, currentSpace, setCurrentSpace } = useAuth();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   return (
-    <AppShell>
-      <CreateSpaceDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
-
-      <div className="space-y-8 pb-12">
-        {/* Header Brief */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold tracking-wider text-[var(--accent-text)] uppercase">
-                Workspace Directory
-              </span>
-              <span className="text-xs text-[var(--border-strong)]">•</span>
-              <span className="text-xs text-[var(--text-muted)]">{spaces.length} Spaces</span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
-              Your Context Spaces
-            </h1>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Each space maintains its own isolated documents, conversations, projects, and autonomous actions.
-            </p>
+    <div className="min-h-screen w-screen bg-[#09090b] text-[#f8fafc] flex flex-col items-center justify-center p-6 select-none">
+      <div className="max-w-2xl w-full space-y-6">
+        <div className="space-y-1 text-center">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#818cf8]">
+            Workspace Directory
           </div>
-
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Plus className="w-3.5 h-3.5" />}
-            onClick={() => setIsCreateOpen(true)}
-          >
-            New Space
-          </Button>
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            Select Your Command Space
+          </h1>
+          <p className="text-xs text-slate-400">
+            Each space maintains an isolated operating layer for signals, approvals, and outcomes.
+          </p>
         </div>
 
-        {/* Spaces Grid */}
-        {spaces.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {spaces.map((space) => {
-              const isCurrent = currentSpace?.id === space.id;
-              return (
-                <Surface
-                  key={space.id}
-                  variant="primary"
-                  className={`p-5 hover:border-[var(--border-strong)] transition-mynd flex flex-col justify-between ${
-                    isCurrent ? "ring-1 ring-[var(--accent-primary)]" : ""
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className="w-7 h-7 rounded-[var(--radius-xs)] flex items-center justify-center text-white font-bold text-xs shrink-0"
-                          style={{ backgroundColor: space.color || "var(--accent-primary)" }}
-                        >
-                          {space.name[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">
-                            {space.name}
-                          </h3>
-                          <div className="text-[11px] text-[var(--text-muted)] truncate">
-                            {space.slug || "space"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {space.is_default && (
-                        <Badge variant="outline" size="sm">
-                          Default
-                        </Badge>
-                      )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {spaces.map((space) => {
+            const isCurrent = currentSpace?.id === space.id;
+            return (
+              <div
+                key={space.id}
+                className={`romer-card p-5 flex flex-col justify-between space-y-4 hover:border-white/20 transition-all ${
+                  isCurrent ? "border-[#818cf8]/50" : ""
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-[#181824] border border-white/10 flex items-center justify-center text-xs font-bold text-white">
+                      {space.name[0]?.toUpperCase()}
                     </div>
-
-                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2 min-h-[32px]">
-                      {space.description || "Personal workspace context for documents and decisions."}
-                    </p>
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">
+                        {space.name}
+                      </h3>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {space.slug || "space"}
+                      </div>
+                    </div>
                   </div>
+                  <p className="text-xs text-slate-400 line-clamp-2">
+                    {space.description || "Command dashboard for decisions, signals, and goals."}
+                  </p>
+                </div>
 
-                  <div className="mt-4 pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentSpace(space)}
-                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                    >
-                      {isCurrent ? "Active Space" : "Set Active"}
-                    </button>
-
-                    <Link href={`/spaces/${space.id}`}>
-                      <Button variant="secondary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                        Open Space
-                      </Button>
-                    </Link>
-                  </div>
-                </Surface>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<Folder className="w-8 h-8 text-[var(--text-muted)]" />}
-            title="No spaces created yet"
-            description="Create your first context space to start organizing documents and workflows."
-            actionLabel="Create Space"
-            onAction={() => setIsCreateOpen(true)}
-          />
-        )}
+                <div className="pt-3 border-t border-white/[0.07] flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">
+                    {isCurrent ? "Active Space" : "Available"}
+                  </span>
+                  <Link
+                    href={`/spaces/${space.id}`}
+                    onClick={() => setCurrentSpace(space)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-[#09090b] hover:bg-slate-200 transition-colors"
+                  >
+                    <span>Open Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </AppShell>
+    </div>
   );
 }
