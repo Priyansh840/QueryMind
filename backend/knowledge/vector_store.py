@@ -118,7 +118,7 @@ class VectorStoreService:
         collection: Optional[str] = None,
         document_title: Optional[str] = None,
         top_k: int = 12,
-        score_threshold: float = 0.25,
+        score_threshold: Optional[float] = 0.0,
     ) -> List[Dict]:
         """
         Perform ANN semantic search using cosine similarity.
@@ -155,13 +155,23 @@ class VectorStoreService:
             )
 
         # Search with user filter
-        results = self.client.search(
-            collection_name=collection_name,
-            query_vector=query_vector,
-            query_filter=Filter(must=must_conditions),
-            limit=top_k,
-            score_threshold=score_threshold,
-        )
+        if hasattr(self.client, "search"):
+            results = self.client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                query_filter=Filter(must=must_conditions),
+                limit=top_k,
+                score_threshold=score_threshold,
+            )
+        else:
+            res_obj = self.client.query_points(
+                collection_name=collection_name,
+                query=query_vector,
+                query_filter=Filter(must=must_conditions),
+                limit=top_k,
+                score_threshold=score_threshold,
+            )
+            results = res_obj.points
 
         # Format results
         return [

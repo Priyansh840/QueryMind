@@ -124,6 +124,8 @@ class IngestionEngine:
                                 payload={
                                     "chunk_id": str(record.id),
                                     "document_id": str(doc_record.id),
+                                    "document_title": doc_record.title,
+                                    "content": record.content_text,
                                     "user_id": user_id,
                                     "space_id": space_id,
                                     "source_type": "document"
@@ -217,22 +219,36 @@ class IngestionEngine:
             logger.warning(f"Failed to cleanup specific Postgres chunks: {e}")
 
     def _load_document(self, file_path: str, content_type: str) -> List[LCDocument]:
-        """Helper to load different file types using LangChain loaders."""
+        """Helper to load different file types using LangChain loaders with robust fallback."""
         try:
-            if content_type == "application/pdf" or file_path.endswith(".pdf"):
+            lower_path = file_path.lower()
+            if content_type == "application/pdf" or lower_path.endswith(".pdf"):
                 loader = PyPDFLoader(file_path)
                 return loader.load()
-            elif "word" in content_type or file_path.endswith(".docx"):
+            elif "word" in content_type or lower_path.endswith(".docx") or lower_path.endswith(".doc"):
                 loader = Docx2txtLoader(file_path)
                 return loader.load()
-            elif "text" in content_type or file_path.endswith(".txt"):
-                loader = TextLoader(file_path, encoding="utf-8")
-                return loader.load()
             else:
-                loader = TextLoader(file_path, encoding="utf-8")
-                return loader.load()
+                # Text, Markdown, Code, JSON, CSV, YAML, Log, etc.
+                for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252"]:
+                    try:
+                        loader = TextLoader(file_path, encoding=enc)
+                        return loader.load()
+                    except Exception:
+                        continue
+                # Final fallback: direct read with replacement of undecodable bytes
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                return [LCDocument(page_content=text, metadata={"source": file_path})]
         except Exception as e:
             logger.error(f"Error loading document {file_path}: {e}")
+            try:
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                if text.strip():
+                    return [LCDocument(page_content=text, metadata={"source": file_path})]
+            except Exception as final_e:
+                logger.error(f"Final fallback failed for {file_path}: {final_e}")
             return []
 
 async def process_document(

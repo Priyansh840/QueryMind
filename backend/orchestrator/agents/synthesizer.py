@@ -25,40 +25,37 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
     """
     logger.info("Starting Synthesis Agent...")
     
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-        
+    db = config.get("configurable", {}).get("db") if config else None
     objective_id = state.get("objective_id")
     workflow_iteration = state.get("workflow_iteration", 1)
     
-    obj_uuid = uuid.UUID(objective_id)
-    workflow_id = uuid.uuid5(obj_uuid, "workflow")
-    step_id = uuid.uuid5(workflow_id, "synthesizer")
-    
-    try:
-        step_order = 90  # Final step
-        step_stmt = insert(WorkflowStep).values(
-            id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="synthesis"
-        ).on_conflict_do_nothing()
-        await db.execute(step_stmt)
-        
-        run_id = uuid.uuid4()
-        run = AgentRun(
-            id=run_id,
-            workflow_step_id=step_id,
-            agent_type="synthesizer",
-            status="running",
-            started_at=datetime.utcnow(),
-            input_context={"results_count": len(state.get("research_results", []))}
-        )
-        db.add(run)
-        await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating DB records for synthesizer: {e}")
-        await db.rollback()
-        raise
+    if db and objective_id:
+        try:
+            obj_uuid = uuid.UUID(objective_id)
+            workflow_id = uuid.uuid5(obj_uuid, "workflow")
+            step_id = uuid.uuid5(workflow_id, "synthesizer")
+            
+            step_order = 90  # Final step
+            step_stmt = insert(WorkflowStep).values(
+                id=step_id, workflow_id=workflow_id, step_order=step_order, 
+                iteration=workflow_iteration, intent_type="synthesis"
+            ).on_conflict_do_nothing()
+            await db.execute(step_stmt)
+            
+            run_id = uuid.uuid4()
+            run = AgentRun(
+                id=run_id,
+                workflow_step_id=step_id,
+                agent_type="synthesizer",
+                status="running",
+                started_at=datetime.utcnow(),
+                input_context={"results_count": len(state.get("research_results", []))}
+            )
+            db.add(run)
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Error creating DB records for synthesizer: {e}")
+            await db.rollback()
 
     try:
         llm = get_llm(temperature=0.4)
@@ -120,7 +117,12 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         messages.append(HumanMessage(content=human_prompt))
         
         response = await llm.ainvoke(messages, config=config)
-        final_text = response.content.strip()
+        if isinstance(response.content, str):
+            final_text = response.content.strip()
+        elif isinstance(response.content, list):
+            final_text = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in response.content]).strip()
+        else:
+            final_text = str(response.content).strip()
         
         # Extract unique citations with rich metadata
         citations = []
@@ -145,31 +147,40 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         if state.get("workflow_status") != "terminated_budget":
             state["workflow_status"] = "completed"
         
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        run.output_summary = {"text": final_text, "citations": citations}
-        db.add(run)
-        
-        # Synthesis record
-        synth_record = Synthesis(
-            id=uuid.uuid4(),
-            objective_id=obj_uuid,
-            findings=[],
-            recommendations=[],
-            evidence=citations
-        )
-        db.add(synth_record)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "completed"
+                run.completed_at = datetime.utcnow()
+                run.output_summary = {"text": final_text, "citations": citations}
+                db.add(run)
+                
+                # Synthesis record
+                if 'obj_uuid' in locals():
+                    synth_record = Synthesis(
+                        id=uuid.uuid4(),
+                        objective_id=obj_uuid,
+                        findings=[],
+                        recommendations=[],
+                        evidence=citations
+                    )
+                    db.add(synth_record)
+                await db.commit()
+            except Exception as db_err:
+                logger.warning(f"Telemetry save error in synthesizer: {db_err}")
         
         return state
         
     except Exception as e:
         logger.error(f"Synthesizer failed: {e}")
-        run.status = "failed"
-        run.error = str(e)
-        run.completed_at = datetime.utcnow()
-        db.add(run)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "failed"
+                run.error = str(e)
+                run.completed_at = datetime.utcnow()
+                db.add(run)
+                await db.commit()
+            except Exception:
+                pass
         
         state["final_synthesis"] = "I encountered a critical error while synthesizing the final response. Please try again later."
         state["workflow_status"] = "failed"

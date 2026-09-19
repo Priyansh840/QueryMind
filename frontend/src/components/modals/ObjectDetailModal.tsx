@@ -5,10 +5,11 @@ import { useMyndStore } from "@/lib/mynd-store";
 
 export default function ObjectDetailModal() {
   const selectedObject = useMyndStore((state) => state.selectedObject);
+  const isObjectModalOpen = useMyndStore((state) => state.isObjectModalOpen);
   const closeObjectModal = useMyndStore((state) => state.closeObjectModal);
   const openAskAi = useMyndStore((state) => state.openAskAi);
 
-  if (!selectedObject) return null;
+  if (!isObjectModalOpen || !selectedObject) return null;
 
   return (
     <div

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Upload, FileText, Grid3X3, List, FolderOpen, CheckCircle, AlertCircle, Trash2, RefreshCw } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi } from "@/lib/api";
@@ -21,19 +21,23 @@ export default function VaultPage() {
 
   // Sync with backend on load
   useEffect(() => {
+    let isMounted = true;
     const fetchBackendDocs = async () => {
       if (!activeSpaceId) return;
       try {
         const docs = await queryMindApi.listDocuments(activeSpaceId);
-        if (Array.isArray(docs) && docs.length > 0) {
+        if (isMounted && Array.isArray(docs) && docs.length > 0) {
+          const currentUploaded = useMyndStore.getState().uploadedDocuments;
           docs.forEach((d: { id: string; title: string; file_type?: string; file_size?: number }) => {
-            const exists = uploadedDocuments.some((u) => u.title === d.title);
+            const exists = currentUploaded.some((u) => u.id === d.id || u.title === d.title);
             if (!exists) {
               addDocument({
+                id: d.id,
                 name: d.title,
                 type: d.file_type || "pdf",
                 size: d.file_size ? `${(d.file_size / (1024 * 1024)).toFixed(2)} MB` : "1.2 MB",
                 chunks: 1,
+                spaceId: activeSpaceId,
                 summary: `Ingested document in Workspace.`,
               });
             }
@@ -44,10 +48,13 @@ export default function VaultPage() {
       }
     };
     fetchBackendDocs();
-  }, [activeSpaceId, addDocument, uploadedDocuments]);
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSpaceId, addDocument]);
 
   const handleFileUpload = async (selectedFile: File) => {
-    if (!selectedFile || !activeSpaceId) return;
+    if (!selectedFile) return;
 
     setIsUploading(true);
     setUploadStatus(null);
@@ -58,16 +65,18 @@ export default function VaultPage() {
     try {
       const data = await queryMindApi.uploadDocument(
         selectedFile,
-        activeSpaceId
+        activeSpaceId || undefined
       );
 
       // Add to store with real backend vector results
       addDocument({
+        id: data.document_id,
         name: data.filename || selectedFile.name,
         type: ext,
         size: fileSizeStr,
         chunks: data.chunks_created || 1,
         vectorsStored: data.vectors_stored || 1,
+        spaceId: activeSpaceId || undefined,
         summary: data.first_chunk_preview
           ? `Indexed document with ${data.chunks_created} chunks. Preview: ${data.first_chunk_preview}`
           : `Document parsed and embedded into Qdrant.`,
@@ -80,10 +89,12 @@ export default function VaultPage() {
     } catch (err: unknown) {
       // If backend is offline, still save the real uploaded file locally in store with notification
       addDocument({
+        id: `doc-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: selectedFile.name,
         type: ext,
         size: fileSizeStr,
         chunks: 1,
+        spaceId: activeSpaceId || undefined,
         summary: `Local file ${selectedFile.name} added to workspace vault.`,
       });
 
@@ -115,9 +126,16 @@ export default function VaultPage() {
     }
   };
 
-  const filteredFiles = uploadedDocuments.filter((f) =>
-    f.title.toLowerCase().includes(filterQuery.toLowerCase())
-  );
+  const filteredFiles = useMemo(() => {
+    const seen = new Set<string>();
+    return uploadedDocuments.filter((f) => {
+      const matches = f.title.toLowerCase().includes(filterQuery.toLowerCase());
+      if (!matches) return false;
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+  }, [uploadedDocuments, filterQuery]);
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 stagger">
@@ -154,7 +172,7 @@ export default function VaultPage() {
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.docx,.txt,.md,.markdown"
+          accept=".pdf,.docx,.doc,.txt,.md,.markdown,.json,.csv,.tsv,.xml,.html,.py,.js,.ts,.tsx,.jsx,.yaml,.yml,.log,.rst,.sql"
           onChange={(e) => {
             if (e.target.files && e.target.files[0]) {
               handleFileUpload(e.target.files[0]);
@@ -281,9 +299,9 @@ export default function VaultPage() {
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredFiles.map((doc) => (
+          {filteredFiles.map((doc, idx) => (
             <div
-              key={doc.id}
+              key={`vault-grid-${doc.id}-${idx}`}
               onClick={() => openObjectModal(doc)}
               className="card-interactive"
               style={{
@@ -358,9 +376,9 @@ export default function VaultPage() {
         </div>
       ) : (
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-          {filteredFiles.map((doc) => (
+          {filteredFiles.map((doc, idx) => (
             <div
-              key={doc.id}
+              key={`vault-list-${doc.id}-${idx}`}
               onClick={() => openObjectModal(doc)}
               style={{
                 padding: "14px 18px",

@@ -204,14 +204,22 @@ async def send_message(
             final_text = ""
             citations = []
             action_proposals_collected = []
+            tokens_streamed = 0
             
             # Using stream_mode=["updates", "messages"]
             async for event_type, event_data in graph.astream(inputs, config=config, stream_mode=["updates", "messages"]):
                 if event_type == "messages":
                     chunk, metadata = event_data
-                    if chunk.content:
-                        # Safety to ensure it's from synthesizer
-                        yield f"data: {json.dumps({'event': 'token', 'data': {'text': chunk.content}})}\n\n"
+                    # Only stream tokens from the synthesizer node to avoid leaking intermediate agent JSON
+                    if metadata.get("langgraph_node") == "synthesizer" and chunk.content:
+                        if isinstance(chunk.content, str):
+                            token_text = chunk.content
+                        elif isinstance(chunk.content, list):
+                            token_text = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in chunk.content])
+                        else:
+                            token_text = str(chunk.content)
+                        tokens_streamed += len(token_text)
+                        yield f"data: {json.dumps({'event': 'token', 'data': {'text': token_text}})}\n\n"
                         
                 elif event_type == "updates":
                     for node_name, node_state in event_data.items():
@@ -297,6 +305,8 @@ async def send_message(
                         elif node_name == "synthesizer":
                             final_text = node_state.get("final_synthesis", "")
                             citations = node_state.get("citations", [])
+                            if final_text and tokens_streamed == 0:
+                                yield f"data: {json.dumps({'event': 'token', 'data': {'text': final_text}})}\n\n"
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'synthesizer'}})}\n\n"
                             
             # Yield citations at the end

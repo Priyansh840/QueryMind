@@ -16,40 +16,37 @@ logger = logging.getLogger(__name__)
 async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> AgentState:
     logger.info("Starting DecisionAnalyzer Node...")
     
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-        
+    db = config.get("configurable", {}).get("db") if config else None
     objective_id = state.get("objective_id")
     workflow_iteration = state.get("workflow_iteration", 1)
     
-    obj_uuid = uuid.UUID(objective_id)
-    workflow_id = uuid.uuid5(obj_uuid, "workflow")
-    step_id = uuid.uuid5(workflow_id, f"decision_{workflow_iteration}")
-    
-    try:
-        step_order = (workflow_iteration * 10) + 8
-        step_stmt = insert(WorkflowStep).values(
-            id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="decision_analysis"
-        ).on_conflict_do_nothing()
-        await db.execute(step_stmt)
-        
-        run_id = uuid.uuid4()
-        run = AgentRun(
-            id=run_id,
-            workflow_step_id=step_id,
-            agent_type="decision_analyzer",
-            status="running",
-            started_at=datetime.utcnow(),
-            input_context={"workspace_counts": len(state.get("workspace_context", {}).get("goals", []))}
-        )
-        db.add(run)
-        await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating DB records for decision_analyzer: {e}")
-        await db.rollback()
-        raise
+    if db and objective_id:
+        try:
+            obj_uuid = uuid.UUID(objective_id)
+            workflow_id = uuid.uuid5(obj_uuid, "workflow")
+            step_id = uuid.uuid5(workflow_id, f"decision_{workflow_iteration}")
+            
+            step_order = (workflow_iteration * 10) + 8
+            step_stmt = insert(WorkflowStep).values(
+                id=step_id, workflow_id=workflow_id, step_order=step_order, 
+                iteration=workflow_iteration, intent_type="decision_analysis"
+            ).on_conflict_do_nothing()
+            await db.execute(step_stmt)
+            
+            run_id = uuid.uuid4()
+            run = AgentRun(
+                id=run_id,
+                workflow_step_id=step_id,
+                agent_type="decision_analyzer",
+                status="running",
+                started_at=datetime.utcnow(),
+                input_context={"workspace_counts": len(state.get("workspace_context", {}).get("goals", []))}
+            )
+            db.add(run)
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Error creating DB records for decision_analyzer: {e}")
+            await db.rollback()
     
     try:
         llm = get_llm(temperature=0.1)
@@ -87,7 +84,7 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
         
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(state.get("chat_history", []))
-        messages.append(HumanMessage(content=state['raw_query']))
+        messages.append(HumanMessage(content=state.get('raw_query', '')))
         
         # Call LLM
         response: DecisionAnalysis = await structured_llm.ainvoke(messages, config=config)
@@ -95,26 +92,34 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
         # Serialize the Pydantic model to a dict for the state
         state["decision_output"] = response.model_dump()
         
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        run.output_summary = {
-            "recommendations_count": len(response.recommendations),
-            "blockers_count": len(response.blockers),
-            "uncertainties_count": len(response.uncertainties),
-            "confidence_levels": [r.confidence for r in response.recommendations]
-        }
-        db.add(run)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "completed"
+                run.completed_at = datetime.utcnow()
+                run.output_summary = {
+                    "recommendations_count": len(response.recommendations),
+                    "blockers_count": len(response.blockers),
+                    "uncertainties_count": len(response.uncertainties),
+                    "confidence_levels": [r.confidence for r in response.recommendations]
+                }
+                db.add(run)
+                await db.commit()
+            except Exception:
+                pass
         
         return state
         
     except Exception as e:
         logger.error(f"DecisionAnalyzer failed: {e}")
-        run.status = "failed"
-        run.error = str(e)
-        run.completed_at = datetime.utcnow()
-        db.add(run)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "failed"
+                run.error = str(e)
+                run.completed_at = datetime.utcnow()
+                db.add(run)
+                await db.commit()
+            except Exception:
+                pass
         
         fallback = DecisionAnalysis(
             blockers=[],

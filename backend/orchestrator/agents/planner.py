@@ -20,49 +20,45 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     logger.info("Starting Planner Agent...")
     
-    db = config.get("configurable", {}).get("db")
-    if not db:
-        raise ValueError("Database session 'db' must be provided in config['configurable'].")
-        
+    db = config.get("configurable", {}).get("db") if config else None
     objective_id = state.get("objective_id")
     workflow_iteration = state.get("workflow_iteration", 1)
     
-    # Deterministic IDs
-    obj_uuid = uuid.UUID(objective_id)
-    workflow_id = uuid.uuid5(obj_uuid, "workflow")
-    step_id = uuid.uuid5(workflow_id, f"planner_{workflow_iteration}")
-    
-    try:
-        # Ensure Workflow exists
-        workflow_stmt = insert(Workflow).values(
-            id=workflow_id, objective_id=obj_uuid
-        ).on_conflict_do_nothing()
-        await db.execute(workflow_stmt)
-        
-        # Ensure Step exists
-        step_order = (workflow_iteration * 10) + 1  # 11, 21, 31...
-        step_stmt = insert(WorkflowStep).values(
-            id=step_id, workflow_id=workflow_id, step_order=step_order, 
-            iteration=workflow_iteration, intent_type="planning"
-        ).on_conflict_do_nothing()
-        await db.execute(step_stmt)
-        
-        # Agent Run
-        run_id = uuid.uuid4()
-        run = AgentRun(
-            id=run_id,
-            workflow_step_id=step_id,
-            agent_type="planner",
-            status="running",
-            started_at=datetime.utcnow(),
-            input_context={"raw_query": state["raw_query"]}
-        )
-        db.add(run)
-        await db.commit()
-    except Exception as e:
-        logger.error(f"Error creating DB records for planner: {e}")
-        await db.rollback()
-        raise
+    if db and objective_id:
+        try:
+            obj_uuid = uuid.UUID(objective_id)
+            workflow_id = uuid.uuid5(obj_uuid, "workflow")
+            step_id = uuid.uuid5(workflow_id, f"planner_{workflow_iteration}")
+            
+            # Ensure Workflow exists
+            workflow_stmt = insert(Workflow).values(
+                id=workflow_id, objective_id=obj_uuid
+            ).on_conflict_do_nothing()
+            await db.execute(workflow_stmt)
+            
+            # Ensure Step exists
+            step_order = (workflow_iteration * 10) + 1  # 11, 21, 31...
+            step_stmt = insert(WorkflowStep).values(
+                id=step_id, workflow_id=workflow_id, step_order=step_order, 
+                iteration=workflow_iteration, intent_type="planning"
+            ).on_conflict_do_nothing()
+            await db.execute(step_stmt)
+            
+            # Agent Run
+            run_id = uuid.uuid4()
+            run = AgentRun(
+                id=run_id,
+                workflow_step_id=step_id,
+                agent_type="planner",
+                status="running",
+                started_at=datetime.utcnow(),
+                input_context={"raw_query": state.get("raw_query", "")}
+            )
+            db.add(run)
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Error creating DB records for planner: {e}")
+            await db.rollback()
 
     try:
         llm = get_llm(temperature=0.1)
@@ -107,21 +103,29 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
         state["research_tasks"] = research_tasks
         
         # Database Logging - Complete
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        run.output_summary = response.model_dump()
-        db.add(run)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "completed"
+                run.completed_at = datetime.utcnow()
+                run.output_summary = response.model_dump()
+                db.add(run)
+                await db.commit()
+            except Exception as run_err:
+                logger.warning(f"Telemetry save error: {run_err}")
         
         return state
         
     except Exception as e:
         logger.error(f"Planner failed: {e}")
-        run.status = "failed"
-        run.error = str(e)
-        run.completed_at = datetime.utcnow()
-        db.add(run)
-        await db.commit()
+        if db and 'run' in locals():
+            try:
+                run.status = "failed"
+                run.error = str(e)
+                run.completed_at = datetime.utcnow()
+                db.add(run)
+                await db.commit()
+            except Exception:
+                pass
         
         # Set a safe fallback state
         state["workflow_status"] = "failed"

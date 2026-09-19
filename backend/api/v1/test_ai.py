@@ -95,19 +95,19 @@ async def test_upload_and_process(
             os.remove(file_path)
 
 
+from api.deps import DEV_USER_ID, get_current_supabase_user
+
 @router.post("/ask")
 async def test_ask_question(
     question: str = Form(...),
     document_title: Optional[str] = Form(None),
-    user_payload: dict = Depends(get_current_supabase_user)
+    user_payload: Optional[dict] = Depends(get_current_supabase_user)
 ):
     """
     Test the RAG pipeline:
     Question → Embed → Search Qdrant → LLM Generate → Response with Citations
     """
-    user_id = user_payload.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+    user_id = (user_payload or {}).get("sub", DEV_USER_ID)
         
     response = await rag_pipeline.query(
         user_query=question,
@@ -128,15 +128,13 @@ async def test_ask_question(
 @router.get("/search")
 async def test_search(
     query: str,
-    user_payload: dict = Depends(get_current_supabase_user)
+    user_payload: Optional[dict] = Depends(get_current_supabase_user)
 ):
     """
     Test semantic search only (without LLM generation).
     Returns relevant chunks from Qdrant.
     """
-    user_id = user_payload.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+    user_id = (user_payload or {}).get("sub", DEV_USER_ID)
         
     results = vector_store.search_similar(
         query=query,
