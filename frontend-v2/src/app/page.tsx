@@ -11,15 +11,9 @@ export default function RootPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (currentSpace) {
-        router.replace(`/spaces/${currentSpace.id}`);
-      } else if (spaces.length > 0) {
-        router.replace(`/spaces/${spaces[0].id}`);
-      } else {
-        router.replace("/spaces");
-      }
+      router.replace("/home");
     }
-  }, [isLoading, currentSpace, spaces, router]);
+  }, [isLoading, router]);
 
   return (
     <div className="min-h-screen w-screen flex items-center justify-center p-8 bg-[var(--bg-app)]">

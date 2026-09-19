@@ -139,3 +139,15 @@ export function getSpaceArchetype(space: Space | null | undefined): SpaceArchety
 
   return SPACE_ARCHETYPES.custom;
 }
+
+export function resolveSpaceIcon(icon?: string | null, fallback?: string): string {
+  if (!icon) return fallback || "🧠";
+  const trimmed = icon.trim().toLowerCase();
+  if (trimmed === "folder" || trimmed === "default") return "📁";
+  if (trimmed === "study" || trimmed === "book") return "📚";
+  if (trimmed === "tasks" || trimmed === "task" || trimmed === "zap") return "⚡";
+  if (trimmed === "research" || trimmed === "flask") return "🔬";
+  if (trimmed === "executive" || trimmed === "strategy" || trimmed === "briefcase") return "💼";
+  return icon;
+}
+
