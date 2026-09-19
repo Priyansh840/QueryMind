@@ -123,7 +123,7 @@ export default function SpaceMemoryPage({
                 <span>Invariant Memory & Beliefs Ledger</span>
               </h1>
               <div className="text-xs text-slate-400 font-mono">
-                {memories.length} Active Axioms • {concepts.length} Qdrant Vector Concepts
+                {memories.length} Active Axioms • {concepts.length} Grounded Concepts
               </div>
             </div>
           </div>
