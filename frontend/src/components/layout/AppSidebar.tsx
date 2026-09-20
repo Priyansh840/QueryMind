@@ -1,22 +1,82 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
+import { supabase } from "@/lib/supabase";
+import { authApi } from "@/lib/api";
+import {
+  Clock,
+  User,
+  Settings,
+  HelpCircle,
+  LogOut,
+  ChevronRight,
+  Sparkles,
+  Moon,
+  Sun,
+  BookOpen,
+} from "lucide-react";
 
 export default function AppSidebar() {
+  const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
   const setRoute = useMyndStore((state) => state.setRoute);
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const openSettings = useMyndStore((state) => state.openSettings);
+  const openEditProfile = useMyndStore((state) => state.openEditProfile);
   const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
-  const toggleTheme = useMyndStore((state) => state.toggleTheme);
   const userProfile = useMyndStore((state) => state.userProfile);
+  const theme = useMyndStore((state) => state.theme);
+  const toggleTheme = useMyndStore((state) => state.toggleTheme);
 
   const pathname = usePathname();
+
+  const initials = (() => {
+    const name = userProfile.name || "User";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  })();
+
+  // Close popover when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  const handleLogout = async () => {
+    setIsMenuOpen(false);
+    useMyndStore.getState().clearAllData();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+    authApi.logout();
+  };
 
   // Helper to check active route from the actual URL
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
@@ -163,32 +223,45 @@ export default function AppSidebar() {
             </span>
           </div>
 
-          {spaces.map((space, idx) => {
-            const isSpaceActive = pathname === `/spaces/${space.id}`;
-            return (
-              <Link
-                key={`sidebar-space-${space.id}-${idx}`}
-                href={`/spaces/${space.id}`}
-                className={`nav-item nav-space ${isSpaceActive ? "active" : ""}`}
-                onClick={() => selectSpace(space.id)}
-                style={{ textDecoration: "none" }}
-              >
-                <div className="nav-item-left">
-                  <span className="nav-item-icon">
-                    <span
-                      className="space-dot"
-                      style={{
-                        background: isSpaceActive ? "#FFFFFF" : "#737373",
-                        boxShadow: "none",
-                      }}
-                    />
-                  </span>
-                  <span>{space.name}</span>
-                </div>
-                <span className="nav-item-badge">{space.count}</span>
-              </Link>
-            );
-          })}
+          {spaces.length === 0 ? (
+            <div
+              style={{
+                padding: "8px 12px",
+                fontSize: "12px",
+                color: "var(--text-tertiary)",
+                fontStyle: "italic",
+              }}
+            >
+              No spaces yet
+            </div>
+          ) : (
+            spaces.map((space, idx) => {
+              const isSpaceActive = pathname === `/spaces/${space.id}`;
+              return (
+                <Link
+                  key={`sidebar-space-${space.id}-${idx}`}
+                  href={`/spaces/${space.id}`}
+                  className={`nav-item nav-space ${isSpaceActive ? "active" : ""}`}
+                  onClick={() => selectSpace(space.id)}
+                  style={{ textDecoration: "none" }}
+                >
+                  <div className="nav-item-left">
+                    <span className="nav-item-icon">
+                      <span
+                        className="space-dot"
+                        style={{
+                          background: isSpaceActive ? "#FFFFFF" : "#737373",
+                          boxShadow: "none",
+                        }}
+                      />
+                    </span>
+                    <span>{space.name}</span>
+                  </div>
+                  <span className="nav-item-badge">{space.count}</span>
+                </Link>
+              );
+            })
+          )}
 
           <a
             className="nav-item nav-add-space"
@@ -217,55 +290,242 @@ export default function AppSidebar() {
         </div>
       </nav>
 
-      {/* Sidebar Footer */}
-      <div className="sidebar-footer">
-        <div className="user-profile-bar" onClick={() => openSettings("general")}>
-          <div className="user-avatar-wrapper">
+      {/* Sidebar Footer with ChatGPT-style Popover Menu & Utility Actions */}
+      <div
+        className="sidebar-footer"
+        ref={popoverRef}
+      >
+        {/* Floating Popover Menu */}
+        {isMenuOpen && (
+          <div className="chatgpt-popover">
+            {/* Header User Item */}
             <div
-              className="text-avatar"
+              className="chatgpt-popover-item"
+              onClick={() => {
+                setIsMenuOpen(false);
+                openEditProfile();
+              }}
+              style={{ justifyContent: "space-between" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: "#D97706",
+                    color: "#FFFFFF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    overflow: "hidden",
+                  }}
+                >
+                  {userProfile.avatarUrl ? (
+                    <img
+                      src={userProfile.avatarUrl}
+                      alt={userProfile.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>
+                    {userProfile.name}
+                  </span>
+                  <span style={{ fontSize: "11px", color: "#8E8E93" }}>
+                    {userProfile.username ? `@${userProfile.username}` : "Free"}
+                  </span>
+                </div>
+              </div>
+              <ChevronRight size={14} style={{ color: "#8E8E93" }} />
+            </div>
+
+            <div className="chatgpt-popover-divider" />
+
+            {/* Personalization */}
+            <div
+              className="chatgpt-popover-item"
+              onClick={() => {
+                setIsMenuOpen(false);
+                router.push("/personalization");
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                <Sparkles size={16} style={{ color: "#D1D5DB" }} />
+                <span>Personalization</span>
+              </div>
+            </div>
+
+            {/* Profile */}
+            <div
+              className="chatgpt-popover-item"
+              onClick={() => {
+                setIsMenuOpen(false);
+                openEditProfile();
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                <User size={16} style={{ color: "#D1D5DB" }} />
+                <span>Profile</span>
+              </div>
+            </div>
+
+            {/* Settings */}
+            <div
+              className="chatgpt-popover-item"
+              onClick={() => {
+                setIsMenuOpen(false);
+                openSettings("general");
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                <Settings size={16} style={{ color: "#D1D5DB" }} />
+                <span>Settings</span>
+              </div>
+            </div>
+
+            <div className="chatgpt-popover-divider" />
+
+            {/* Help & User Manual */}
+            <div
+              className="chatgpt-popover-item"
+              onClick={() => {
+                setIsMenuOpen(false);
+                openSettings("shortcuts");
+              }}
+              style={{ justifyContent: "space-between" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <HelpCircle size={16} style={{ color: "#D1D5DB" }} />
+                <span>Help & User Manual</span>
+              </div>
+              <ChevronRight size={14} style={{ color: "#8E8E93" }} />
+            </div>
+
+            {/* Log out */}
+            <div
+              className="chatgpt-popover-item"
+              onClick={handleLogout}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                <LogOut size={16} style={{ color: "#D1D5DB" }} />
+                <span>Log out</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* User Bar Trigger */}
+        <div
+          className="user-profile-bar"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsMenuOpen((prev) => !prev);
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 10px",
+            borderRadius: "12px",
+            cursor: "pointer",
+            transition: "background 150ms ease",
+            background: isMenuOpen ? "rgba(255, 255, 255, 0.08)" : "transparent",
+            width: "100%",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+            <div
               style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "4px",
-                background: "var(--surface-subtle)",
-                color: "var(--text-primary)",
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                background: "#D97706",
+                color: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "12px",
-                fontWeight: 600,
+                fontWeight: 700,
                 flexShrink: 0,
+                letterSpacing: "0.5px",
+                overflow: "hidden",
               }}
             >
-              {userProfile.name.charAt(0)}
+              {userProfile.avatarUrl ? (
+                <img
+                  src={userProfile.avatarUrl}
+                  alt={userProfile.name}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                initials
+              )}
             </div>
-            <span className="user-name-text">{userProfile.name}</span>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#FFFFFF",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {userProfile.name}
+              </span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#8E8E93",
+                  lineHeight: "1.2",
+                }}
+              >
+                Free
+              </span>
+            </div>
           </div>
-          <span className="user-chevron">
-            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+
+          <span className="user-chevron" style={{ color: "#8E8E93", display: "flex", alignItems: "center" }}>
+            <ChevronRight size={16} />
           </span>
         </div>
 
+        {/* Sidebar Utility Bar (Settings, User Manual, Theme) */}
         <div className="sidebar-utility-bar">
-          <button className="sidebar-utility-btn" onClick={() => openSettings("general")} title="Settings">
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+          <button
+            type="button"
+            className="sidebar-utility-btn"
+            onClick={() => openSettings("general")}
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Settings size={14} />
           </button>
-          <button className="sidebar-utility-btn" onClick={() => openSettings("autonomy")} title="Help & Autonomy">
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
+          <button
+            type="button"
+            className="sidebar-utility-btn"
+            onClick={() => openSettings("shortcuts")}
+            title="User Manual & Shortcuts"
+            aria-label="User Manual & Shortcuts"
+          >
+            <BookOpen size={14} />
           </button>
-          <button className="sidebar-utility-btn" onClick={toggleTheme} title="Toggle Theme">
-            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
+          <button
+            type="button"
+            className="sidebar-utility-btn"
+            onClick={toggleTheme}
+            title={`Toggle Theme (${theme})`}
+            aria-label="Toggle Theme"
+          >
+            {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
           </button>
         </div>
       </div>

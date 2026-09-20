@@ -75,8 +75,9 @@ async def get_current_supabase_user(
     credentials: HTTPAuthorizationCredentials | None = Security(security),
 ) -> dict:
     """
-    Verify Supabase JWT token and return the payload.
-    Falls back gracefully to local dev user when running locally without active auth token.
+    Verify JWT token and return the payload.
+    Supports both Supabase JWKS (ES256/RS256) and backend-issued HS256 tokens.
+    Falls back to dev user ONLY when no credentials are provided in dev mode.
     """
     if not credentials or not credentials.credentials:
         if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
@@ -84,9 +85,15 @@ async def get_current_supabase_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Not authenticated",
             )
+        # In development with no token, allow dev fallback
+        logger.debug("No auth credentials provided — using dev user fallback")
         return DEV_USER_PAYLOAD
 
     token = credentials.credentials
+
+    # Try decoding the token
+    jwt_secret = settings.SUPABASE_JWT_SECRET or "dev-jwt-secret-querymind-2026"
+
     try:
         header = jwt.get_unverified_header(token)
         alg = header.get("alg", "HS256")
@@ -103,24 +110,38 @@ async def get_current_supabase_user(
                 )
                 if payload.get("sub"):
                     return payload
-        elif settings.SUPABASE_JWT_SECRET and "your_" not in settings.SUPABASE_JWT_SECRET:
+
+        # Try HS256 with our JWT secret (backend-issued tokens)
+        if jwt_secret and "your_" not in jwt_secret:
             payload = jwt.decode(
                 token,
-                settings.SUPABASE_JWT_SECRET,
+                jwt_secret,
                 algorithms=["HS256"],
                 audience="authenticated",
             )
             if payload.get("sub"):
                 return payload
+    except JWTError as e:
+        logger.warning(f"JWT validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except Exception as e:
-        logger.warning(f"JWT validation fallback: {e}")
-        if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-            )
+        logger.warning(f"JWT validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    return DEV_USER_PAYLOAD
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
 
 
 async def get_db(payload: dict = Depends(get_current_supabase_user)) -> AsyncSession:

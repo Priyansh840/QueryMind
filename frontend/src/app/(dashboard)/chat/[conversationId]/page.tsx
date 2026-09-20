@@ -20,7 +20,7 @@ import {
   AlertCircle,
   Paperclip,
 } from "lucide-react";
-import { queryMindApi, TraceEvent, ObjectiveTraceData } from "@/lib/api";
+import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
@@ -250,8 +250,15 @@ export default function ConversationPage() {
     setDecisionInsight(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token = getAuthToken();
+      if (!token) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          token = session?.access_token || null;
+        } catch {
+          // offline / dev fallback
+        }
+      }
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -259,12 +266,16 @@ export default function ConversationPage() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      const personalization = useMyndStore.getState().personalization;
       const response = await fetch(`/api/v1/conversations/${conversationId}/messages`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           role: "user",
           content: textToSend,
+          metadata_json: {
+            personalization,
+          },
         }),
       });
 

@@ -124,5 +124,25 @@ def format_workspace_context(workspace_context: Optional[Dict[str, Any]]) -> str
             )
         context_str += "</lessons_learned>\n\n"
 
+    if workspace_context.get("personalization"):
+        p = workspace_context["personalization"]
+        context_str += "<ai_personalization_directives>\n"
+        if p.get("cognitiveStyle"):
+            context_str += f"- Cognitive Reasoning Architecture: {p['cognitiveStyle'].replace('_', ' ').title()}\n"
+        if p.get("verbosity"):
+            context_str += f"- Response Depth & Verbosity: {p['verbosity'].replace('_', ' ').title()}\n"
+        if p.get("codeStandard"):
+            context_str += f"- Engineering Standard: {p['codeStandard'].replace('_', ' ').title()}\n"
+        if p.get("formattingPreference"):
+            context_str += f"- Preferred Formatting: {p['formattingPreference'].replace('_', ' ').title()}\n"
+        if p.get("userContext"):
+            context_str += f"- User Background & Domain Context: {p['userContext']}\n"
+        if p.get("customDirectives"):
+            context_str += f"- Strict User Behavioral Directives: {p['customDirectives']}\n"
+        if p.get("strictGrounding"):
+            context_str += "- Strict Grounding Policy: Enforce strict citations from indexed workspace documents only.\n"
+        if p.get("crossSpaceSynthesis"):
+            context_str += "- Cross-Space Synthesis Policy: Permitted to draw connections across user spaces.\n"
+        context_str += "</ai_personalization_directives>\n\n"
     context_str += "WORKSPACE CONTEXT END"
     return context_str

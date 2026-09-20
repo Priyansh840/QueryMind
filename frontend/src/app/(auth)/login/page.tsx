@@ -18,15 +18,15 @@ import {
   AlertCircle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import api from "@/lib/api";
+import api, { authApi } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function LoginPage() {
   const router = useRouter();
   const hasCompletedOnboarding = useMyndStore((state) => state.hasCompletedOnboarding);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("alex@querymind.ai");
-  const [password, setPassword] = useState("••••••••••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(true);
@@ -52,73 +52,53 @@ export default function LoginPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes("placeholder");
 
     try {
+      const pwd = password && !password.includes("••") ? password : "password123";
+
       if (mode === "signin") {
-        if (isPlaceholder) {
-          navigateAfterAuth();
-          return;
-        }
-
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password: password && !password.includes("••") ? password : "password123",
-        });
-
-        if (signInError) {
-          // If Supabase key is invalid in local dev, allow seamless progression
-          if (signInError.message?.toLowerCase().includes("api key") || signInError.message?.toLowerCase().includes("fetch")) {
-            console.warn("Dev mode auth bypass (invalid key/offline):", signInError.message);
-            navigateAfterAuth();
-            return;
+        try {
+          await authApi.login({ email, password: pwd });
+        } catch (loginErr: any) {
+          if (loginErr?.response?.status === 401 || loginErr?.response?.data?.detail) {
+            throw new Error(loginErr?.response?.data?.detail || "Invalid email or password");
           }
-          throw signInError;
+          // Fallback to supabase if online
+          if (!isPlaceholder) {
+            const { error: sbErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
+            if (sbErr) throw sbErr;
+          }
         }
-
-        if (data?.session) {
-          api.post("/auth/sync", {
-            email: data.user.email,
-            display_name: data.user.user_metadata?.full_name || data.user.user_metadata?.display_name || email.split("@")[0],
-          }).catch((syncErr) => {
-            console.warn("Backend sync notice:", syncErr);
-          });
-        }
-
-        navigateAfterAuth();
       } else {
-        if (isPlaceholder) {
-          navigateAfterAuth();
-          return;
-        }
-
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: password && !password.includes("••") ? password : "password123",
-          options: { data: { full_name: name || email.split("@")[0] } },
-        });
-
-        if (signUpError) {
-          if (signUpError.message?.toLowerCase().includes("api key") || signUpError.message?.toLowerCase().includes("fetch")) {
-            console.warn("Dev mode auth bypass (invalid key/offline):", signUpError.message);
-            navigateAfterAuth();
-            return;
-          }
-          throw signUpError;
-        }
-
-        if (data?.session) {
-          api.post("/auth/sync", {
-            email: data.user?.email || email,
+        try {
+          await authApi.register({
+            email,
+            password: pwd,
             display_name: name || email.split("@")[0],
-          }).catch(() => {});
+          });
+        } catch (regErr: any) {
+          if (regErr?.response?.data?.detail) {
+            throw new Error(regErr.response.data.detail);
+          }
+          if (!isPlaceholder) {
+            const { error: sbErr } = await supabase.auth.signUp({
+              email,
+              password: pwd,
+              options: { data: { full_name: name || email.split("@")[0] } },
+            });
+            if (sbErr) throw sbErr;
+          }
         }
+      }
 
-        navigateAfterAuth();
+      // Sync user profile, real spaces and knowledge from backend
+      try {
+        await useMyndStore.getState().syncWithBackend();
+      } catch (syncErr) {
+        console.warn("Backend sync notice:", syncErr);
       }
+
+      navigateAfterAuth();
     } catch (err: any) {
-      if (isPlaceholder || err?.message?.toLowerCase().includes("api key") || err?.message?.toLowerCase().includes("fetch")) {
-        navigateAfterAuth();
-        return;
-      }
-      setError(err?.message || "Authentication error. Please check your credentials.");
+      setError(err?.message || "Authentication failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }

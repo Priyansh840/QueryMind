@@ -24,15 +24,15 @@ export default function OnboardingPage() {
   const provisionSpacesFromInterests = useMyndStore((state) => state.provisionSpacesFromInterests);
   const setHasCompletedOnboarding = useMyndStore((state) => state.setHasCompletedOnboarding);
 
-  // Default select the first two popular ones
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(["engineering", "ai_research"]);
+  // Start with empty or user-selected interests
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [workspaceName, setWorkspaceName] = useState("My Second Brain");
   const [isProvisioning, setIsProvisioning] = useState(false);
 
   const toggleInterest = (id: string) => {
     setSelectedInterests((prev) => 
       prev.includes(id) 
-        ? prev.length > 1 ? prev.filter((item) => item !== id) : prev // keep at least 1
+        ? prev.filter((item) => item !== id) 
         : [...prev, id]
     );
   };
@@ -43,6 +43,7 @@ export default function OnboardingPage() {
     .flatMap((p) => p.spacesToCreate);
 
   const handleLaunch = () => {
+    if (selectedInterests.length === 0) return;
     setIsProvisioning(true);
     provisionSpacesFromInterests(selectedInterests);
     setHasCompletedOnboarding(true);
@@ -140,7 +141,7 @@ export default function OnboardingPage() {
           onClick={handleSkip}
           className="text-xs text-slate-400 hover:text-slate-200 transition-colors py-1.5 px-3 rounded-lg hover:bg-white/[0.04]"
         >
-          Skip to default spaces →
+          Skip for now →
         </button>
       </header>
 
@@ -351,29 +352,39 @@ export default function OnboardingPage() {
                 height: "42px",
                 padding: "0 22px",
                 borderRadius: "10px",
-                background: "#FFFFFF",
+                background: previewSpaces.length === 0 ? "rgba(255, 255, 255, 0.2)" : "#FFFFFF",
                 border: "none",
-                color: "#000000",
+                color: previewSpaces.length === 0 ? "#737373" : "#000000",
                 fontSize: "13px",
                 fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
-                cursor: "pointer",
-                boxShadow: "0 4px 16px rgba(255, 255, 255, 0.15)",
+                cursor: previewSpaces.length === 0 ? "not-allowed" : "pointer",
+                boxShadow: previewSpaces.length === 0 ? "none" : "0 4px 16px rgba(255, 255, 255, 0.15)",
                 transition: "all 150ms ease",
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#E5E5E5";
-                e.currentTarget.style.transform = "translateY(-1px)";
+                if (previewSpaces.length > 0) {
+                  e.currentTarget.style.background = "#E5E5E5";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#FFFFFF";
-                e.currentTarget.style.transform = "translateY(0)";
+                if (previewSpaces.length > 0) {
+                  e.currentTarget.style.background = "#FFFFFF";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }
               }}
             >
-              <span>{isProvisioning ? "Provisioning Spaces..." : `Enter Home Page (${previewSpaces.length} Spaces)`}</span>
+              <span>
+                {isProvisioning
+                  ? "Provisioning Spaces..."
+                  : previewSpaces.length === 0
+                  ? "Select Interests to Continue"
+                  : `Enter Home Page (${previewSpaces.length} Spaces)`}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

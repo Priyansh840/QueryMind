@@ -310,6 +310,7 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             "documents": documents_data,
             "recent_action_outcomes": outcomes_data,
             "lessons_learned": reflections_data,
+            "personalization": state.get("personalization"),
         }
 
         summary = {

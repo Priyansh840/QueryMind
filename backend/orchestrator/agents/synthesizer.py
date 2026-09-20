@@ -89,6 +89,38 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         ctx_str = format_workspace_context(state.get("workspace_context"))
         if ctx_str:
             system_prompt += f"\n\n{ctx_str}"
+
+        personalization = state.get("personalization") or (state.get("workspace_context") or {}).get("personalization")
+        if personalization:
+            cog_style = personalization.get("cognitiveStyle", "")
+            if cog_style == "first_principles":
+                system_prompt += "\n\nCOGNITIVE STYLE: First-Principles Architect. Deconstruct problems to fundamental components, emphasize systems architecture, trade-offs, and causality."
+            elif cog_style == "executive":
+                system_prompt += "\n\nCOGNITIVE STYLE: Executive Synthesizer. Deliver dense, high-impact bulleted briefings with clear action items and minimal preamble."
+            elif cog_style == "socratic":
+                system_prompt += "\n\nCOGNITIVE STYLE: Socratic Sparring Partner. Challenge implicit assumptions, highlight potential blind spots, and propose alternative perspectives."
+            elif cog_style == "speed":
+                system_prompt += "\n\nCOGNITIVE STYLE: Fast Builder. Be ultra-concise, practical, and direct. Provide immediate working code and execution steps."
+
+            verbosity = personalization.get("verbosity", "")
+            if verbosity == "concise":
+                system_prompt += "\nVERBOSITY: Be highly concise. Deliver essential points without filler."
+            elif verbosity == "deep_dive":
+                system_prompt += "\nVERBOSITY: Provide an exhaustive deep-dive breakdown with thorough analysis."
+
+            code_std = personalization.get("codeStandard", "")
+            if code_std == "staff_engineer":
+                system_prompt += "\nCODE STANDARD: Staff Engineer. Write production-grade code with strict typing, robust error handling, and scalable design patterns."
+            elif code_std == "academic":
+                system_prompt += "\nCODE STANDARD: Academic & Formal. Emphasize algorithmic proofs, computational complexity, and theoretical foundations."
+
+            directives = personalization.get("customDirectives")
+            if directives:
+                system_prompt += f"\nUSER DIRECTIVE: {directives}"
+
+            user_ctx = personalization.get("userContext")
+            if user_ctx:
+                system_prompt += f"\nUSER BACKGROUND: {user_ctx}"
         
         planner_out = state.get("planner_output", {})
         results = state.get("research_results", [])

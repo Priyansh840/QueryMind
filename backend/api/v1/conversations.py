@@ -152,7 +152,8 @@ async def send_message(
         id=user_msg_id,
         conversation_id=conversation.id,
         role="user",
-        content=request.content
+        content=request.content,
+        metadata_json=request.metadata_json,
     )
     db.add(user_msg)
     await db.commit()
@@ -181,6 +182,8 @@ async def send_message(
     db.add(objective)
     await db.commit()
 
+    personalization = (request.metadata_json or {}).get("personalization") if request.metadata_json else None
+
     async def sse_generator():
         # Yield message.created for user msg
         yield f"data: {json.dumps({'event': 'message.created', 'data': {'id': str(user_msg_id), 'role': 'user', 'content': request.content}})}\n\n"
@@ -192,6 +195,7 @@ async def send_message(
             "user_id": str(current_user.id),
             "space_id": str(conversation.space_id),
             "objective_id": str(objective_id),
+            "personalization": personalization,
         }
         
         # We need a new session inside the generator because FastAPI background tasks/streaming

@@ -18,7 +18,8 @@ import {
   AlertCircle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import api from "@/lib/api";
+import api, { authApi } from "@/lib/api";
+import { useMyndStore } from "@/lib/mynd-store";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -43,37 +44,38 @@ export default function RegisterPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes("placeholder");
 
     try {
-      if (isPlaceholder) {
-        router.push("/onboarding");
-        return;
-      }
+      const pwd = password || "password123";
+      const displayName = name || email.split("@")[0];
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: password || "password123",
-        options: { data: { full_name: name || email.split("@")[0] } },
-      });
-
-      if (signUpError) {
-        if (signUpError.message?.toLowerCase().includes("api key") || signUpError.message?.toLowerCase().includes("fetch")) {
-          router.push("/onboarding");
-          return;
+      try {
+        await authApi.register({
+          email,
+          password: pwd,
+          display_name: displayName,
+        });
+      } catch (regErr: any) {
+        if (regErr?.response?.data?.detail) {
+          throw new Error(regErr.response.data.detail);
         }
-        throw signUpError;
+        if (!isPlaceholder) {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password: pwd,
+            options: { data: { full_name: displayName } },
+          });
+          if (signUpError) throw signUpError;
+        }
       }
 
-      if (data?.session) {
-        api.post("/auth/sync", {
-          email: data.user?.email || email,
-          display_name: name || email.split("@")[0],
-        }).catch(() => {});
+      // Sync user profile and spaces
+      try {
+        await useMyndStore.getState().syncWithBackend();
+      } catch (syncErr) {
+        console.warn("Backend sync notice:", syncErr);
       }
+
       router.push("/onboarding");
     } catch (err: any) {
-      if (isPlaceholder || err?.message?.toLowerCase().includes("api key") || err?.message?.toLowerCase().includes("fetch")) {
-        router.push("/onboarding");
-        return;
-      }
       setError(err?.message || "Failed to create account.");
     } finally {
       setLoading(false);

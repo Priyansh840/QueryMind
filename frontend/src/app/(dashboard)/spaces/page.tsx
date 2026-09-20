@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
+import { queryMindApi } from "@/lib/api";
 import AnimatedCounter from "@/components/ui/AnimatedCounter";
 
 const CATEGORY_TAGS = [
@@ -20,6 +21,7 @@ export default function SpacesDirectoryPage() {
   const spaces = useMyndStore((state) => state.spaces);
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
+  const deleteSpace = useMyndStore((state) => state.deleteSpace);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,8 +36,8 @@ export default function SpacesDirectoryPage() {
   }, [spaces, uploadedDocuments]);
 
   const totalVectors = useMemo(() => {
-    return totalObjects * 35 + 420;
-  }, [totalObjects]);
+    return uploadedDocuments.reduce((acc, d) => acc + (d.vectorsStored || d.chunks || 1), 0);
+  }, [uploadedDocuments]);
 
   const activeAgents = useMemo(() => {
     return spaces.filter((s) => s.agentPersona?.status === "active" || s.agentPersona).length;
@@ -52,11 +54,11 @@ export default function SpacesDirectoryPage() {
       if (!matchesSearch) return false;
 
       if (selectedCategory === "all") return true;
-      if (selectedCategory === "engineering") return s.id === "career" || s.name.toLowerCase().includes("engineer") || s.name.toLowerCase().includes("system");
-      if (selectedCategory === "research") return s.id === "research" || s.name.toLowerCase().includes("ai") || s.name.toLowerCase().includes("paper");
-      if (selectedCategory === "product") return s.id === "startup" || s.name.toLowerCase().includes("product");
-      if (selectedCategory === "academics") return s.id === "college" || s.name.toLowerCase().includes("college") || s.name.toLowerCase().includes("study");
-      if (selectedCategory === "creative") return s.id === "ideas" || s.id === "personal" || s.name.toLowerCase().includes("idea");
+      if (selectedCategory === "engineering") return s.name.toLowerCase().includes("engineer") || s.name.toLowerCase().includes("system") || s.name.toLowerCase().includes("career") || s.desc.toLowerCase().includes("architecture");
+      if (selectedCategory === "research") return s.name.toLowerCase().includes("research") || s.name.toLowerCase().includes("ai") || s.name.toLowerCase().includes("neural") || s.desc.toLowerCase().includes("paper");
+      if (selectedCategory === "product") return s.name.toLowerCase().includes("product") || s.name.toLowerCase().includes("startup") || s.desc.toLowerCase().includes("strategy");
+      if (selectedCategory === "academics") return s.name.toLowerCase().includes("college") || s.name.toLowerCase().includes("academic") || s.name.toLowerCase().includes("study") || s.name.toLowerCase().includes("course");
+      if (selectedCategory === "creative") return s.name.toLowerCase().includes("idea") || s.name.toLowerCase().includes("creative") || s.name.toLowerCase().includes("personal") || s.name.toLowerCase().includes("vault");
       return true;
     });
   }, [spaces, searchQuery, selectedCategory]);
@@ -241,6 +243,64 @@ export default function SpacesDirectoryPage() {
           gap: "20px",
         }}
       >
+        {spaces.length === 0 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              padding: "48px 24px",
+              textAlign: "center",
+              borderRadius: "16px",
+              background: "var(--surface)",
+              border: "1px dashed var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
+              No Spaces Provisioned Yet
+            </div>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", maxWidth: "440px", margin: 0, lineHeight: 1.5 }}>
+              Your workspace starts clean. You can choose domain presets from the interests page, or create custom spaces tailored to your work.
+            </p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+              <button
+                onClick={openCreateSpace}
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#FFFFFF",
+                  color: "#000000",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                + Create New Space
+              </button>
+              <Link
+                href="/onboarding"
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-primary)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                Browse Interests
+              </Link>
+            </div>
+          </div>
+        )}
+
         {filteredSpaces.map((space, idx) => {
           const spaceDocs = uploadedDocuments.filter((d) => d.spaceId === space.id);
           const docCount = Math.max(space.count, spaceDocs.length);
@@ -324,20 +384,58 @@ export default function SpacesDirectoryPage() {
                   </div>
                 </div>
 
-                <span
-                  className="badge"
-                  style={{
-                    fontSize: "11px",
-                    background: "rgba(255, 255, 255, 0.08)",
-                    color: "#FFFFFF",
-                    border: "1px solid rgba(255, 255, 255, 0.18)",
-                    padding: "3px 10px",
-                    borderRadius: "12px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {space.pinned ? "Pinned" : "Space"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: "11px",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      color: "#FFFFFF",
+                      border: "1px solid rgba(255, 255, 255, 0.18)",
+                      padding: "3px 10px",
+                      borderRadius: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {space.pinned ? "Pinned" : "Space"}
+                  </span>
+                  <button
+                    type="button"
+                    title={`Delete "${space.name}"`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to remove space "${space.name}"?`)) {
+                        deleteSpace(space.id);
+                        queryMindApi.deleteSpace(space.id).catch((err) => console.warn("Backend delete space error:", err));
+                      }
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-tertiary)",
+                      cursor: "pointer",
+                      padding: "4px",
+                      borderRadius: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 150ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#EF4444";
+                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-tertiary)";
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Description */}

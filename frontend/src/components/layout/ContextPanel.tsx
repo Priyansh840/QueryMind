@@ -52,6 +52,7 @@ export default function ContextPanel() {
     );
   }, [spaces, activeSpaceId]);
 
+  const spaceName = currentSpace?.name || "Workspace";
   const spaceColor = "#FFFFFF";
 
   // Check if content looks like code
@@ -100,7 +101,7 @@ export default function ContextPanel() {
   const handleAskAiSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!askAiQuery.trim()) return;
-    const targetPrefix = activeDoc ? `Regarding ${activeDoc.title}` : `In ${currentSpace.name} Space`;
+    const targetPrefix = activeDoc ? `Regarding ${activeDoc.title}` : `In ${spaceName} Space`;
     openAskAi(`${targetPrefix}: ${askAiQuery}`);
     setAskAiQuery("");
   };
@@ -146,7 +147,7 @@ export default function ContextPanel() {
 
         {/* Space Aura Dot */}
         <div
-          title={`${currentSpace.name} Domain Active`}
+          title={`${spaceName} Domain Active`}
           style={{
             width: "32px",
             height: "32px",
@@ -166,8 +167,8 @@ export default function ContextPanel() {
 
         {/* Resident AI trigger */}
         <button
-          onClick={() => openAskAi(`${currentSpace.name} Space`)}
-          title={`Ask ${currentSpace.agentPersona?.name || "Resident AI"}`}
+          onClick={() => openAskAi(`${spaceName} Space`)}
+          title={`Ask ${currentSpace?.agentPersona?.name || "Resident AI"}`}
           style={{
             width: "32px",
             height: "32px",
@@ -251,12 +252,12 @@ export default function ContextPanel() {
                   textOverflow: "ellipsis",
                 }}
               >
-                {activeDoc ? activeDoc.title : `${currentSpace.name} Domain`}
+                {activeDoc ? activeDoc.title : `${spaceName} Domain`}
               </span>
             </div>
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "1px" }}>
               {activeDoc
-                ? `${activeDoc.type || "Document"} • In ${currentSpace.name}`
+                ? `${activeDoc.type || "Document"} • In ${spaceName}`
                 : "Active Neural Workspace"}
             </div>
           </div>
@@ -496,9 +497,9 @@ export default function ContextPanel() {
                     {(activeDoc.keyIdeas && activeDoc.keyIdeas.length > 0
                       ? activeDoc.keyIdeas
                       : [
-                          "Verified Vector Indexing",
-                          "Domain Scope: " + currentSpace.name,
+                          activeDoc.title,
                           "Semantic Cohesion: High",
+                          "Domain Scope: " + spaceName,
                         ]
                     ).map((highlight, idx) => (
                       <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
@@ -551,11 +552,11 @@ export default function ContextPanel() {
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
                         <TrendingUp style={{ width: "14px", height: "14px", color: "#10B981", flexShrink: 0 }} />
                         <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
-                          Cross-reference with {currentSpace.name} milestones
+                          Cross-reference with {spaceName} milestones
                         </span>
                       </div>
                       <button
-                        onClick={() => openAskAi(`Cross-reference "${activeDoc.title}" with current milestones in ${currentSpace.name}`)}
+                        onClick={() => openAskAi(`Cross-reference "${activeDoc.title}" with current milestones in ${spaceName}`)}
                         style={{
                           fontSize: "11px",
                           fontWeight: 600,
@@ -612,7 +613,7 @@ export default function ContextPanel() {
               /* If no document selected: render Space & Neural Intelligence Hub */
               <>
                 {/* Resident Specialist Card */}
-                {currentSpace.agentPersona && (
+                {currentSpace?.agentPersona && (
                   <div
                     style={{
                       padding: "16px",
@@ -685,14 +686,14 @@ export default function ContextPanel() {
                       Active Milestones
                     </span>
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)" }}>
-                      {currentSpace.goal?.progress || 0}%
+                      {currentSpace?.goal?.progress || 0}%
                     </span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {(currentSpace.milestones || []).slice(0, 3).map((m) => (
+                    {(currentSpace?.milestones || []).slice(0, 3).map((m) => (
                       <div
                         key={m.id}
-                        onClick={() => toggleMilestone(currentSpace.id, m.id)}
+                        onClick={() => currentSpace && toggleMilestone(currentSpace.id, m.id)}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -732,7 +733,7 @@ export default function ContextPanel() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <button
-                      onClick={() => openAskAi(`Synthesize all key findings and documents in ${currentSpace.name}`)}
+                      onClick={() => openAskAi(`Synthesize all key findings and documents in ${spaceName}`)}
                       style={{
                         padding: "8px 12px",
                         borderRadius: "8px",
@@ -749,11 +750,11 @@ export default function ContextPanel() {
                       }}
                     >
                       <Zap style={{ width: "13px", height: "13px", color: "var(--text-primary)" }} />
-                      <span>Synthesize {currentSpace.name} Briefing</span>
+                      <span>Synthesize {spaceName} Briefing</span>
                     </button>
 
                     <button
-                      onClick={() => openAskAi(`Identify knowledge gaps and blind spots in ${currentSpace.name}`)}
+                      onClick={() => openAskAi(`Identify knowledge gaps and blind spots in ${spaceName}`)}
                       style={{
                         padding: "8px 12px",
                         borderRadius: "8px",
@@ -793,7 +794,7 @@ export default function ContextPanel() {
                 <Sparkles style={{ width: "14px", height: "14px", color: "var(--text-primary)", flexShrink: 0 }} />
                 <input
                   type="text"
-                  placeholder={activeDoc ? "Ask AI about this item..." : `Query ${currentSpace.name} Brain...`}
+                  placeholder={activeDoc ? "Ask AI about this item..." : `Query ${spaceName} Brain...`}
                   value={askAiQuery}
                   onChange={(e) => setAskAiQuery(e.target.value)}
                   style={{
@@ -859,7 +860,7 @@ export default function ContextPanel() {
             )}
 
             <button
-              onClick={() => router.push(`/chat?prompt=Explore graph connections between documents in ${currentSpace.name}`)}
+              onClick={() => router.push(`/chat?prompt=Explore graph connections between documents in ${spaceName}`)}
               style={{
                 marginTop: "10px",
                 padding: "8px 12px",
@@ -894,7 +895,7 @@ export default function ContextPanel() {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div style={{ fontSize: "12px", borderLeft: "2px solid rgba(255, 255, 255, 0.4)", paddingLeft: "12px" }}>
                 <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                  {activeDoc ? activeDoc.title : currentSpace.name} Synchronized
+                  {activeDoc ? activeDoc.title : spaceName} Synchronized
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
                   Vector embeddings cached in Qdrant • 10 minutes ago
@@ -937,7 +938,7 @@ export default function ContextPanel() {
                   `/chat?prompt=${encodeURIComponent(
                     activeDoc
                       ? `Deeply synthesize and extract key architectural concepts from "${activeDoc.title}": ${activeDoc.summary || ""}`
-                      : `Provide an executive intelligence briefing across the ${currentSpace.name} space.`
+                      : `Provide an executive intelligence briefing across the ${spaceName} space.`
                   )}`
                 )
               }
@@ -965,7 +966,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `What are the top 3 critical takeaways from "${activeDoc.title}"?`
-                    : `What are the top 3 priorities in the ${currentSpace.name} domain?`
+                    : `What are the top 3 priorities in the ${spaceName} domain?`
                 )
               }
               style={{
@@ -988,7 +989,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `Identify conceptual gaps or blind spots in "${activeDoc.title}".`
-                    : `Identify missing resources or knowledge gaps in ${currentSpace.name}.`
+                    : `Identify missing resources or knowledge gaps in ${spaceName}.`
                 )
               }
               style={{
@@ -1011,7 +1012,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `Formulate 5 technical interview or examination questions testing knowledge of "${activeDoc.title}".`
-                    : `Generate 5 high-impact questions testing mastery of ${currentSpace.name}.`
+                    : `Generate 5 high-impact questions testing mastery of ${spaceName}.`
                 )
               }
               style={{

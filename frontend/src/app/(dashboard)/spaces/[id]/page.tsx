@@ -26,6 +26,7 @@ export default function SpaceDetailPage({
   const addDocument = useMyndStore((state) => state.addDocument);
   const addCapturedItem = useMyndStore((state) => state.addCapturedItem);
   const deleteDocument = useMyndStore((state) => state.deleteDocument);
+  const deleteSpace = useMyndStore((state) => state.deleteSpace);
   const toggleMilestone = useMyndStore((state) => state.toggleMilestone);
   const addMilestone = useMyndStore((state) => state.addMilestone);
   const updateSpaceScratchpad = useMyndStore((state) => state.updateSpaceScratchpad);
@@ -171,8 +172,29 @@ export default function SpaceDetailPage({
 
   if (!space) {
     return (
-      <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>
-        Space not found. <Link href="/spaces" style={{ color: "var(--accent)" }}>Return to Spaces Gallery</Link>
+      <div style={{ padding: "60px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          Space Not Found
+        </h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "420px", margin: 0 }}>
+          This space does not exist or was removed. You can return to your spaces gallery or create a new one.
+        </p>
+        <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+          <Link
+            href="/spaces"
+            style={{
+              padding: "8px 18px",
+              borderRadius: "8px",
+              background: "#FFFFFF",
+              color: "#000000",
+              fontSize: "13px",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Return to Spaces Gallery
+          </Link>
+        </div>
       </div>
     );
   }
@@ -306,6 +328,45 @@ export default function SpaceDetailPage({
             >
               <span className="alive-dot" style={{ background: "#000000" }} />
               <span>Ask Resident AI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Are you sure you want to delete space "${space.name}"? This action cannot be undone.`)) {
+                  deleteSpace(space.id);
+                  queryMindApi.deleteSpace(space.id).catch((err) => console.warn("Backend delete space notice:", err));
+                  router.push("/spaces");
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "rgba(239, 68, 68, 0.06)",
+                color: "#F87171",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                transition: "all 150ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Delete Space</span>
             </button>
           </div>
         </div>

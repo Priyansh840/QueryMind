@@ -3,6 +3,9 @@ import { supabase } from "./supabase";
 
 const API_BASE = "/api/v1";
 
+const TOKEN_KEY = "querymind_token";
+const USER_KEY = "querymind_user";
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
@@ -11,9 +14,19 @@ const api = axios.create({
   timeout: 45000,
 });
 
-// Request interceptor — attach Supabase auth JWT token if session exists
+// Request interceptor — prefer localStorage native JWT, then Supabase session
 api.interceptors.request.use(
   async (config) => {
+    // 1. Check for native backend token first
+    if (typeof window !== "undefined") {
+      const nativeToken = localStorage.getItem(TOKEN_KEY);
+      if (nativeToken) {
+        config.headers.Authorization = `Bearer ${nativeToken}`;
+        return config;
+      }
+    }
+
+    // 2. Fallback to Supabase session token
     try {
       const {
         data: { session },
@@ -30,18 +43,126 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor — handle unauthorized responses globally
+// Response interceptor — redirect to login on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.includes("/auth/sync")) {
+    if (
+      error.response?.status === 401 &&
+      !error.config?.url?.includes("/auth/login") &&
+      !error.config?.url?.includes("/auth/register") &&
+      !error.config?.url?.includes("/auth/sync")
+    ) {
       if (typeof window !== "undefined") {
-        // Redirect to login if unauthenticated on protected routes
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        // Redirect to login if we're on an authenticated page
+        if (!window.location.pathname.includes("/login")) {
+          window.location.href = "/login";
+        }
       }
     }
     return Promise.reject(error);
   }
 );
+
+// Auth helpers
+export function setAuthToken(token: string) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+  return null;
+}
+
+export function setStoredUser(user: { id: string; email: string; display_name?: string | null }) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+}
+
+export function getStoredUser(): { id: string; email: string; display_name?: string | null } | null {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(USER_KEY);
+    if (raw) {
+      try { return JSON.parse(raw); } catch { return null; }
+    }
+  }
+  return null;
+}
+
+export function clearAuth() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+export function isAuthenticated(): boolean {
+  return !!getAuthToken();
+}
+
+export const authApi = {
+  login: async (credentials: { email: string; password: string }) => {
+    const res = await api.post<{
+      token: string;
+      user: { id: string; email: string; display_name?: string | null; avatar_url?: string | null };
+    }>("/auth/login", credentials);
+    if (res.data?.token) {
+      setAuthToken(res.data.token);
+      setStoredUser(res.data.user);
+    }
+    return res.data;
+  },
+
+  register: async (data: { email: string; password: string; display_name?: string }) => {
+    const res = await api.post<{
+      token: string;
+      user: { id: string; email: string; display_name?: string | null; avatar_url?: string | null };
+    }>("/auth/register", data);
+    if (res.data?.token) {
+      setAuthToken(res.data.token);
+      setStoredUser(res.data.user);
+    }
+    return res.data;
+  },
+
+  getMe: async () => {
+    const res = await api.get<{
+      id: string;
+      email: string;
+      display_name?: string | null;
+      avatar_url?: string | null;
+      created_at?: string | null;
+      stats?: {
+        knowledge_objects?: number;
+        spaces?: number;
+        documents?: number;
+        connections?: number;
+      };
+    }>("/auth/me");
+    if (res.data) {
+      setStoredUser({
+        id: res.data.id,
+        email: res.data.email,
+        display_name: res.data.display_name,
+      });
+    }
+    return res.data;
+  },
+
+  logout: () => {
+    clearAuth();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+  },
+};
 
 export interface ChatResponseData {
   objective_id: string;
@@ -340,7 +461,7 @@ export const queryMindApi = {
 
   listDocuments: async (spaceId?: string) => {
     try {
-      const url = spaceId ? `/documents/?space_id=${spaceId}` : `/documents/`;
+      const url = spaceId ? `/documents?space_id=${spaceId}` : `/documents`;
       const res = await api.get(url);
       return res.data;
     } catch {

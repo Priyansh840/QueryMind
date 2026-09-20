@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { queryMindApi, authApi } from "./api";
 
 export interface KnowledgeObject {
   id: string;
@@ -83,10 +84,15 @@ export interface Space {
 
 export interface UserProfile {
   name: string;
+  username?: string;
+  avatarUrl?: string;
   email: string;
   role: string;
   timezone: string;
   focusDomain: string;
+  skills?: string[];
+  interests?: string[];
+  goals?: string[];
   stats: {
     knowledgeObjects: number;
     connections: number;
@@ -106,8 +112,42 @@ export interface ActivityItem {
   bg: string;
 }
 
+export interface PersonalizationSettings {
+  cognitiveStyle: "first_principles" | "executive" | "socratic" | "speed";
+  verbosity: "concise" | "balanced" | "deep_dive";
+  codeStandard: "staff_engineer" | "rapid_prototype" | "academic";
+  formattingPreference: "structured_markdown" | "analytical_prose" | "bullet_points";
+  autonomousMemory: boolean;
+  crossSpaceSynthesis: boolean;
+  strictGrounding: boolean;
+  userContext: string;
+  customDirectives: string;
+}
+
+export const defaultPersonalizationSettings: PersonalizationSettings = {
+  cognitiveStyle: "first_principles",
+  verbosity: "balanced",
+  codeStandard: "staff_engineer",
+  formattingPreference: "structured_markdown",
+  autonomousMemory: true,
+  crossSpaceSynthesis: true,
+  strictGrounding: false,
+  userContext: "",
+  customDirectives: "",
+};
+
 export interface MyndState {
-  theme: "light" | "dark" | "zen";
+  theme: "dark" | "light" | "zen" | "cyberpunk" | "sepia" | "arctic";
+  accentColor: string;
+  uiDensity: "compact" | "comfortable" | "spacious";
+  reduceMotion: boolean;
+  soundEffects: boolean;
+  aiModel: "gemini-3.7-flash" | "gemini-1.5-pro";
+  webSearchEnabled: boolean;
+  codeExecution: boolean;
+  defaultSpaceId: string;
+  language: string;
+
   activeRoute: "home" | "workspace" | "space" | "search" | "intelligence" | "vault" | "chat";
   activeSpaceId: string;
   activeSpaceTab: "overview" | "objects" | "graph" | "insights" | "notes" | "journals" | "habits" | "goals" | "timeline";
@@ -121,7 +161,11 @@ export interface MyndState {
   isAskAiOpen: boolean;
   askAiTarget: string | null;
   isSettingsOpen: boolean;
-  activeSettingsTab: "general" | "appearance" | "autonomy" | "storage" | "integrations";
+  activeSettingsTab: "general" | "appearance" | "ai" | "privacy" | "notifications" | "shortcuts" | "personalization" | "storage" | "autonomy";
+
+  personalization: PersonalizationSettings;
+  updatePersonalization: (updates: Partial<PersonalizationSettings>) => void;
+  resetPersonalization: () => void;
 
   userProfile: UserProfile;
   spaces: Space[];
@@ -140,7 +184,17 @@ export interface MyndState {
   closeObjectModal: () => void;
 
   toggleTheme: () => void;
-  setTheme: (theme: "light" | "dark" | "zen") => void;
+  setTheme: (theme: MyndState["theme"]) => void;
+  setAccentColor: (color: string) => void;
+  setUiDensity: (density: MyndState["uiDensity"]) => void;
+  setReduceMotion: (reduce: boolean) => void;
+  setSoundEffects: (enabled: boolean) => void;
+  setAiModel: (model: MyndState["aiModel"]) => void;
+  setWebSearchEnabled: (enabled: boolean) => void;
+  setCodeExecution: (enabled: boolean) => void;
+  setDefaultSpaceId: (id: string) => void;
+  setLanguage: (lang: string) => void;
+
   toggleFocusMode: () => void;
   toggleZenMode: () => void;
 
@@ -150,6 +204,10 @@ export interface MyndState {
   closeAskAi: () => void;
   openSettings: (tab?: MyndState["activeSettingsTab"]) => void;
   closeSettings: () => void;
+
+  isEditProfileOpen: boolean;
+  openEditProfile: () => void;
+  closeEditProfile: () => void;
 
   isCreateSpaceOpen: boolean;
   openCreateSpace: () => void;
@@ -185,6 +243,7 @@ export interface MyndState {
     agentPersona?: AgentPersona;
     scratchpad?: string;
   }) => void;
+  deleteSpace: (spaceId: string) => void;
   hasCompletedOnboarding: boolean;
   setHasCompletedOnboarding: (completed: boolean) => void;
   provisionSpacesFromInterests: (interestIds: string[]) => void;
@@ -193,6 +252,7 @@ export interface MyndState {
   clearSpaces: () => void;
   clearAllData: () => void;
   loadSampleData: () => void;
+  syncWithBackend: () => Promise<void>;
 }
 
 export interface UserInterestDefinition {
@@ -460,295 +520,44 @@ export const PRESET_INTERESTS: UserInterestDefinition[] = [
   }
 ];
 
-// Initial Clean Default State (starts with your real workspace)
-const initialSpaces: Space[] = [
-  {
-    id: "career",
-    name: "Career",
-    status: "Active",
-    count: 8,
-    updated: "Just now",
-    pinned: true,
-    color: "#FFFFFF",
-    icon: "briefcase",
-    desc: "Career progression, resume, system design interviews, and engineering leadership",
-    goal: { title: "Senior Systems Architect Mastery & Career Growth", progress: 85 },
-    agentPersona: {
-      name: "Apex Strategist",
-      title: "Staff Systems Career Architect",
-      specialty: "Distributed systems, technical leadership & interview synthesis",
-      status: "active",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "m-1", title: "Resume 2026 tuned for Backend & Distributed Systems roles", completed: true },
-      { id: "m-2", title: "Google Interview Prep — System Design & Graphs completed", completed: true },
-      { id: "m-3", title: "Kalyra Streaming Engine v2 architecture benchmark", completed: false },
-      { id: "m-4", title: "Finalize 3 mock system design architecture sessions", completed: false },
-    ],
-    scratchpad: `# Career Vision 2026\n\n- Focus on large-scale distributed systems and real-time streaming architectures.\n- Target role: Staff / Lead Engineer with autonomous agents focus.\n- Strengths: C++, Python, Next.js, Qdrant vector retrieval.`,
-    liveUpdate: { text: "Resume 2026 optimized for backend roles", time: "2h ago" },
-    sections: { knowledge: [], projects: [], notes: [] },
-    objects: [],
-  },
-  {
-    id: "research",
-    name: "Research",
-    status: "Active",
-    count: 12,
-    updated: "Today",
-    pinned: true,
-    color: "#FFFFFF",
-    icon: "atom",
-    desc: "AI research papers, vector search benchmarks, and distributed consensus studies",
-    goal: { title: "Explore Distributed AI & Dense Hybrid Retrieval", progress: 70 },
-    agentPersona: {
-      name: "Synthesis Fellow",
-      title: "Senior AI & Literature Researcher",
-      specialty: "Distributed computing papers, vector retrieval, architecture proofs",
-      status: "active",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "r-1", title: "Survey Raft vs Paxos consensus implementations", completed: true },
-      { id: "r-2", title: "Benchmark HNSW vs Flat indexing performance in Qdrant", completed: true },
-      { id: "r-3", title: "Draft research briefing on Hybrid BM25 + Dense Retrieval", completed: false },
-      { id: "r-4", title: "Synthesize findings into Second Brain autonomous agent report", completed: false },
-    ],
-    scratchpad: `# Research Notes\n\n- Dense embeddings provide semantic clustering, but keyword BM25 handles precise terminology.\n- Re-ranking with cross-encoders improves MRR@10 by 18% on technical documents.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
-  },
-  {
-    id: "startup",
-    name: "Startup",
-    status: "Active",
-    count: 6,
-    updated: "Today",
-    pinned: false,
-    color: "#FFFFFF",
-    icon: "rocket",
-    desc: "Product roadmap, pitch decks, technical specifications, and beta tester feedback",
-    goal: { title: "Launch QueryMind MVP Beta to 100 Power Users", progress: 60 },
-    agentPersona: {
-      name: "Venture Architect",
-      title: "Product Strategist & Systems Technologist",
-      specialty: "GTM execution, tech specs, product roadmaps & investor decks",
-      status: "active",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "s-1", title: "Product MVP Core Feature Matrix defined", completed: true },
-      { id: "s-2", title: "Streaming SSE Chat with agent telemetry verified", completed: true },
-      { id: "s-3", title: "Complete Seed Pitch Deck narrative and slide flow", completed: false },
-      { id: "s-4", title: "Deploy Beta testing environment with metrics instrumentation", completed: false },
-    ],
-    scratchpad: `# QueryMind Beta Milestones\n\n1. Frictionless document drag-and-drop\n2. Real-time token streaming with citation highlighting\n3. Creative spaces for context-isolated agent reasoning`,
-    sections: { knowledge: [], projects: [] },
-    objects: [],
-  },
-  {
-    id: "college",
-    name: "College",
-    status: "Active",
-    count: 4,
-    updated: "Yesterday",
-    pinned: false,
-    color: "#FFFFFF",
-    icon: "graduation",
-    desc: "Academic coursework, semester projects, exam revisions, and group milestones",
-    goal: { title: "Final Semester Capstone Project & Honors Distinction", progress: 75 },
-    agentPersona: {
-      name: "Academic Scholar",
-      title: "Curriculum & Exam Synthesizer",
-      specialty: "Coursework distillation, problem set breakdowns & revision notes",
-      status: "active",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "c-1", title: "Operating Systems assignment 3 complete", completed: true },
-      { id: "c-2", title: "Review Distributed Systems lecture notes", completed: true },
-      { id: "c-3", title: "Prepare Distributed Consensus presentation slides", completed: false },
-    ],
-    scratchpad: `# Semester Capstone\n\n- Team: 3 members\n- Deliverable: Second Brain autonomous assistant with vector embeddings and multi-space isolation.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
-  },
-  {
-    id: "personal",
-    name: "Personal",
-    status: "Active",
-    count: 7,
-    updated: "2 days ago",
-    pinned: false,
-    color: "#FFFFFF",
-    icon: "user",
-    desc: "Personal journals, book summaries, fitness logs, and long-term reflection",
-    goal: { title: "Read 12 Deep Technical Books & Maintain Habit Tracker", progress: 50 },
-    agentPersona: {
-      name: "Reflective Mind",
-      title: "Life Strategy & Habits Co-pilot",
-      specialty: "Habit loops, long-term reading synthesis, life logs",
-      status: "idle",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "p-1", title: "Designing Data-Intensive Applications (Kleppmann) finished", completed: true },
-      { id: "p-2", title: "Database Internals (Petrov) chapter 1-5", completed: false },
-    ],
-    scratchpad: `# Notes to Self\n\n"The art of knowledge work is turning passive information consumption into active synthesis and creation."`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
-  },
-  {
-    id: "ideas",
-    name: "Ideas",
-    status: "Active",
-    count: 3,
-    updated: "3 days ago",
-    pinned: false,
-    color: "#FFFFFF",
-    icon: "sparkles",
-    desc: "Raw brain dumps, high-variance creative concepts, and rapid prototyping notes",
-    goal: { title: "Prototype 5 Autonomous Agent Experiments", progress: 40 },
-    agentPersona: {
-      name: "Creative Catalyst",
-      title: "Lateral Brain Dump Co-pilot",
-      specialty: "High-variance idea collisions, rapid prototyping & brainstorm mapping",
-      status: "active",
-      avatarBg: "#212121",
-    },
-    milestones: [
-      { id: "i-1", title: "Agentic tool-calling memory architecture sketch", completed: true },
-      { id: "i-2", title: "Multi-agent consensus protocol prototype", completed: false },
-      { id: "i-3", title: "Voice-driven ambient capture experiment", completed: false },
-    ],
-    scratchpad: `# Crazy Ideas\n\n- What if agents autonomously cross-referenced research papers and opened PRs with suggested refactors?\n- Interactive 3D constellation map of knowledge nodes.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
-  },
-];
-
 const initialProfile: UserProfile = {
-  name: "Aryan Kulkarni",
-  email: "aryan@querymind.os",
-  role: "Systems Architect & Full Stack",
-  timezone: "UTC+05:30 (India Standard Time)",
-  focusDomain: "Career & Systems Architecture",
+  name: "",
+  username: "",
+  avatarUrl: "",
+  email: "",
+  role: "",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  focusDomain: "",
+  skills: [],
+  interests: [],
+  goals: [],
   stats: {
-    knowledgeObjects: 40,
-    connections: 128,
-    daemonsRunning: 2,
-    learningHours: "14.5 hrs",
+    knowledgeObjects: 0,
+    connections: 0,
+    daemonsRunning: 0,
+    learningHours: "0 hrs",
   },
 };
-
-const sampleObjects: KnowledgeObject[] = [
-  {
-    id: "resume-2026",
-    title: "Resume 2026",
-    type: "PDF",
-    badge: "PDF",
-    updated: "2h ago",
-    time: "2h ago",
-    spaceId: "career",
-    progress: 95,
-    iconBg: "#1F1F1F",
-    iconColor: "#FFFFFF",
-    summary: "Your resume is optimized for software engineering roles with a strong focus on system design, backend development and problem solving.",
-    keyIdeas: [
-      "3 Major Projects",
-      "Backend Development",
-      "System Design",
-      "Problem Solving",
-    ],
-    tags: ["Resume", "Software Engineering", "Career"],
-    meta: "PDF Document • Updated 2h ago",
-  },
-  {
-    id: "google-prep",
-    title: "Google Interview Prep",
-    type: "Notes",
-    badge: "Notes",
-    updated: "5h ago",
-    time: "5h ago",
-    spaceId: "career",
-    progress: 80,
-    iconBg: "#1F1F1F",
-    iconColor: "#FFFFFF",
-    summary: "Comprehensive notes covering Distributed Systems, System Design, Graph Algorithms, and Dynamic Programming.",
-    tags: ["Interview", "System Design", "Algorithms"],
-    meta: "Notes • Updated 5h ago",
-  },
-  {
-    id: "kalyra-engine",
-    title: "Kalyra Streaming Engine",
-    type: "Code",
-    badge: "Code",
-    updated: "Yesterday",
-    time: "Yesterday",
-    spaceId: "career",
-    progress: 72,
-    iconBg: "#1F1F1F",
-    iconColor: "#FFFFFF",
-    summary: "Low-latency streaming architecture built with C++ and WebSockets.",
-    tags: ["Code", "Streaming", "Architecture"],
-    meta: "Code • Updated yesterday",
-  },
-];
-
-const sampleActivityFeed: ActivityItem[] = [
-  {
-    id: "act-1",
-    title: "Resume 2026 updated",
-    text: "Updated system design highlights & project metrics",
-    time: "2h ago",
-    space: "Career",
-    iconType: "document",
-    color: "#FFFFFF",
-    bg: "#1F1F1F",
-  },
-  {
-    id: "act-2",
-    title: "New connection created Resume ↔ Projects",
-    text: "Linked 3 repository nodes to resume experience",
-    time: "3h ago",
-    space: "Career",
-    iconType: "sparkles",
-    color: "#A3A3A3",
-    bg: "#1F1F1F",
-  },
-  {
-    id: "act-3",
-    title: "Google Interview Prep Notes updated",
-    text: "Added 4 distributed system design patterns",
-    time: "5h ago",
-    space: "Career",
-    iconType: "document",
-    color: "#10B981",
-    bg: "rgba(16, 185, 129, 0.12)",
-  },
-  {
-    id: "act-4",
-    title: "Kalyra Engine commit pushed",
-    text: "7 commits synchronized to repository index",
-    time: "Yesterday",
-    space: "Career",
-    iconType: "code",
-    color: "#FFFFFF",
-    bg: "#1F1F1F",
-  },
-];
 
 export const useMyndStore = create<MyndState>()(
   persist(
     (set, get) => ({
       theme: "dark",
+      accentColor: "#FFFFFF",
+      uiDensity: "comfortable",
+      reduceMotion: false,
+      soundEffects: true,
+      aiModel: "gemini-3.7-flash",
+      webSearchEnabled: true,
+      codeExecution: true,
+      defaultSpaceId: "",
+      language: "en",
+
       activeRoute: "home",
-      activeSpaceId: "career",
+      activeSpaceId: "",
       activeSpaceTab: "overview",
       activeSpaceSection: "all",
-      selectedObject: sampleObjects[0],
+      selectedObject: null,
       isObjectModalOpen: false,
 
       isFocusMode: false,
@@ -759,11 +568,18 @@ export const useMyndStore = create<MyndState>()(
       isSettingsOpen: false,
       activeSettingsTab: "general",
 
+      personalization: defaultPersonalizationSettings,
+      updatePersonalization: (updates) =>
+        set((state) => ({
+          personalization: { ...state.personalization, ...updates },
+        })),
+      resetPersonalization: () => set({ personalization: defaultPersonalizationSettings }),
+
       userProfile: initialProfile,
-      spaces: initialSpaces,
-      activityFeed: sampleActivityFeed,
-      recentObjects: sampleObjects,
-      uploadedDocuments: sampleObjects,
+      spaces: [],
+      activityFeed: [],
+      recentObjects: [],
+      uploadedDocuments: [],
       captureQueue: [],
 
       setRoute: (route) => set({ activeRoute: route }),
@@ -783,8 +599,10 @@ export const useMyndStore = create<MyndState>()(
       closeObjectModal: () => set({ isObjectModalOpen: false }),
 
       toggleTheme: () => {
+        const themes: MyndState["theme"][] = ["dark", "light", "zen", "cyberpunk", "sepia", "arctic"];
         const cur = get().theme;
-        const next = cur === "dark" ? "light" : cur === "light" ? "zen" : "dark";
+        const nextIdx = (themes.indexOf(cur) + 1) % themes.length;
+        const next = themes[nextIdx];
         if (typeof document !== "undefined") {
           document.documentElement.setAttribute("data-theme", next);
         }
@@ -796,6 +614,26 @@ export const useMyndStore = create<MyndState>()(
         }
         set({ theme });
       },
+      setAccentColor: (color) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.style.setProperty("--accent", color);
+          document.documentElement.style.setProperty("--accent-soft", color + "26");
+        }
+        set({ accentColor: color });
+      },
+      setUiDensity: (density) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-density", density);
+        }
+        set({ uiDensity: density });
+      },
+      setReduceMotion: (reduce) => set({ reduceMotion: reduce }),
+      setSoundEffects: (enabled) => set({ soundEffects: enabled }),
+      setAiModel: (model) => set({ aiModel: model }),
+      setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
+      setCodeExecution: (enabled) => set({ codeExecution: enabled }),
+      setDefaultSpaceId: (id) => set({ defaultSpaceId: id }),
+      setLanguage: (lang) => set({ language: lang }),
       toggleFocusMode: () => set((s) => ({ isFocusMode: !s.isFocusMode })),
       toggleZenMode: () => set((s) => ({ isZenMode: !s.isZenMode })),
 
@@ -805,6 +643,10 @@ export const useMyndStore = create<MyndState>()(
       closeAskAi: () => set({ isAskAiOpen: false, askAiTarget: null }),
       openSettings: (tab) => set({ isSettingsOpen: true, activeSettingsTab: tab || "general" }),
       closeSettings: () => set({ isSettingsOpen: false }),
+
+      isEditProfileOpen: false,
+      openEditProfile: () => set({ isEditProfileOpen: true }),
+      closeEditProfile: () => set({ isEditProfileOpen: false }),
 
       isCreateSpaceOpen: false,
       openCreateSpace: () => set({ isCreateSpaceOpen: true }),
@@ -1058,6 +900,26 @@ export const useMyndStore = create<MyndState>()(
       hasCompletedOnboarding: false,
       setHasCompletedOnboarding: (completed: boolean) => set({ hasCompletedOnboarding: completed }),
 
+      deleteSpace: (spaceId: string) => {
+        set((state) => {
+          const remainingSpaces = state.spaces.filter((s) => s.id !== spaceId);
+          const nextActiveId =
+            state.activeSpaceId === spaceId
+              ? remainingSpaces[0]?.id || ""
+              : state.activeSpaceId;
+
+          const remainingDocs = state.uploadedDocuments.filter((d) => d.spaceId !== spaceId);
+          const remainingRecent = state.recentObjects.filter((d) => d.spaceId !== spaceId);
+
+          return {
+            spaces: remainingSpaces,
+            activeSpaceId: nextActiveId,
+            uploadedDocuments: remainingDocs,
+            recentObjects: remainingRecent,
+          };
+        });
+      },
+
       provisionSpacesFromInterests: (interestIds: string[]) => {
         const selected = PRESET_INTERESTS.filter((p) => interestIds.includes(p.id));
         const newSpaces: Space[] = [];
@@ -1095,19 +957,23 @@ export const useMyndStore = create<MyndState>()(
           });
         });
 
-        if (newSpaces.length > 0) {
-          set((state) => {
-            const existingIds = new Set(newSpaces.map((s) => s.id));
-            const retained = state.spaces.filter((s) => !existingIds.has(s.id));
-            return {
-              spaces: [...newSpaces, ...retained],
-              activeSpaceId: newSpaces[0].id,
-              hasCompletedOnboarding: true,
-            };
-          });
-        } else {
-          set({ hasCompletedOnboarding: true });
-        }
+        // Set ONLY the selected spaces! No retaining unselected/default spaces.
+        set({
+          spaces: newSpaces,
+          activeSpaceId: newSpaces[0]?.id || "",
+          hasCompletedOnboarding: true,
+        });
+
+        // Asynchronously sync newly provisioned spaces with backend DB
+        newSpaces.forEach((s) => {
+          queryMindApi.createSpace({
+            name: s.name,
+            description: s.desc,
+            color: s.color,
+            icon: s.icon,
+            slug: s.id,
+          }).catch((err) => console.warn("Backend space creation notice:", err));
+        });
       },
 
       setSpaces: (spaces: Space[]) => {
@@ -1141,57 +1007,135 @@ export const useMyndStore = create<MyndState>()(
       },
 
       loadSampleData: () => {
-        // Optional demo dataset for users who want to preview a fully populated graph
-        const sampleDoc1: KnowledgeObject = {
-          id: "sample-1",
-          title: "System Architecture & Consensus Protocols.pdf",
-          type: "PDF",
-          badge: "PDF",
-          updated: "2h ago",
-          connections: 8,
-          confidence: "98%",
-          summary: "Distributed event streaming, Raft consensus invariants, and sub-12ms response streaming.",
-          meta: "2.4 MB • 14 chunks",
-          tags: ["Architecture", "Distributed Systems"],
-        };
-        const sampleDoc2: KnowledgeObject = {
-          id: "sample-2",
-          title: "Streaming Engine Transcoding Specs.md",
-          type: "MARKDOWN",
-          badge: "MD",
-          updated: "Yesterday",
-          connections: 5,
-          confidence: "95%",
-          summary: "HLS segmentation and Redis queue workers for real-time video feeds.",
-          meta: "34 KB • 8 chunks",
-          tags: ["Video", "Streaming"],
-        };
+        // No-op: strict real-time user data mode enabled.
+      },
 
-        set((state) => ({
-          uploadedDocuments: [sampleDoc1, sampleDoc2],
-          recentObjects: [sampleDoc1, sampleDoc2],
-          spaces: [
-            {
-              ...state.spaces[0],
-              count: 2,
-              sections: { knowledge: [sampleDoc1, sampleDoc2] },
-              objects: [sampleDoc1, sampleDoc2],
-            },
-            ...state.spaces.slice(1),
-          ],
-        }));
+      syncWithBackend: async () => {
+        try {
+          const [meData, spacesData, knowledgeData] = await Promise.allSettled([
+            authApi.getMe(),
+            queryMindApi.getSpaces(),
+            queryMindApi.getKnowledge(),
+          ]);
+
+          const updates: Partial<MyndState> = {};
+
+          if (meData.status === "fulfilled" && meData.value) {
+            const me = meData.value;
+            updates.userProfile = {
+              name: me.display_name || me.email.split("@")[0],
+              email: me.email,
+              username: me.email.split("@")[0],
+              avatarUrl: me.avatar_url || "",
+              role: "Knowledge Architect",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+              focusDomain: "Personal Knowledge",
+              stats: {
+                knowledgeObjects: me.stats?.knowledge_objects || 0,
+                connections: me.stats?.connections || 0,
+                daemonsRunning: 1,
+                learningHours: "12 hrs",
+              },
+            };
+          }
+
+          if (spacesData.status === "fulfilled" && Array.isArray(spacesData.value) && spacesData.value.length > 0) {
+            const currentSpaces = get().spaces;
+            const apiSpaces: Space[] = spacesData.value.map((s) => {
+              const existing = currentSpaces.find((x) => x.id === s.id || x.name.toLowerCase() === s.name.toLowerCase());
+              return {
+                id: s.id,
+                name: s.name,
+                status: "Active",
+                count: existing?.count || 0,
+                updated: "Recently",
+                pinned: s.is_default || existing?.pinned || false,
+                desc: s.description || existing?.desc || "Workspace",
+                color: s.color || existing?.color || "#FFFFFF",
+                icon: s.icon || existing?.icon || "folder",
+                slug: s.slug,
+                goal: existing?.goal || { title: `Master ${s.name} Domain`, progress: 0 },
+                milestones: existing?.milestones || [],
+                agentPersona: existing?.agentPersona || {
+                  name: `${s.name} Specialist`,
+                  title: `Dedicated ${s.name} Co-pilot`,
+                  specialty: `Autonomous synthesis and domain analysis for ${s.name}`,
+                  status: "active",
+                  avatarBg: s.color || "#262626",
+                },
+                scratchpad: existing?.scratchpad || `# ${s.name} Notes\n\n- Connected to real-time agent and backend database.`,
+                sections: existing?.sections || { knowledge: [], notes: [], projects: [] },
+                objects: existing?.objects || [],
+              };
+            });
+
+            updates.spaces = apiSpaces;
+            if (!get().activeSpaceId || !apiSpaces.find((s) => s.id === get().activeSpaceId)) {
+              updates.activeSpaceId = apiSpaces[0].id;
+            }
+            updates.hasCompletedOnboarding = true;
+          }
+
+          if (knowledgeData.status === "fulfilled" && Array.isArray(knowledgeData.value)) {
+            const objects: KnowledgeObject[] = knowledgeData.value.map((k) => ({
+              id: k.id,
+              title: k.title || k.content.slice(0, 40),
+              type: (k.knowledge_type || "NOTE").toUpperCase(),
+              badge: (k.knowledge_type || "NOTE").toUpperCase(),
+              updated: "Recently",
+              time: "Recently",
+              spaceId: k.space_id,
+              confidence: `${Math.round((k.confidence || 0.9) * 100)}%`,
+              summary: k.content.slice(0, 150),
+              content: k.content,
+              meta: `${k.knowledge_type} • ${new Date(k.created_at).toLocaleDateString()}`,
+              tags: [k.knowledge_type],
+            }));
+            updates.recentObjects = objects;
+            updates.uploadedDocuments = objects.filter((o) => o.type === "DOCUMENT");
+          }
+
+          set((state) => ({ ...state, ...updates }));
+        } catch (err) {
+          console.warn("Backend sync error:", err);
+        }
       },
     }),
     {
-      name: "querymind_storage_v2",
+      name: "querymind_storage_v3",
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // Default theme must be dark
         if (!state.theme || state.theme === "light") {
           state.theme = "dark";
         }
+        if (!state.accentColor) state.accentColor = "#FFFFFF";
+        if (!state.uiDensity) state.uiDensity = "comfortable";
+        if (state.reduceMotion === undefined) state.reduceMotion = false;
+        if (state.soundEffects === undefined) state.soundEffects = true;
+        if (!state.aiModel) state.aiModel = "gemini-3.7-flash";
+        if (state.webSearchEnabled === undefined) state.webSearchEnabled = true;
+        if (state.codeExecution === undefined) state.codeExecution = true;
+        if (!state.defaultSpaceId) state.defaultSpaceId = "";
+        if (!state.language) state.language = "en";
+
         if (typeof document !== "undefined") {
           document.documentElement.setAttribute("data-theme", state.theme || "dark");
+          document.documentElement.setAttribute("data-density", state.uiDensity || "comfortable");
+          if (state.accentColor) {
+            document.documentElement.style.setProperty("--accent", state.accentColor);
+            document.documentElement.style.setProperty("--accent-soft", state.accentColor + "26");
+          }
+        }
+        // If onboarding has not been completed, spaces must be empty
+        if (!state.hasCompletedOnboarding) {
+          state.spaces = [];
+          state.activeSpaceId = "";
+        }
+        if (!state.personalization) {
+          state.personalization = defaultPersonalizationSettings;
+        } else {
+          state.personalization = { ...defaultPersonalizationSettings, ...state.personalization };
         }
         const dedupe = <T extends { id?: string }>(arr: T[] | undefined): T[] => {
           if (!Array.isArray(arr)) return [];
@@ -1204,8 +1148,8 @@ export const useMyndStore = create<MyndState>()(
         };
         state.spaces = dedupe(state.spaces).map((s) => ({
           ...s,
-          color: "#FFFFFF",
-          agentPersona: s.agentPersona ? { ...s.agentPersona, avatarBg: "#262626" } : undefined,
+          color: s.color || "#FFFFFF",
+          agentPersona: s.agentPersona ? { ...s.agentPersona, avatarBg: s.agentPersona.avatarBg || "#262626" } : undefined,
         }));
         state.recentObjects = dedupe(state.recentObjects);
         state.uploadedDocuments = dedupe(state.uploadedDocuments);
