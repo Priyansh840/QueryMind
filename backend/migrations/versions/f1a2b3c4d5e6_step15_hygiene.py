@@ -78,6 +78,15 @@ def upgrade() -> None:
     if "workflow_events" in tables:
         op.drop_table("workflow_events")
 
+    # 3. Add password_hash to users if not already present
+    if "users" in tables:
+        user_cols = [c["name"] for c in inspector.get_columns("users")]
+        if "password_hash" not in user_cols:
+            op.add_column(
+                "users",
+                sa.Column("password_hash", sa.String(255), nullable=True)
+            )
+
 
 def downgrade() -> None:
     bind = op.get_bind()
@@ -104,3 +113,9 @@ def downgrade() -> None:
         if "space_id" in columns:
             op.drop_index("idx_goals_space_id", table_name="goals")
             op.drop_column("goals", "space_id")
+
+    # 3. Drop password_hash from users if present
+    if "users" in tables:
+        user_cols = [c["name"] for c in inspector.get_columns("users")]
+        if "password_hash" in user_cols:
+            op.drop_column("users", "password_hash")
