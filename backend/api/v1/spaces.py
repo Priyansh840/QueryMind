@@ -8,7 +8,7 @@ import re
 import uuid
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,7 +95,7 @@ async def create_space(
         await db.execute(
             update(Space)
             .where(Space.user_id == current_user.id, Space.is_default == True)
-            .values(is_default=False, updated_at=datetime.utcnow())
+            .values(is_default=False, updated_at=datetime.now(timezone.utc))
         )
 
     new_space = Space(
@@ -107,8 +107,8 @@ async def create_space(
         icon=request.icon,
         color=request.color,
         is_default=request.is_default,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(new_space)
 
@@ -235,7 +235,7 @@ async def update_space(
         await db.execute(
             update(Space)
             .where(Space.user_id == current_user.id, Space.is_default == True)
-            .values(is_default=False, updated_at=datetime.utcnow())
+            .values(is_default=False, updated_at=datetime.now(timezone.utc))
         )
         space.is_default = True
     elif request.is_default is False:
@@ -252,7 +252,7 @@ async def update_space(
     if request.color is not None:
         space.color = request.color
 
-    space.updated_at = datetime.utcnow()
+    space.updated_at = datetime.now(timezone.utc)
 
     try:
         await db.commit()

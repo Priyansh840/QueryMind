@@ -26,6 +26,7 @@ export default function SpaceDetailPage({
   const addDocument = useMyndStore((state) => state.addDocument);
   const addCapturedItem = useMyndStore((state) => state.addCapturedItem);
   const deleteDocument = useMyndStore((state) => state.deleteDocument);
+  const deleteSpace = useMyndStore((state) => state.deleteSpace);
   const toggleMilestone = useMyndStore((state) => state.toggleMilestone);
   const addMilestone = useMyndStore((state) => state.addMilestone);
   const updateSpaceScratchpad = useMyndStore((state) => state.updateSpaceScratchpad);
@@ -49,8 +50,6 @@ export default function SpaceDetailPage({
       ) || spaces[0]
     );
   }, [spaces, spaceId]);
-
-  const spaceColor = space?.color || "#8B5CF6";
 
   // Fetch real documents for this space from backend on mount
   React.useEffect(() => {
@@ -173,8 +172,29 @@ export default function SpaceDetailPage({
 
   if (!space) {
     return (
-      <div style={{ padding: "40px", textAlign: "center", color: "var(--text-secondary)" }}>
-        Space not found. <Link href="/spaces" style={{ color: "var(--accent)" }}>Return to Spaces Gallery</Link>
+      <div style={{ padding: "60px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          Space Not Found
+        </h2>
+        <p style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "420px", margin: 0 }}>
+          This space does not exist or was removed. You can return to your spaces gallery or create a new one.
+        </p>
+        <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+          <Link
+            href="/spaces"
+            style={{
+              padding: "8px 18px",
+              borderRadius: "8px",
+              background: "#FFFFFF",
+              color: "#000000",
+              fontSize: "13px",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Return to Spaces Gallery
+          </Link>
+        </div>
       </div>
     );
   }
@@ -186,12 +206,12 @@ export default function SpaceDetailPage({
         className="stagger"
         style={{
           position: "relative",
-          background: `linear-gradient(135deg, ${spaceColor}14 0%, ${spaceColor}04 40%, var(--surface) 100%)`,
-          border: `1px solid ${spaceColor}33`,
+          background: "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 40%, var(--surface) 100%)",
+          border: "1px solid var(--border)",
           borderRadius: "18px",
           padding: "32px",
           overflow: "hidden",
-          boxShadow: `0 4px 20px ${spaceColor}10`,
+          boxShadow: "var(--shadow-sm)",
         }}
       >
         {/* Ambient Top Glow Line */}
@@ -201,8 +221,8 @@ export default function SpaceDetailPage({
             top: 0,
             left: 0,
             right: 0,
-            height: "3px",
-            background: `linear-gradient(90deg, ${spaceColor} 0%, transparent 100%)`,
+            height: "2px",
+            background: "linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%)",
           }}
         />
 
@@ -212,7 +232,7 @@ export default function SpaceDetailPage({
           <span>/</span>
           <Link href="/spaces" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Spaces</Link>
           <span>/</span>
-          <span style={{ color: spaceColor, fontWeight: 600 }}>{space.name}</span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{space.name}</span>
         </div>
 
         {/* Space Title Row */}
@@ -221,15 +241,15 @@ export default function SpaceDetailPage({
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <span
                 style={{
-                  width: "12px",
-                  height: "12px",
+                  width: "10px",
+                  height: "10px",
                   borderRadius: "50%",
-                  background: spaceColor,
-                  boxShadow: `0 0 10px ${spaceColor}`,
+                  background: "#FFFFFF",
+                  boxShadow: "0 0 6px rgba(255, 255, 255, 0.4)",
                   display: "inline-block",
                 }}
               />
-              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: spaceColor }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-secondary)" }}>
                 {space.status} Domain Memory
               </span>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>•</span>
@@ -295,19 +315,58 @@ export default function SpaceDetailPage({
                 padding: "8px 18px",
                 borderRadius: "8px",
                 border: "none",
-                background: spaceColor,
-                color: "#FFFFFF",
+                background: "#FFFFFF",
+                color: "#000000",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                boxShadow: `0 2px 12px ${spaceColor}44`,
+                boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
               }}
             >
-              <span className="alive-dot" style={{ background: "#FFFFFF" }} />
+              <span className="alive-dot" style={{ background: "#000000" }} />
               <span>Ask Resident AI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Are you sure you want to delete space "${space.name}"? This action cannot be undone.`)) {
+                  deleteSpace(space.id);
+                  queryMindApi.deleteSpace(space.id).catch((err) => console.warn("Backend delete space notice:", err));
+                  router.push("/spaces");
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "rgba(239, 68, 68, 0.06)",
+                color: "#F87171",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                transition: "all 150ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Delete Space</span>
             </button>
           </div>
         </div>
@@ -319,16 +378,16 @@ export default function SpaceDetailPage({
               padding: "8px 14px",
               borderRadius: "8px",
               background: "var(--surface)",
-              border: `1px solid ${spaceColor}44`,
+              border: "1px solid rgba(16, 185, 129, 0.3)",
               fontSize: "12px",
-              color: spaceColor,
+              color: "#10B981",
               fontWeight: 500,
               display: "flex",
               alignItems: "center",
               gap: "8px",
             }}
           >
-            <span className="alive-dot" style={{ background: spaceColor }} />
+            <span className="alive-dot" style={{ background: "#10B981" }} />
             {uploadFeedback}
           </div>
         )}
@@ -354,14 +413,14 @@ export default function SpaceDetailPage({
                     width: "38px",
                     height: "38px",
                     borderRadius: "10px",
-                    background: space.agentPersona.avatarBg || spaceColor,
+                    background: "#262626",
                     color: "#FFFFFF",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "14px",
                     fontWeight: 700,
-                    boxShadow: `0 0 12px ${spaceColor}44`,
                   }}
                 >
                   AI
@@ -371,7 +430,7 @@ export default function SpaceDetailPage({
                     <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
                       {space.agentPersona.name}
                     </span>
-                    <span className="badge" style={{ fontSize: "10px", background: `${spaceColor}15`, color: spaceColor }}>
+                    <span className="badge" style={{ fontSize: "10px", background: "rgba(255, 255, 255, 0.08)", color: "#FFFFFF", border: "1px solid rgba(255, 255, 255, 0.15)" }}>
                       Resident Specialist
                     </span>
                   </div>
@@ -495,7 +554,7 @@ export default function SpaceDetailPage({
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
               Vector Embeddings
             </div>
-            <div style={{ fontSize: "20px", fontWeight: 700, color: spaceColor, marginTop: "2px" }}>
+            <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>
               <AnimatedCounter target={vectorCount} prefix="~" />
             </div>
           </div>
@@ -511,7 +570,7 @@ export default function SpaceDetailPage({
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
               Goal Completion
             </div>
-            <div style={{ fontSize: "20px", fontWeight: 700, color: spaceColor, marginTop: "2px" }}>
+            <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>
               {space.goal?.progress || 0}%
             </div>
           </div>
@@ -544,7 +603,7 @@ export default function SpaceDetailPage({
               borderTop: "none",
               borderLeft: "none",
               borderRight: "none",
-              borderBottom: activeSpaceTab === tab.id ? `2px solid ${spaceColor}` : "2px solid transparent",
+              borderBottom: activeSpaceTab === tab.id ? "2px solid #FFFFFF" : "2px solid transparent",
               background: "transparent",
               cursor: "pointer",
               display: "flex",
@@ -575,7 +634,7 @@ export default function SpaceDetailPage({
               boxShadow: "var(--shadow-xs)",
             }}
           >
-            <span style={{ color: spaceColor }}>
+            <span style={{ color: "var(--text-tertiary)" }}>
               <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.2" fill="none">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="16" />
@@ -603,8 +662,8 @@ export default function SpaceDetailPage({
                 padding: "6px 14px",
                 borderRadius: "6px",
                 border: "none",
-                background: quickNoteText.trim() ? spaceColor : "var(--surface-hover)",
-                color: quickNoteText.trim() ? "#FFFFFF" : "var(--text-tertiary)",
+                background: quickNoteText.trim() ? "#FFFFFF" : "var(--surface-hover)",
+                color: quickNoteText.trim() ? "#000000" : "var(--text-tertiary)",
                 fontSize: "12px",
                 fontWeight: 600,
                 cursor: quickNoteText.trim() ? "pointer" : "default",
@@ -633,7 +692,7 @@ export default function SpaceDetailPage({
                   {space.goal?.title || `Master ${space.name} Domain`}
                 </h3>
               </div>
-              <span style={{ fontSize: "18px", fontWeight: 700, color: spaceColor }}>
+              <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)" }}>
                 {space.goal?.progress || 0}%
               </span>
             </div>
@@ -644,7 +703,7 @@ export default function SpaceDetailPage({
                 style={{
                   width: `${space.goal?.progress || 0}%`,
                   height: "100%",
-                  background: spaceColor,
+                  background: "#FFFFFF",
                   borderRadius: "4px",
                   transition: "width 400ms ease",
                 }}
@@ -677,8 +736,8 @@ export default function SpaceDetailPage({
                       width: "18px",
                       height: "18px",
                       borderRadius: "5px",
-                      border: m.completed ? `2px solid ${spaceColor}` : "2px solid var(--border-strong)",
-                      background: m.completed ? spaceColor : "transparent",
+                      border: m.completed ? "2px solid #10B981" : "2px solid var(--border-strong)",
+                      background: m.completed ? "#10B981" : "transparent",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -728,8 +787,8 @@ export default function SpaceDetailPage({
                     padding: "8px 14px",
                     borderRadius: "6px",
                     border: "none",
-                    background: newMilestoneText.trim() ? spaceColor : "var(--surface-hover)",
-                    color: newMilestoneText.trim() ? "#FFFFFF" : "var(--text-tertiary)",
+                    background: newMilestoneText.trim() ? "#FFFFFF" : "var(--surface-hover)",
+                    color: newMilestoneText.trim() ? "#000000" : "var(--text-tertiary)",
                     fontSize: "12px",
                     fontWeight: 600,
                     cursor: newMilestoneText.trim() ? "pointer" : "default",
@@ -753,7 +812,7 @@ export default function SpaceDetailPage({
                   background: "none",
                   border: "none",
                   fontSize: "12px",
-                  color: spaceColor,
+                  color: "var(--text-primary)",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -780,8 +839,8 @@ export default function SpaceDetailPage({
                       padding: "8px 16px",
                       borderRadius: "6px",
                       border: "none",
-                      background: spaceColor,
-                      color: "#FFFFFF",
+                      background: "#FFFFFF",
+                      color: "#000000",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: "pointer",
@@ -801,7 +860,7 @@ export default function SpaceDetailPage({
                     onClick={() => openObjectModal(obj)}
                   >
                     <div className="continue-card-top">
-                      <div className="continue-card-icon" style={{ background: `${spaceColor}15`, color: spaceColor }}>
+                      <div className="continue-card-icon" style={{ background: "var(--surface-hover)", color: "var(--text-primary)" }}>
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.2" fill="none">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
@@ -847,8 +906,8 @@ export default function SpaceDetailPage({
           <div
             onClick={() => fileInputRef.current?.click()}
             style={{
-              border: `2px dashed ${spaceColor}44`,
-              background: `${spaceColor}06`,
+              border: "2px dashed var(--border-strong)",
+              background: "transparent",
               borderRadius: "14px",
               padding: "32px 20px",
               textAlign: "center",
@@ -856,12 +915,12 @@ export default function SpaceDetailPage({
               transition: "all 200ms ease",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = spaceColor;
-              e.currentTarget.style.background = `${spaceColor}0F`;
+              e.currentTarget.style.borderColor = "#FFFFFF";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = `${spaceColor}44`;
-              e.currentTarget.style.background = `${spaceColor}06`;
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.background = "transparent";
             }}
           >
             <div
@@ -870,7 +929,7 @@ export default function SpaceDetailPage({
                 height: "48px",
                 borderRadius: "50%",
                 background: "var(--surface)",
-                color: spaceColor,
+                color: "var(--text-primary)",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -922,8 +981,8 @@ export default function SpaceDetailPage({
                         width: "36px",
                         height: "36px",
                         borderRadius: "8px",
-                        background: `${spaceColor}15`,
-                        color: spaceColor,
+                        background: "var(--surface-hover)",
+                        color: "var(--text-primary)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -979,10 +1038,9 @@ export default function SpaceDetailPage({
       {activeSpaceTab === "graph" && (
         <div
           style={{
-            border: `1px solid ${spaceColor}33`,
+            border: "1px solid var(--border)",
             borderRadius: "14px",
             overflow: "hidden",
-            boxShadow: `0 0 20px ${spaceColor}11`,
           }}
         >
           <div
@@ -996,7 +1054,7 @@ export default function SpaceDetailPage({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600 }}>
-              <span className="alive-dot" style={{ background: spaceColor }} />
+              <span className="alive-dot" style={{ background: "#FFFFFF" }} />
               <span>{space.name} Knowledge Constellation</span>
             </div>
             <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>

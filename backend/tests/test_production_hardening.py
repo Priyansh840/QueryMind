@@ -1,7 +1,7 @@
 import pytest
 import uuid
 from httpx import AsyncClient
-from datetime import datetime
+from datetime import datetime, timezone
 
 from tests.conftest import override_auth, clear_auth_override
 from database.postgres import async_session
@@ -87,7 +87,7 @@ async def test_decision_trace_isolation_and_safety(async_client: AsyncClient, us
         user_id=user_1.id,
         space_id=uuid.UUID(space_1_id),
         title="Decision Analysis Thread",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     msg = Message(
         id=msg_id,
@@ -95,7 +95,7 @@ async def test_decision_trace_isolation_and_safety(async_client: AsyncClient, us
         role="assistant",
         content="Analyzed context and proposed project creation.",
         citations=[{"document_title": "Project Charter.pdf", "page_number": 2, "snippet": "Project X requires formal kickoff."}],
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     prop = ActionProposal(
         id=uuid.uuid4(),
@@ -109,7 +109,7 @@ async def test_decision_trace_isolation_and_safety(async_client: AsyncClient, us
         reason="Grounding decision analysis shows project required.",
         confidence="high",
         status="pending",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
     async with async_session() as db:

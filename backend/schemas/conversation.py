@@ -12,6 +12,7 @@ class MessageBase(BaseModel):
 class MessageCreate(BaseModel):
     role: Optional[str] = "user"
     content: str
+    metadata_json: Optional[dict] = None
 
 class MessageResponse(MessageBase):
     id: uuid.UUID

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
+import { queryMindApi } from "@/lib/api";
 import AnimatedCounter from "@/components/ui/AnimatedCounter";
 
 const CATEGORY_TAGS = [
@@ -20,6 +21,7 @@ export default function SpacesDirectoryPage() {
   const spaces = useMyndStore((state) => state.spaces);
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
+  const deleteSpace = useMyndStore((state) => state.deleteSpace);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,8 +36,8 @@ export default function SpacesDirectoryPage() {
   }, [spaces, uploadedDocuments]);
 
   const totalVectors = useMemo(() => {
-    return totalObjects * 35 + 420;
-  }, [totalObjects]);
+    return uploadedDocuments.reduce((acc, d) => acc + (d.vectorsStored || d.chunks || 1), 0);
+  }, [uploadedDocuments]);
 
   const activeAgents = useMemo(() => {
     return spaces.filter((s) => s.agentPersona?.status === "active" || s.agentPersona).length;
@@ -52,11 +54,11 @@ export default function SpacesDirectoryPage() {
       if (!matchesSearch) return false;
 
       if (selectedCategory === "all") return true;
-      if (selectedCategory === "engineering") return s.id === "career" || s.name.toLowerCase().includes("engineer") || s.name.toLowerCase().includes("system");
-      if (selectedCategory === "research") return s.id === "research" || s.name.toLowerCase().includes("ai") || s.name.toLowerCase().includes("paper");
-      if (selectedCategory === "product") return s.id === "startup" || s.name.toLowerCase().includes("product");
-      if (selectedCategory === "academics") return s.id === "college" || s.name.toLowerCase().includes("college") || s.name.toLowerCase().includes("study");
-      if (selectedCategory === "creative") return s.id === "ideas" || s.id === "personal" || s.name.toLowerCase().includes("idea");
+      if (selectedCategory === "engineering") return s.name.toLowerCase().includes("engineer") || s.name.toLowerCase().includes("system") || s.name.toLowerCase().includes("career") || s.desc.toLowerCase().includes("architecture");
+      if (selectedCategory === "research") return s.name.toLowerCase().includes("research") || s.name.toLowerCase().includes("ai") || s.name.toLowerCase().includes("neural") || s.desc.toLowerCase().includes("paper");
+      if (selectedCategory === "product") return s.name.toLowerCase().includes("product") || s.name.toLowerCase().includes("startup") || s.desc.toLowerCase().includes("strategy");
+      if (selectedCategory === "academics") return s.name.toLowerCase().includes("college") || s.name.toLowerCase().includes("academic") || s.name.toLowerCase().includes("study") || s.name.toLowerCase().includes("course");
+      if (selectedCategory === "creative") return s.name.toLowerCase().includes("idea") || s.name.toLowerCase().includes("creative") || s.name.toLowerCase().includes("personal") || s.name.toLowerCase().includes("vault");
       return true;
     });
   }, [spaces, searchQuery, selectedCategory]);
@@ -68,7 +70,7 @@ export default function SpacesDirectoryPage() {
         className="stagger"
         style={{
           position: "relative",
-          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 50%, var(--surface) 100%)",
+          background: "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 50%, var(--surface) 100%)",
           border: "1px solid var(--border)",
           borderRadius: "16px",
           padding: "32px",
@@ -113,19 +115,19 @@ export default function SpacesDirectoryPage() {
               padding: "10px 20px",
               borderRadius: "10px",
               border: "none",
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "#FFFFFF",
+              color: "#000000",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(99, 102, 241, 0.35)",
+              boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
               display: "flex",
               alignItems: "center",
               gap: "8px",
               transition: "transform 150ms ease",
             }}
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="#000000" strokeWidth="2.5" fill="none">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -158,7 +160,7 @@ export default function SpacesDirectoryPage() {
           </div>
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Qdrant Vectors</div>
-            <div style={{ fontSize: "22px", fontWeight: 700, color: "#8B5CF6", marginTop: "4px" }}>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalVectors} prefix="~" />
             </div>
           </div>
@@ -217,11 +219,11 @@ export default function SpacesDirectoryPage() {
               style={{
                 padding: "6px 14px",
                 borderRadius: "20px",
-                border: selectedCategory === cat.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-                background: selectedCategory === cat.id ? "var(--accent-soft)" : "var(--surface)",
-                color: selectedCategory === cat.id ? "var(--accent)" : "var(--text-secondary)",
+                border: selectedCategory === cat.id ? "1px solid #FFFFFF" : "1px solid var(--border)",
+                background: selectedCategory === cat.id ? "#FFFFFF" : "var(--surface)",
+                color: selectedCategory === cat.id ? "#000000" : "var(--text-secondary)",
                 fontSize: "12px",
-                fontWeight: selectedCategory === cat.id ? 600 : 500,
+                fontWeight: selectedCategory === cat.id ? 700 : 500,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 transition: "all 150ms ease",
@@ -241,10 +243,67 @@ export default function SpacesDirectoryPage() {
           gap: "20px",
         }}
       >
+        {spaces.length === 0 && (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              padding: "48px 24px",
+              textAlign: "center",
+              borderRadius: "16px",
+              background: "var(--surface)",
+              border: "1px dashed var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
+              No Spaces Provisioned Yet
+            </div>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", maxWidth: "440px", margin: 0, lineHeight: 1.5 }}>
+              Your workspace starts clean. You can choose domain presets from the interests page, or create custom spaces tailored to your work.
+            </p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+              <button
+                onClick={openCreateSpace}
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#FFFFFF",
+                  color: "#000000",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                + Create New Space
+              </button>
+              <Link
+                href="/onboarding"
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-primary)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                Browse Interests
+              </Link>
+            </div>
+          </div>
+        )}
+
         {filteredSpaces.map((space, idx) => {
           const spaceDocs = uploadedDocuments.filter((d) => d.spaceId === space.id);
           const docCount = Math.max(space.count, spaceDocs.length);
-          const spaceColor = space.color || "#6366F1";
 
           return (
             <div
@@ -267,9 +326,9 @@ export default function SpacesDirectoryPage() {
                 boxShadow: "var(--shadow-xs)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = spaceColor;
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
                 e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow = `0 8px 24px ${spaceColor}22`;
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.5)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "var(--border)";
@@ -284,8 +343,8 @@ export default function SpacesDirectoryPage() {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: "3px",
-                  background: `linear-gradient(90deg, ${spaceColor} 0%, transparent 100%)`,
+                  height: "2px",
+                  background: "linear-gradient(90deg, rgba(255, 255, 255, 0.25) 0%, transparent 100%)",
                 }}
               />
 
@@ -297,21 +356,21 @@ export default function SpacesDirectoryPage() {
                       width: "40px",
                       height: "40px",
                       borderRadius: "10px",
-                      background: `${spaceColor}18`,
-                      color: spaceColor,
+                      background: "var(--surface-hover)",
+                      color: "#FFFFFF",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      border: `1px solid ${spaceColor}33`,
+                      border: "1px solid var(--border)",
                     }}
                   >
                     <span
                       style={{
-                        width: "12px",
-                        height: "12px",
+                        width: "10px",
+                        height: "10px",
                         borderRadius: "50%",
-                        background: spaceColor,
-                        boxShadow: `0 0 10px ${spaceColor}`,
+                        background: "#FFFFFF",
+                        boxShadow: "0 0 6px rgba(255, 255, 255, 0.4)",
                       }}
                     />
                   </div>
@@ -325,19 +384,58 @@ export default function SpacesDirectoryPage() {
                   </div>
                 </div>
 
-                <span
-                  className="badge"
-                  style={{
-                    fontSize: "10px",
-                    background: `${spaceColor}15`,
-                    color: spaceColor,
-                    padding: "3px 8px",
-                    borderRadius: "12px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {space.pinned ? "Pinned" : "Space"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: "11px",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      color: "#FFFFFF",
+                      border: "1px solid rgba(255, 255, 255, 0.18)",
+                      padding: "3px 10px",
+                      borderRadius: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {space.pinned ? "Pinned" : "Space"}
+                  </span>
+                  <button
+                    type="button"
+                    title={`Delete "${space.name}"`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Are you sure you want to remove space "${space.name}"?`)) {
+                        deleteSpace(space.id);
+                        queryMindApi.deleteSpace(space.id).catch((err) => console.warn("Backend delete space error:", err));
+                      }
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-tertiary)",
+                      cursor: "pointer",
+                      padding: "4px",
+                      borderRadius: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 150ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#EF4444";
+                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-tertiary)";
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Description */}
@@ -372,8 +470,9 @@ export default function SpacesDirectoryPage() {
                       width: "24px",
                       height: "24px",
                       borderRadius: "6px",
-                      background: space.agentPersona.avatarBg || spaceColor,
-                      color: "#fff",
+                      background: "#262626",
+                      color: "#FFFFFF",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
                       fontSize: "11px",
                       fontWeight: 700,
                       display: "flex",
@@ -391,7 +490,7 @@ export default function SpacesDirectoryPage() {
                       {space.agentPersona.specialty}
                     </div>
                   </div>
-                  <span className="alive-dot" style={{ background: spaceColor }} />
+                  <span className="alive-dot" style={{ background: "#FFFFFF" }} />
                 </div>
               )}
 
@@ -400,14 +499,14 @@ export default function SpacesDirectoryPage() {
                 <div style={{ marginBottom: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
                     <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>Objective</span>
-                    <span style={{ color: spaceColor, fontWeight: 700 }}>{space.goal.progress}%</span>
+                    <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{space.goal.progress}%</span>
                   </div>
                   <div style={{ height: "6px", borderRadius: "3px", background: "var(--surface-hover)", overflow: "hidden" }}>
                     <div
                       style={{
                         width: `${space.goal.progress}%`,
                         height: "100%",
-                        background: spaceColor,
+                        background: "#FFFFFF",
                         borderRadius: "3px",
                         transition: "width 400ms ease",
                       }}
@@ -431,7 +530,7 @@ export default function SpacesDirectoryPage() {
                 <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>
                   Updated {space.updated}
                 </span>
-                <span style={{ color: spaceColor, fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: "var(--text-primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
                   Enter Space
                   <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none">
                     <line x1="5" y1="12" x2="19" y2="12" />

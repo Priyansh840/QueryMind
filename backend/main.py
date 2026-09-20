@@ -2,11 +2,27 @@
 QueryMind - FastAPI Application Entry Point
 """
 
+import os
+import sys
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from api.v1.router import api_router
+from services.workflow_worker import get_workflow_worker
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifecycle manager to start and stop the durable WorkflowWorker."""
+    if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
+        yield
+        return
+    worker = get_workflow_worker()
+    worker.start()
+    yield
+    await worker.stop()
 
 
 def create_app() -> FastAPI:
@@ -18,6 +34,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # CORS Middleware

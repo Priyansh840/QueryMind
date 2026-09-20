@@ -4,7 +4,7 @@ from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database.postgres import Base
+from database.postgres import Base, utc_now
 
 class Memory(Base):
     __tablename__ = "memories"
@@ -20,12 +20,12 @@ class Memory(Base):
     importance: Mapped[str] = mapped_column(String(50), default="medium")
     reinforcement_count: Mapped[int] = mapped_column(Integer, default=1)
     
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    last_reinforced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_reinforced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     source_count: Mapped[int] = mapped_column(Integer, default=1)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     
     user = relationship("User", back_populates="memories")
     space = relationship("Space")
@@ -48,7 +48,7 @@ class Connection(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     
     user = relationship("User", back_populates="connections")
     space = relationship("Space")

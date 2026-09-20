@@ -50,6 +50,7 @@ class AgentState(TypedDict):
     # Step 6 Phase 1: Workspace injection
     workspace_context: dict
     workspace_summary: dict
+    personalization: Optional[dict]
     
     # Planner/Critic/Decision/Action outputs
     planner_output: Optional[dict]

@@ -1,5 +1,6 @@
 import uuid
 import logging
+import asyncio
 from typing import List, Optional
 import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -151,7 +152,8 @@ async def send_message(
         id=user_msg_id,
         conversation_id=conversation.id,
         role="user",
-        content=request.content
+        content=request.content,
+        metadata_json=request.metadata_json,
     )
     db.add(user_msg)
     await db.commit()
@@ -169,11 +171,18 @@ async def send_message(
         elif msg.role == "assistant":
             chat_history.append(AIMessage(content=msg.content))
             
-    # 3. Create Objective
+    # 3. Create Objective inheriting conversation's space_id
     objective_id = uuid.uuid4()
-    objective = Objective(id=objective_id, user_id=current_user.id, raw_input=request.content)
+    objective = Objective(
+        id=objective_id,
+        user_id=current_user.id,
+        space_id=conversation.space_id,
+        raw_input=request.content,
+    )
     db.add(objective)
     await db.commit()
+
+    personalization = (request.metadata_json or {}).get("personalization") if request.metadata_json else None
 
     async def sse_generator():
         # Yield message.created for user msg
@@ -186,6 +195,7 @@ async def send_message(
             "user_id": str(current_user.id),
             "space_id": str(conversation.space_id),
             "objective_id": str(objective_id),
+            "personalization": personalization,
         }
         
         # We need a new session inside the generator because FastAPI background tasks/streaming
@@ -355,8 +365,13 @@ async def send_message(
             # Yield message.completed
             yield f"data: {json.dumps({'event': 'message.completed', 'data': {'message_id': str(asst_msg_id), 'content': final_text}})}\n\n"
             
+        except asyncio.CancelledError:
+            logger.info(f"SSE client disconnected for conversation {conversation.id}; rolling back pending session state")
+            await db.rollback()
+            raise
         except Exception as e:
             logger.error(f"SSE Error: {e}")
+            await db.rollback()
             yield f"data: {json.dumps({'event': 'error', 'data': {'detail': str(e)}})}\n\n"
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")

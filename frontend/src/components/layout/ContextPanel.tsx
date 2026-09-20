@@ -52,7 +52,8 @@ export default function ContextPanel() {
     );
   }, [spaces, activeSpaceId]);
 
-  const spaceColor = currentSpace?.color || "#8B5CF6";
+  const spaceName = currentSpace?.name || "Workspace";
+  const spaceColor = "#FFFFFF";
 
   // Check if content looks like code
   const isCode = useMemo(() => {
@@ -100,7 +101,7 @@ export default function ContextPanel() {
   const handleAskAiSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!askAiQuery.trim()) return;
-    const targetPrefix = activeDoc ? `Regarding ${activeDoc.title}` : `In ${currentSpace.name} Space`;
+    const targetPrefix = activeDoc ? `Regarding ${activeDoc.title}` : `In ${spaceName} Space`;
     openAskAi(`${targetPrefix}: ${askAiQuery}`);
     setAskAiQuery("");
   };
@@ -146,27 +147,28 @@ export default function ContextPanel() {
 
         {/* Space Aura Dot */}
         <div
-          title={`${currentSpace.name} Domain Active`}
+          title={`${spaceName} Domain Active`}
           style={{
             width: "32px",
             height: "32px",
             borderRadius: "8px",
-            background: `${spaceColor}15`,
-            color: spaceColor,
+            background: "var(--surface-hover)",
+            color: "var(--text-primary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
+            border: "1px solid var(--border)",
           }}
           onClick={() => setIsCollapsed(false)}
         >
-          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: spaceColor }} />
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#FFFFFF", boxShadow: "0 0 4px rgba(255, 255, 255, 0.4)" }} />
         </div>
 
         {/* Resident AI trigger */}
         <button
-          onClick={() => openAskAi(`${currentSpace.name} Space`)}
-          title={`Ask ${currentSpace.agentPersona?.name || "Resident AI"}`}
+          onClick={() => openAskAi(`${spaceName} Space`)}
+          title={`Ask ${currentSpace?.agentPersona?.name || "Resident AI"}`}
           style={{
             width: "32px",
             height: "32px",
@@ -210,7 +212,7 @@ export default function ContextPanel() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: "10px",
-          background: `linear-gradient(180deg, ${spaceColor}08 0%, var(--surface) 100%)`,
+          background: "linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--surface) 100%)",
         }}
       >
         {/* Left: Context Indicator */}
@@ -220,12 +222,8 @@ export default function ContextPanel() {
               width: "32px",
               height: "32px",
               borderRadius: "8px",
-              background: activeDoc
-                ? isCode
-                  ? "#EFF6FF"
-                  : `${spaceColor}18`
-                : `${spaceColor}18`,
-              color: activeDoc ? (isCode ? "#3B82F6" : spaceColor) : spaceColor,
+              background: "var(--surface-hover)",
+              color: "var(--text-primary)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -254,12 +252,12 @@ export default function ContextPanel() {
                   textOverflow: "ellipsis",
                 }}
               >
-                {activeDoc ? activeDoc.title : `${currentSpace.name} Domain`}
+                {activeDoc ? activeDoc.title : `${spaceName} Domain`}
               </span>
             </div>
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "1px" }}>
               {activeDoc
-                ? `${activeDoc.type || "Document"} • In ${currentSpace.name}`
+                ? `${activeDoc.type || "Document"} • In ${spaceName}`
                 : "Active Neural Workspace"}
             </div>
           </div>
@@ -282,9 +280,9 @@ export default function ContextPanel() {
                 gap: "4px",
                 padding: "4px 8px",
                 borderRadius: "6px",
-                background: `${spaceColor}15`,
-                color: spaceColor,
-                border: `1px solid ${spaceColor}30`,
+                background: "var(--surface-hover)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
                 fontSize: "11px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -352,7 +350,7 @@ export default function ContextPanel() {
               borderTop: "none",
               borderLeft: "none",
               borderRight: "none",
-              borderBottom: activeTab === tab ? `2px solid ${spaceColor}` : "2px solid transparent",
+              borderBottom: activeTab === tab ? "2px solid #FFFFFF" : "2px solid transparent",
               background: "transparent",
               cursor: "pointer",
               textTransform: "capitalize",
@@ -461,10 +459,10 @@ export default function ContextPanel() {
                       borderTop: "1px solid var(--border)",
                       borderRight: "1px solid var(--border)",
                       borderBottom: "1px solid var(--border)",
-                      borderLeft: `3px solid ${spaceColor}`,
+                      borderLeft: "3px solid #FFFFFF",
                     }}
                   >
-                    <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: spaceColor, marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-primary)", marginBottom: "6px" }}>
                       Executive Synthesis
                     </div>
                     <p
@@ -499,9 +497,9 @@ export default function ContextPanel() {
                     {(activeDoc.keyIdeas && activeDoc.keyIdeas.length > 0
                       ? activeDoc.keyIdeas
                       : [
-                          "Verified Vector Indexing",
-                          "Domain Scope: " + currentSpace.name,
+                          activeDoc.title,
                           "Semantic Cohesion: High",
+                          "Domain Scope: " + spaceName,
                         ]
                     ).map((highlight, idx) => (
                       <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
@@ -554,11 +552,11 @@ export default function ContextPanel() {
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
                         <TrendingUp style={{ width: "14px", height: "14px", color: "#10B981", flexShrink: 0 }} />
                         <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
-                          Cross-reference with {currentSpace.name} milestones
+                          Cross-reference with {spaceName} milestones
                         </span>
                       </div>
                       <button
-                        onClick={() => openAskAi(`Cross-reference "${activeDoc.title}" with current milestones in ${currentSpace.name}`)}
+                        onClick={() => openAskAi(`Cross-reference "${activeDoc.title}" with current milestones in ${spaceName}`)}
                         style={{
                           fontSize: "11px",
                           fontWeight: 600,
@@ -587,7 +585,7 @@ export default function ContextPanel() {
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
-                        <Lightbulb style={{ width: "14px", height: "14px", color: "#F59E0B", flexShrink: 0 }} />
+                        <Lightbulb style={{ width: "14px", height: "14px", color: "var(--text-secondary)", flexShrink: 0 }} />
                         <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
                           Extract 3 practice interview questions
                         </span>
@@ -615,13 +613,13 @@ export default function ContextPanel() {
               /* If no document selected: render Space & Neural Intelligence Hub */
               <>
                 {/* Resident Specialist Card */}
-                {currentSpace.agentPersona && (
+                {currentSpace?.agentPersona && (
                   <div
                     style={{
                       padding: "16px",
                       borderRadius: "12px",
-                      background: `linear-gradient(135deg, ${spaceColor}14 0%, var(--surface) 100%)`,
-                      border: `1px solid ${spaceColor}30`,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
                       display: "flex",
                       flexDirection: "column",
                       gap: "10px",
@@ -633,14 +631,14 @@ export default function ContextPanel() {
                           width: "36px",
                           height: "36px",
                           borderRadius: "10px",
-                          background: spaceColor,
-                          color: "#fff",
+                          background: "#262626",
+                          color: "#FFFFFF",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
                           fontWeight: 700,
                           fontSize: "13px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          boxShadow: `0 0 12px ${spaceColor}44`,
                         }}
                       >
                         AI
@@ -672,7 +670,7 @@ export default function ContextPanel() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
                       <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Qdrant Vectors</div>
-                      <div style={{ fontSize: "16px", fontWeight: 700, color: spaceColor, marginTop: "2px" }}>~1,420</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>~1,420</div>
                     </div>
                     <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
                       <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Cohesion Index</div>
@@ -687,15 +685,15 @@ export default function ContextPanel() {
                     <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
                       Active Milestones
                     </span>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: spaceColor }}>
-                      {currentSpace.goal?.progress || 0}%
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      {currentSpace?.goal?.progress || 0}%
                     </span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {(currentSpace.milestones || []).slice(0, 3).map((m) => (
+                    {(currentSpace?.milestones || []).slice(0, 3).map((m) => (
                       <div
                         key={m.id}
-                        onClick={() => toggleMilestone(currentSpace.id, m.id)}
+                        onClick={() => currentSpace && toggleMilestone(currentSpace.id, m.id)}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -708,7 +706,7 @@ export default function ContextPanel() {
                           fontSize: "12px",
                         }}
                       >
-                        <span style={{ color: m.completed ? spaceColor : "var(--text-tertiary)", fontWeight: 700 }}>
+                        <span style={{ color: m.completed ? "#10B981" : "var(--text-tertiary)", fontWeight: 700 }}>
                           {m.completed ? "✓" : "○"}
                         </span>
                         <span
@@ -735,7 +733,7 @@ export default function ContextPanel() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <button
-                      onClick={() => openAskAi(`Synthesize all key findings and documents in ${currentSpace.name}`)}
+                      onClick={() => openAskAi(`Synthesize all key findings and documents in ${spaceName}`)}
                       style={{
                         padding: "8px 12px",
                         borderRadius: "8px",
@@ -751,12 +749,12 @@ export default function ContextPanel() {
                         gap: "6px",
                       }}
                     >
-                      <Zap style={{ width: "13px", height: "13px", color: spaceColor }} />
-                      <span>Synthesize {currentSpace.name} Briefing</span>
+                      <Zap style={{ width: "13px", height: "13px", color: "var(--text-primary)" }} />
+                      <span>Synthesize {spaceName} Briefing</span>
                     </button>
 
                     <button
-                      onClick={() => openAskAi(`Identify knowledge gaps and blind spots in ${currentSpace.name}`)}
+                      onClick={() => openAskAi(`Identify knowledge gaps and blind spots in ${spaceName}`)}
                       style={{
                         padding: "8px 12px",
                         borderRadius: "8px",
@@ -772,7 +770,7 @@ export default function ContextPanel() {
                         gap: "6px",
                       }}
                     >
-                      <Lightbulb style={{ width: "13px", height: "13px", color: "#F59E0B" }} />
+                      <Lightbulb style={{ width: "13px", height: "13px", color: "var(--text-secondary)" }} />
                       <span>Audit Knowledge Gaps</span>
                     </button>
                   </div>
@@ -793,10 +791,10 @@ export default function ContextPanel() {
                   background: "var(--surface-subtle)",
                 }}
               >
-                <Sparkles style={{ width: "14px", height: "14px", color: spaceColor, flexShrink: 0 }} />
+                <Sparkles style={{ width: "14px", height: "14px", color: "var(--text-primary)", flexShrink: 0 }} />
                 <input
                   type="text"
-                  placeholder={activeDoc ? "Ask AI about this item..." : `Query ${currentSpace.name} Brain...`}
+                  placeholder={activeDoc ? "Ask AI about this item..." : `Query ${spaceName} Brain...`}
                   value={askAiQuery}
                   onChange={(e) => setAskAiQuery(e.target.value)}
                   style={{
@@ -840,7 +838,7 @@ export default function ContextPanel() {
                     transition: "all 150ms ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = spaceColor;
+                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = "var(--border)";
@@ -850,7 +848,7 @@ export default function ContextPanel() {
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
                       {item.title}
                     </span>
-                    <span className="badge" style={{ fontSize: "10px", background: `${spaceColor}15`, color: spaceColor }}>
+                    <span className="badge" style={{ fontSize: "10px", background: "rgba(255, 255, 255, 0.08)", color: "#FFFFFF", border: "1px solid rgba(255, 255, 255, 0.15)" }}>
                       {98 - idx * 4}% Match
                     </span>
                   </div>
@@ -862,7 +860,7 @@ export default function ContextPanel() {
             )}
 
             <button
-              onClick={() => router.push(`/chat?prompt=Explore graph connections between documents in ${currentSpace.name}`)}
+              onClick={() => router.push(`/chat?prompt=Explore graph connections between documents in ${spaceName}`)}
               style={{
                 marginTop: "10px",
                 padding: "8px 12px",
@@ -895,9 +893,9 @@ export default function ContextPanel() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div style={{ fontSize: "12px", borderLeft: `2px solid ${spaceColor}`, paddingLeft: "12px" }}>
+              <div style={{ fontSize: "12px", borderLeft: "2px solid rgba(255, 255, 255, 0.4)", paddingLeft: "12px" }}>
                 <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                  {activeDoc ? activeDoc.title : currentSpace.name} Synchronized
+                  {activeDoc ? activeDoc.title : spaceName} Synchronized
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
                   Vector embeddings cached in Qdrant • 10 minutes ago
@@ -940,7 +938,7 @@ export default function ContextPanel() {
                   `/chat?prompt=${encodeURIComponent(
                     activeDoc
                       ? `Deeply synthesize and extract key architectural concepts from "${activeDoc.title}": ${activeDoc.summary || ""}`
-                      : `Provide an executive intelligence briefing across the ${currentSpace.name} space.`
+                      : `Provide an executive intelligence briefing across the ${spaceName} space.`
                   )}`
                 )
               }
@@ -950,13 +948,13 @@ export default function ContextPanel() {
                 justifyContent: "space-between",
                 padding: "10px 14px",
                 borderRadius: "8px",
-                background: `linear-gradient(135deg, ${spaceColor} 0%, var(--accent) 100%)`,
-                color: "#FFFFFF",
+                background: "#FFFFFF",
+                color: "#000000",
                 fontSize: "12px",
                 fontWeight: 600,
                 border: "none",
                 cursor: "pointer",
-                boxShadow: `0 2px 10px ${spaceColor}44`,
+                boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
               }}
             >
               <span>🚀 Launch Streaming Chat</span>
@@ -968,7 +966,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `What are the top 3 critical takeaways from "${activeDoc.title}"?`
-                    : `What are the top 3 priorities in the ${currentSpace.name} domain?`
+                    : `What are the top 3 priorities in the ${spaceName} domain?`
                 )
               }
               style={{
@@ -991,7 +989,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `Identify conceptual gaps or blind spots in "${activeDoc.title}".`
-                    : `Identify missing resources or knowledge gaps in ${currentSpace.name}.`
+                    : `Identify missing resources or knowledge gaps in ${spaceName}.`
                 )
               }
               style={{
@@ -1014,7 +1012,7 @@ export default function ContextPanel() {
                 openAskAi(
                   activeDoc
                     ? `Formulate 5 technical interview or examination questions testing knowledge of "${activeDoc.title}".`
-                    : `Generate 5 high-impact questions testing mastery of ${currentSpace.name}.`
+                    : `Generate 5 high-impact questions testing mastery of ${spaceName}.`
                 )
               }
               style={{

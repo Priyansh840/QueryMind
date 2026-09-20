@@ -2,13 +2,14 @@ import logging
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import SystemMessage, HumanMessage
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from orchestrator.state import AgentState
 from orchestrator.schemas import DecisionAnalysis
 from llm.provider import get_llm
 from orchestrator.context_formatter import format_workspace_context
 from models.orchestrator import AgentRun, WorkflowStep
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
@@ -21,16 +22,20 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
     workflow_iteration = state.get("workflow_iteration", 1)
     
     if db and objective_id:
+        obj_uuid = uuid.UUID(objective_id)
+        workflow_id = uuid.uuid5(obj_uuid, "workflow")
+        step_id = uuid.uuid5(workflow_id, f"decision_{workflow_iteration}")
+        
         try:
-            obj_uuid = uuid.UUID(objective_id)
-            workflow_id = uuid.uuid5(obj_uuid, "workflow")
-            step_id = uuid.uuid5(workflow_id, f"decision_{workflow_iteration}")
-            
             step_order = (workflow_iteration * 10) + 8
             step_stmt = insert(WorkflowStep).values(
                 id=step_id, workflow_id=workflow_id, step_order=step_order, 
-                iteration=workflow_iteration, intent_type="decision_analysis"
-            ).on_conflict_do_nothing()
+                iteration=workflow_iteration, intent_type="decision_analysis",
+                status="running"
+            ).on_conflict_do_update(
+                index_elements=['id'],
+                set_={'status': 'running'}
+            )
             await db.execute(step_stmt)
             
             run_id = uuid.uuid4()
@@ -39,14 +44,15 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
                 workflow_step_id=step_id,
                 agent_type="decision_analyzer",
                 status="running",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
                 input_context={"workspace_counts": len(state.get("workspace_context", {}).get("goals", []))}
             )
             db.add(run)
             await db.commit()
         except Exception as e:
-            logger.warning(f"Error creating DB records for decision_analyzer: {e}")
+            logger.error(f"Error creating DB records for decision_analyzer: {e}")
             await db.rollback()
+            raise
     
     try:
         llm = get_llm(temperature=0.1)
@@ -66,6 +72,8 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
             "7. If the user's query is unrelated to the workspace, DO NOT generate generic recommendations or blockers.\n"
             "8. If there is insufficient evidence to make a recommendation, return an empty recommendations list and explain the missing information in the 'uncertainties' list.\n"
             "9. Ensure `source_type` is one of: 'workspace', 'document', 'conversation'.\n"
+            "10. Review `<recent_action_outcomes>` and `<lessons_learned>` where present to recognize past failures and avoid repeating known mistakes. Always distinguish objective workspace FACTS from subjective REFLECTIONS, and never treat an unverified reflection as authoritative objective truth.\n"
+            "11. Do not blindly follow previous recommendations; assess all lessons judiciously in context of the current objective.\n"
         )
         
         # Append Workspace Context
@@ -95,7 +103,7 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
         if db and 'run' in locals():
             try:
                 run.status = "completed"
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 run.output_summary = {
                     "recommendations_count": len(response.recommendations),
                     "blockers_count": len(response.blockers),
@@ -103,9 +111,17 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
                     "confidence_levels": [r.confidence for r in response.recommendations]
                 }
                 db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
                 await db.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Telemetry save error in decision_analyzer: {e}")
         
         return state
         
@@ -115,11 +131,19 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
             try:
                 run.status = "failed"
                 run.error = str(e)
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
                 await db.commit()
-            except Exception:
-                pass
+            except Exception as db_err:
+                logger.warning(f"Telemetry error update failed in decision_analyzer: {db_err}")
         
         fallback = DecisionAnalysis(
             blockers=[],

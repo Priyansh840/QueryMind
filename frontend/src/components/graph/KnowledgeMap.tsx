@@ -218,40 +218,7 @@ export default function KnowledgeMap() {
         });
       }
 
-      // 3. Fallback seeds if user has zero data yet
-      if (combinedNodes.length === 0) {
-        const fallbacks = [
-          { title: "Neural Architecture Search", type: "concept", snippet: "Optimization of deep convolutional and transformer weights" },
-          { title: "Resume 2026 Final Draft", type: "document", snippet: "Production engineering & distributed systems experience" },
-          { title: "Kalyra Streaming Engine", type: "research", snippet: "Low-latency WebRTC mesh with spatial audio mixing" },
-          { title: "Google Tech Screen Prep", type: "goal", snippet: "Distributed consensus, Paxos, and Raft architectures" },
-          { title: "Competency Matrix", type: "concept", snippet: "Staff engineer expectations across scope, execution, and strategy" },
-          { title: "Vector DB Clustering", type: "research", snippet: "HNSW index tuning in Qdrant with cosine distance" },
-        ];
-        fallbacks.forEach((fb, idx) => {
-          const styles = getCategoryStyles(fb.type);
-          combinedNodes.push({
-            id: `seed-${idx}`,
-            label: fb.title,
-            category: styles.category,
-            color: styles.color,
-            bgColor: styles.bgColor,
-            icon: styles.icon,
-            x: 0,
-            y: 0,
-            snippet: fb.snippet,
-            confidence: 0.98,
-            rawObj: {
-              id: `seed-${idx}`,
-              title: fb.title,
-              type: fb.type.toUpperCase(),
-              summary: fb.snippet,
-              keyIdeas: ["Core System Architecture", "Production Ready", "Verified Knowledge"],
-              updated: "Today",
-            },
-          });
-        });
-      }
+      // Zero fake seeds: strictly real user documents and knowledge notes
 
       // Multi-quadrant sector clustering with concentric orbits
       const sectorAngles: Record<string, { start: number; end: number }> = {
@@ -991,6 +958,29 @@ export default function KnowledgeMap() {
               </span>
             </div>
           </div>
+
+          {/* Empty State Hint if zero nodes exist */}
+          {filteredNodes.length === 0 && !isLoading && (
+            <div
+              style={{
+                position: "absolute",
+                left: `${hubPos.x}px`,
+                top: `${hubPos.y + 65}px`,
+                transform: "translateX(-50%)",
+                textAlign: "center",
+                background: "var(--surface)",
+                border: "1px dashed var(--border)",
+                borderRadius: "12px",
+                padding: "10px 18px",
+                color: "var(--text-tertiary)",
+                fontSize: "12px",
+                maxWidth: "320px",
+                pointerEvents: "none",
+              }}
+            >
+              No knowledge nodes in this space yet. Upload a document or capture a thought below to see real-time nodes appear.
+            </div>
+          )}
 
           {/* Satellite Knowledge & Document Nodes */}
           {filteredNodes.map((node) => {

@@ -18,7 +18,9 @@ async def test_goal_ownership(async_client: AsyncClient, user_1, user_2):
     assert response.status_code == 200
 
     # 3. Create Space and Project for User 1
-    response = await async_client.post("/api/v1/spaces", json={"name": "Space 1"})
+    import uuid
+    space_name = f"Goal Space {uuid.uuid4().hex[:6]}"
+    response = await async_client.post("/api/v1/spaces", json={"name": space_name})
     space_1_id = response.json()["id"]
     response = await async_client.post("/api/v1/projects", json={"space_id": space_1_id, "name": "Proj 1"})
     project_1_id = response.json()["id"]

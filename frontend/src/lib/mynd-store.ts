@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { queryMindApi, authApi } from "./api";
 
 export interface KnowledgeObject {
   id: string;
@@ -83,10 +84,15 @@ export interface Space {
 
 export interface UserProfile {
   name: string;
+  username?: string;
+  avatarUrl?: string;
   email: string;
   role: string;
   timezone: string;
   focusDomain: string;
+  skills?: string[];
+  interests?: string[];
+  goals?: string[];
   stats: {
     knowledgeObjects: number;
     connections: number;
@@ -106,8 +112,42 @@ export interface ActivityItem {
   bg: string;
 }
 
+export interface PersonalizationSettings {
+  cognitiveStyle: "first_principles" | "executive" | "socratic" | "speed";
+  verbosity: "concise" | "balanced" | "deep_dive";
+  codeStandard: "staff_engineer" | "rapid_prototype" | "academic";
+  formattingPreference: "structured_markdown" | "analytical_prose" | "bullet_points";
+  autonomousMemory: boolean;
+  crossSpaceSynthesis: boolean;
+  strictGrounding: boolean;
+  userContext: string;
+  customDirectives: string;
+}
+
+export const defaultPersonalizationSettings: PersonalizationSettings = {
+  cognitiveStyle: "first_principles",
+  verbosity: "balanced",
+  codeStandard: "staff_engineer",
+  formattingPreference: "structured_markdown",
+  autonomousMemory: true,
+  crossSpaceSynthesis: true,
+  strictGrounding: false,
+  userContext: "",
+  customDirectives: "",
+};
+
 export interface MyndState {
-  theme: "light" | "dark" | "zen";
+  theme: "dark" | "light" | "zen" | "cyberpunk" | "sepia" | "arctic";
+  accentColor: string;
+  uiDensity: "compact" | "comfortable" | "spacious";
+  reduceMotion: boolean;
+  soundEffects: boolean;
+  aiModel: "gemini-3.7-flash" | "gemini-1.5-pro";
+  webSearchEnabled: boolean;
+  codeExecution: boolean;
+  defaultSpaceId: string;
+  language: string;
+
   activeRoute: "home" | "workspace" | "space" | "search" | "intelligence" | "vault" | "chat";
   activeSpaceId: string;
   activeSpaceTab: "overview" | "objects" | "graph" | "insights" | "notes" | "journals" | "habits" | "goals" | "timeline";
@@ -121,7 +161,11 @@ export interface MyndState {
   isAskAiOpen: boolean;
   askAiTarget: string | null;
   isSettingsOpen: boolean;
-  activeSettingsTab: "general" | "appearance" | "autonomy" | "storage" | "integrations";
+  activeSettingsTab: "general" | "appearance" | "ai" | "privacy" | "notifications" | "shortcuts" | "personalization" | "storage" | "autonomy";
+
+  personalization: PersonalizationSettings;
+  updatePersonalization: (updates: Partial<PersonalizationSettings>) => void;
+  resetPersonalization: () => void;
 
   userProfile: UserProfile;
   spaces: Space[];
@@ -140,7 +184,17 @@ export interface MyndState {
   closeObjectModal: () => void;
 
   toggleTheme: () => void;
-  setTheme: (theme: "light" | "dark" | "zen") => void;
+  setTheme: (theme: MyndState["theme"]) => void;
+  setAccentColor: (color: string) => void;
+  setUiDensity: (density: MyndState["uiDensity"]) => void;
+  setReduceMotion: (reduce: boolean) => void;
+  setSoundEffects: (enabled: boolean) => void;
+  setAiModel: (model: MyndState["aiModel"]) => void;
+  setWebSearchEnabled: (enabled: boolean) => void;
+  setCodeExecution: (enabled: boolean) => void;
+  setDefaultSpaceId: (id: string) => void;
+  setLanguage: (lang: string) => void;
+
   toggleFocusMode: () => void;
   toggleZenMode: () => void;
 
@@ -150,6 +204,10 @@ export interface MyndState {
   closeAskAi: () => void;
   openSettings: (tab?: MyndState["activeSettingsTab"]) => void;
   closeSettings: () => void;
+
+  isEditProfileOpen: boolean;
+  openEditProfile: () => void;
+  closeEditProfile: () => void;
 
   isCreateSpaceOpen: boolean;
   openCreateSpace: () => void;
@@ -185,302 +243,321 @@ export interface MyndState {
     agentPersona?: AgentPersona;
     scratchpad?: string;
   }) => void;
+  deleteSpace: (spaceId: string) => void;
+  hasCompletedOnboarding: boolean;
+  setHasCompletedOnboarding: (completed: boolean) => void;
+  provisionSpacesFromInterests: (interestIds: string[]) => void;
   setSpaces: (spaces: Space[]) => void;
   setActiveSpaceId: (spaceId: string) => void;
   clearSpaces: () => void;
   clearAllData: () => void;
   loadSampleData: () => void;
+  syncWithBackend: () => Promise<void>;
 }
 
-// Initial Clean Default State (starts with your real workspace)
-const initialSpaces: Space[] = [
+export interface UserInterestDefinition {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  icon: string;
+  spacesToCreate: Array<{
+    id: string;
+    name: string;
+    desc: string;
+    color: string;
+    icon: string;
+    goalTitle: string;
+    agentName: string;
+    agentRole: string;
+    agentSpecialty: string;
+    milestoneTitles: string[];
+    scratchpad: string;
+  }>;
+}
+
+export const PRESET_INTERESTS: UserInterestDefinition[] = [
   {
-    id: "career",
-    name: "Career",
-    status: "Active",
-    count: 8,
-    updated: "Just now",
-    pinned: true,
-    color: "#8B5CF6",
-    icon: "briefcase",
-    desc: "Career progression, resume, system design interviews, and engineering leadership",
-    goal: { title: "Senior Systems Architect Mastery & Career Growth", progress: 85 },
-    agentPersona: {
-      name: "Apex Strategist",
-      title: "Staff Systems Career Architect",
-      specialty: "Distributed systems, technical leadership & interview synthesis",
-      status: "active",
-      avatarBg: "#8B5CF6",
-    },
-    milestones: [
-      { id: "m-1", title: "Resume 2026 tuned for Backend & Distributed Systems roles", completed: true },
-      { id: "m-2", title: "Google Interview Prep — System Design & Graphs completed", completed: true },
-      { id: "m-3", title: "Kalyra Streaming Engine v2 architecture benchmark", completed: false },
-      { id: "m-4", title: "Finalize 3 mock system design architecture sessions", completed: false },
-    ],
-    scratchpad: `# Career Vision 2026\n\n- Focus on large-scale distributed systems and real-time streaming architectures.\n- Target role: Staff / Lead Engineer with autonomous agents focus.\n- Strengths: C++, Python, Next.js, Qdrant vector retrieval.`,
-    liveUpdate: { text: "Resume 2026 optimized for backend roles", time: "2h ago" },
-    sections: { knowledge: [], projects: [], notes: [] },
-    objects: [],
+    id: "engineering",
+    title: "Software & Architecture",
+    category: "Technical",
+    description: "System design, distributed databases, code patterns, and engineering RFCs.",
+    icon: "code",
+    spacesToCreate: [
+      {
+        id: "engineering-brain",
+        name: "Engineering Brain",
+        desc: "Code architectures, technical RFCs, API patterns, and design decisions",
+        color: "#FFFFFF",
+        icon: "code",
+        goalTitle: "Build production-grade distributed architectures",
+        agentName: "Systems Architect",
+        agentRole: "Staff Engineering Co-pilot",
+        agentSpecialty: "Scalable backend systems, API contracts, and concurrency patterns",
+        milestoneTitles: [
+          "Document core API design standards and rate limiting specs",
+          "Synthesize database schema migrations and indexing patterns",
+          "Map out distributed microservices topology"
+        ],
+        scratchpad: "# Engineering Brain\n\n- Focus: High-performance, maintainable distributed systems.\n- Key stack: Next.js, FastAPI, PostgreSQL, Qdrant, Docker.\n- Invariants: Idempotency, zero-downtime migrations, structured logging."
+      },
+      {
+        id: "system-design",
+        name: "System Design",
+        desc: "High-scale distributed systems, fault tolerance, caching & database schemas",
+        color: "#FFFFFF",
+        icon: "server",
+        goalTitle: "Master Large-Scale Distributed System Patterns",
+        agentName: "Cluster Strategist",
+        agentRole: "Infrastructure & Scaling Analyst",
+        agentSpecialty: "Consensus protocols, caching strategies, and event sourcing",
+        milestoneTitles: [
+          "Compare Raft vs Paxos trade-offs for distributed consensus",
+          "Design multi-region read-replica failover strategy",
+          "Benchmark vector retrieval latency under 10k QPS load"
+        ],
+        scratchpad: "# System Design Knowledge\n\n- Always design for partial failure.\n- Decouple write paths with async event streaming.\n- Optimize Qdrant HNSW parameters for recall vs latency."
+      }
+    ]
   },
   {
-    id: "research",
-    name: "Research",
-    status: "Active",
-    count: 12,
-    updated: "Today",
-    pinned: true,
-    color: "#10B981",
-    icon: "atom",
-    desc: "AI research papers, vector search benchmarks, and distributed consensus studies",
-    goal: { title: "Explore Distributed AI & Dense Hybrid Retrieval", progress: 70 },
-    agentPersona: {
-      name: "Synthesis Fellow",
-      title: "Senior AI & Literature Researcher",
-      specialty: "Distributed computing papers, vector retrieval, architecture proofs",
-      status: "active",
-      avatarBg: "#10B981",
-    },
-    milestones: [
-      { id: "r-1", title: "Survey Raft vs Paxos consensus implementations", completed: true },
-      { id: "r-2", title: "Benchmark HNSW vs Flat indexing performance in Qdrant", completed: true },
-      { id: "r-3", title: "Draft research briefing on Hybrid BM25 + Dense Retrieval", completed: false },
-      { id: "r-4", title: "Synthesize findings into Second Brain autonomous agent report", completed: false },
-    ],
-    scratchpad: `# Research Notes\n\n- Dense embeddings provide semantic clustering, but keyword BM25 handles precise terminology.\n- Re-ranking with cross-encoders improves MRR@10 by 18% on technical documents.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
+    id: "ai_research",
+    title: "AI & Neural Research",
+    category: "AI & ML",
+    description: "LLMs, vector search, RAG pipelines, autonomous agents, and ML papers.",
+    icon: "brain",
+    spacesToCreate: [
+      {
+        id: "ai-research-lab",
+        name: "AI Research Lab",
+        desc: "Model benchmarks, embedding strategies, attention mechanisms, and research papers",
+        color: "#FFFFFF",
+        icon: "atom",
+        goalTitle: "Track State-of-the-Art Generative & Agentic AI",
+        agentName: "Synthesis Fellow",
+        agentRole: "AI Research Scientist",
+        agentSpecialty: "Dense retrieval, re-ranking benchmarks, and agent reasoning traces",
+        milestoneTitles: [
+          "Benchmark BGE vs Text-Embedding-3-Small retrieval accuracy",
+          "Synthesize paper on speculative decoding speedups",
+          "Document agentic tool reflection and self-correction loops"
+        ],
+        scratchpad: "# AI Research Lab\n\n- Dense embeddings provide semantic clustering, BM25 handles exact symbols.\n- Hybrid search with Reciprocal Rank Fusion (RRF) yields highest overall MRR."
+      },
+      {
+        id: "agentic-workflows",
+        name: "Agentic Workflows",
+        desc: "Multi-agent orchestration, LangGraph state machines, memory compression & tool use",
+        color: "#FFFFFF",
+        icon: "sparkles",
+        goalTitle: "Deploy Autonomous Multi-Agent Systems",
+        agentName: "Orchestrator Agent",
+        agentRole: "Workflow Automation Specialist",
+        agentSpecialty: "State graph execution, memory distillation, and tool calling",
+        milestoneTitles: [
+          "Implement cyclic supervisor routing for subagent handoffs",
+          "Build episodic memory compressor for long-running agent threads",
+          "Setup safety guardrails on automated database mutations"
+        ],
+        scratchpad: "# Agentic Workflows\n\n- Maintain short-term context in state graphs.\n- Persist long-term episodic memories in Qdrant collections."
+      }
+    ]
   },
   {
-    id: "startup",
-    name: "Startup",
-    status: "Active",
-    count: 6,
-    updated: "Today",
-    pinned: false,
-    color: "#3B82F6",
+    id: "product_startup",
+    title: "Product & Startups",
+    category: "Business",
+    description: "Product strategy, user feedback, roadmap prioritization, and pitch decks.",
     icon: "rocket",
-    desc: "Product roadmap, pitch decks, technical specifications, and beta tester feedback",
-    goal: { title: "Launch QueryMind MVP Beta to 100 Power Users", progress: 60 },
-    agentPersona: {
-      name: "Venture Architect",
-      title: "Product Strategist & Systems Technologist",
-      specialty: "GTM execution, tech specs, product roadmaps & investor decks",
-      status: "active",
-      avatarBg: "#3B82F6",
-    },
-    milestones: [
-      { id: "s-1", title: "Product MVP Core Feature Matrix defined", completed: true },
-      { id: "s-2", title: "Streaming SSE Chat with agent telemetry verified", completed: true },
-      { id: "s-3", title: "Complete Seed Pitch Deck narrative and slide flow", completed: false },
-      { id: "s-4", title: "Deploy Beta testing environment with metrics instrumentation", completed: false },
-    ],
-    scratchpad: `# QueryMind Beta Milestones\n\n1. Frictionless document drag-and-drop\n2. Real-time token streaming with citation highlighting\n3. Creative spaces for context-isolated agent reasoning`,
-    sections: { knowledge: [], projects: [] },
-    objects: [],
+    spacesToCreate: [
+      {
+        id: "product-strategy",
+        name: "Product Strategy",
+        desc: "PRDs, customer interviews, feature roadmaps, and competitive intelligence",
+        color: "#FFFFFF",
+        icon: "compass",
+        goalTitle: "Deliver High-Impact Products with Product-Market Fit",
+        agentName: "Product Lead",
+        agentRole: "Strategic Product Partner",
+        agentSpecialty: "Feature prioritization, user journey synthesis, and PRD drafting",
+        milestoneTitles: [
+          "Complete user research interviews for onboarding friction",
+          "Draft Q3 product requirements document (PRD)",
+          "Analyze churn drivers from user telemetry feedback"
+        ],
+        scratchpad: "# Product Strategy\n\n- Focus on user clarity: 1 primary action per screen.\n- Optimize first 60 seconds of user activation."
+      },
+      {
+        id: "startup-ops",
+        name: "Startup Ops",
+        desc: "Investor updates, unit economics, fundraising memos, and growth experiments",
+        color: "#FFFFFF",
+        icon: "trending-up",
+        goalTitle: "Scale Seed to Series A Operational Velocity",
+        agentName: "Venture Partner",
+        agentRole: "Startup Growth Advisor",
+        agentSpecialty: "Unit economics, investor storytelling, and growth loops",
+        milestoneTitles: [
+          "Refine seed pitch deck executive narrative",
+          "Calculate CAC, LTV, and net dollar retention cohorts",
+          "Set up weekly operating metrics dashboard"
+        ],
+        scratchpad: "# Startup Operations\n\n- Key metrics: Monthly recurring revenue, activation rate, server unit cost.\n- Target: 15% monthly user retention improvement."
+      }
+    ]
   },
   {
-    id: "college",
-    name: "College",
-    status: "Active",
-    count: 4,
-    updated: "Yesterday",
-    pinned: false,
-    color: "#F97316",
-    icon: "graduation",
-    desc: "Academic coursework, semester projects, exam revisions, and group milestones",
-    goal: { title: "Final Semester Capstone Project & Honors Distinction", progress: 75 },
-    agentPersona: {
-      name: "Academic Scholar",
-      title: "Curriculum & Exam Synthesizer",
-      specialty: "Coursework distillation, problem set breakdowns & revision notes",
-      status: "active",
-      avatarBg: "#F97316",
-    },
-    milestones: [
-      { id: "c-1", title: "Operating Systems assignment 3 complete", completed: true },
-      { id: "c-2", title: "Review Distributed Systems lecture notes", completed: true },
-      { id: "c-3", title: "Prepare Distributed Consensus presentation slides", completed: false },
-    ],
-    scratchpad: `# Semester Capstone\n\n- Team: 3 members\n- Deliverable: Second Brain autonomous assistant with vector embeddings and multi-space isolation.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
+    id: "second_brain",
+    title: "Personal Knowledge",
+    category: "Productivity",
+    description: "Book notes, mental models, journaling, reflections, and life systems.",
+    icon: "book-open",
+    spacesToCreate: [
+      {
+        id: "personal-vault",
+        name: "Personal Vault",
+        desc: "Reading notes, philosophical frameworks, mental models, and essays",
+        color: "#FFFFFF",
+        icon: "book-open",
+        goalTitle: "Synthesize 100 Transformative Mental Models",
+        agentName: "Thought Partner",
+        agentRole: "Epistemic Guide",
+        agentSpecialty: "Cross-disciplinary concept synthesis and reflective inquiry",
+        milestoneTitles: [
+          "Extract 5 core principles from latest deep reading book",
+          "Connect decision-making frameworks with personal journals",
+          "Write synthesis essay on compounding knowledge"
+        ],
+        scratchpad: "# Personal Vault\n\n- Knowledge compounds exponentially when connected across domains.\n- Treat notes as evergreen thinking assets."
+      },
+      {
+        id: "daily-systems",
+        name: "Daily Systems",
+        desc: "Weekly reviews, habit trackers, health protocols, and goal tracking",
+        color: "#FFFFFF",
+        icon: "calendar",
+        goalTitle: "Establish Consistent High-Performance Routines",
+        agentName: "Performance Coach",
+        agentRole: "Habits & Routine Optimizer",
+        agentSpecialty: "Time blocking, weekly reflection, and operational rhythm",
+        milestoneTitles: [
+          "Complete quarterly priority alignment review",
+          "Track 30-day deep work consistency routine",
+          "Review energy management and sleep optimization protocols"
+        ],
+        scratchpad: "# Daily Systems\n\n- Systems > Goals. Design environments that make execution effortless.\n- Weekly Sunday review to clear open loops."
+      }
+    ]
   },
   {
-    id: "personal",
-    name: "Personal",
-    status: "Active",
-    count: 7,
-    updated: "2 days ago",
-    pinned: false,
-    color: "#EAB308",
-    icon: "user",
-    desc: "Personal journals, book summaries, fitness logs, and long-term reflection",
-    goal: { title: "Read 12 Deep Technical Books & Maintain Habit Tracker", progress: 50 },
-    agentPersona: {
-      name: "Reflective Mind",
-      title: "Life Strategy & Habits Co-pilot",
-      specialty: "Habit loops, long-term reading synthesis, life logs",
-      status: "idle",
-      avatarBg: "#EAB308",
-    },
-    milestones: [
-      { id: "p-1", title: "Designing Data-Intensive Applications (Kleppmann) finished", completed: true },
-      { id: "p-2", title: "Database Internals (Petrov) chapter 1-5", completed: false },
-    ],
-    scratchpad: `# Notes to Self\n\n"The art of knowledge work is turning passive information consumption into active synthesis and creation."`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
+    id: "academics",
+    title: "Academics & Study",
+    category: "Education",
+    description: "University coursework, lecture notes, exam synthesis, and lab write-ups.",
+    icon: "graduation-cap",
+    spacesToCreate: [
+      {
+        id: "coursework-labs",
+        name: "Coursework & Labs",
+        desc: "Lecture notes, problem sets, experimental results, and lab write-ups",
+        color: "#FFFFFF",
+        icon: "graduation-cap",
+        goalTitle: "Master Semester Coursework & Lab Milestones",
+        agentName: "Academic Tutor",
+        agentRole: "Specialized Course TA",
+        agentSpecialty: "Problem solving, concept breakdowns, and literature citations",
+        milestoneTitles: [
+          "Summarize weekly lecture recordings into atomic concepts",
+          "Complete Lab assignment code and technical report",
+          "Cross-reference textbook problems with class slides"
+        ],
+        scratchpad: "# Coursework & Labs\n\n- Break down complex proofs into first principles.\n- Keep clean citations for all lab write-ups."
+      },
+      {
+        id: "exam-synthesis",
+        name: "Exam Synthesis",
+        desc: "High-yield study guides, formula sheets, mock tests, and flash concepts",
+        color: "#FFFFFF",
+        icon: "check-circle",
+        goalTitle: "Achieve Top-Tier Exam Mastery",
+        agentName: "Exam Strategist",
+        agentRole: "Active Recall Coach",
+        agentSpecialty: "Spaced repetition prompts and high-yield topic prioritization",
+        milestoneTitles: [
+          "Generate practice quiz from last 4 lecture chunks",
+          "Build formula sheet and edge-case cheatsheet",
+          "Complete timed practice exam under realistic constraints"
+        ],
+        scratchpad: "# Exam Preparation\n\n- Test with active recall rather than passive re-reading.\n- Focus on weak areas identified in mock diagnostics."
+      }
+    ]
   },
   {
-    id: "ideas",
-    name: "Ideas",
-    status: "Active",
-    count: 3,
-    updated: "3 days ago",
-    pinned: false,
-    color: "#EC4899",
-    icon: "sparkles",
-    desc: "Raw brain dumps, high-variance creative concepts, and rapid prototyping notes",
-    goal: { title: "Prototype 5 Autonomous Agent Experiments", progress: 40 },
-    agentPersona: {
-      name: "Creative Catalyst",
-      title: "Lateral Brain Dump Co-pilot",
-      specialty: "High-variance idea collisions, rapid prototyping & brainstorm mapping",
-      status: "active",
-      avatarBg: "#EC4899",
-    },
-    milestones: [
-      { id: "i-1", title: "Agentic tool-calling memory architecture sketch", completed: true },
-      { id: "i-2", title: "Multi-agent consensus protocol prototype", completed: false },
-      { id: "i-3", title: "Voice-driven ambient capture experiment", completed: false },
-    ],
-    scratchpad: `# Crazy Ideas\n\n- What if agents autonomously cross-referenced research papers and opened PRs with suggested refactors?\n- Interactive 3D constellation map of knowledge nodes.`,
-    sections: { knowledge: [], notes: [] },
-    objects: [],
-  },
+    id: "finance_wealth",
+    title: "Finance & Wealth",
+    category: "Finance",
+    description: "Portfolio management, investment theses, macro trends, and market models.",
+    icon: "line-chart",
+    spacesToCreate: [
+      {
+        id: "wealth-portfolio",
+        name: "Wealth & Portfolio",
+        desc: "Asset allocation, investment theses, venture deals, and financial models",
+        color: "#FFFFFF",
+        icon: "wallet",
+        goalTitle: "Build Resilient Long-Term Wealth Architecture",
+        agentName: "Portfolio Analyst",
+        agentRole: "Investment Strategist",
+        agentSpecialty: "Risk-adjusted returns, asset allocation, and valuation models",
+        milestoneTitles: [
+          "Document investment thesis for core technology allocations",
+          "Audit quarterly asset distribution and rebalancing targets",
+          "Build discounted cash flow (DCF) model for target asset"
+        ],
+        scratchpad: "# Wealth & Portfolio\n\n- Focus on asymmetry: protect downside, allow upside to run.\n- Regular rebalancing preserves risk parity."
+      }
+    ]
+  }
 ];
 
 const initialProfile: UserProfile = {
-  name: "Aryan Kulkarni",
-  email: "aryan@querymind.os",
-  role: "Systems Architect & Full Stack",
-  timezone: "UTC+05:30 (India Standard Time)",
-  focusDomain: "Career & Systems Architecture",
+  name: "",
+  username: "",
+  avatarUrl: "",
+  email: "",
+  role: "",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  focusDomain: "",
+  skills: [],
+  interests: [],
+  goals: [],
   stats: {
-    knowledgeObjects: 40,
-    connections: 128,
-    daemonsRunning: 2,
-    learningHours: "14.5 hrs",
+    knowledgeObjects: 0,
+    connections: 0,
+    daemonsRunning: 0,
+    learningHours: "0 hrs",
   },
 };
-
-const sampleObjects: KnowledgeObject[] = [
-  {
-    id: "resume-2026",
-    title: "Resume 2026",
-    type: "PDF",
-    badge: "PDF",
-    updated: "2h ago",
-    time: "2h ago",
-    spaceId: "career",
-    progress: 95,
-    iconBg: "#F5F3FF",
-    iconColor: "#8B5CF6",
-    summary: "Your resume is optimized for software engineering roles with a strong focus on system design, backend development and problem solving.",
-    keyIdeas: [
-      "3 Major Projects",
-      "Backend Development",
-      "System Design",
-      "Problem Solving",
-    ],
-    tags: ["Resume", "Software Engineering", "Career"],
-    meta: "PDF Document • Updated 2h ago",
-  },
-  {
-    id: "google-prep",
-    title: "Google Interview Prep",
-    type: "Notes",
-    badge: "Notes",
-    updated: "5h ago",
-    time: "5h ago",
-    spaceId: "career",
-    progress: 80,
-    iconBg: "#ECFDF5",
-    iconColor: "#10B981",
-    summary: "Comprehensive notes covering Distributed Systems, System Design, Graph Algorithms, and Dynamic Programming.",
-    tags: ["Interview", "System Design", "Algorithms"],
-    meta: "Notes • Updated 5h ago",
-  },
-  {
-    id: "kalyra-engine",
-    title: "Kalyra Streaming Engine",
-    type: "Code",
-    badge: "Code",
-    updated: "Yesterday",
-    time: "Yesterday",
-    spaceId: "career",
-    progress: 72,
-    iconBg: "#EFF6FF",
-    iconColor: "#3B82F6",
-    summary: "Low-latency streaming architecture built with C++ and WebSockets.",
-    tags: ["Code", "Streaming", "Architecture"],
-    meta: "Code • Updated yesterday",
-  },
-];
-
-const sampleActivityFeed: ActivityItem[] = [
-  {
-    id: "act-1",
-    title: "Resume 2026 updated",
-    text: "Updated system design highlights & project metrics",
-    time: "2h ago",
-    space: "Career",
-    iconType: "document",
-    color: "#8B5CF6",
-    bg: "#F5F3FF",
-  },
-  {
-    id: "act-2",
-    title: "New connection created Resume ↔ Projects",
-    text: "Linked 3 repository nodes to resume experience",
-    time: "3h ago",
-    space: "Career",
-    iconType: "sparkles",
-    color: "#F59E0B",
-    bg: "#FEF3C7",
-  },
-  {
-    id: "act-3",
-    title: "Google Interview Prep Notes updated",
-    text: "Added 4 distributed system design patterns",
-    time: "5h ago",
-    space: "Career",
-    iconType: "document",
-    color: "#10B981",
-    bg: "#ECFDF5",
-  },
-  {
-    id: "act-4",
-    title: "Kalyra Engine commit pushed",
-    text: "7 commits synchronized to repository index",
-    time: "Yesterday",
-    space: "Career",
-    iconType: "code",
-    color: "#3B82F6",
-    bg: "#EFF6FF",
-  },
-];
 
 export const useMyndStore = create<MyndState>()(
   persist(
     (set, get) => ({
-      theme: "light",
+      theme: "dark",
+      accentColor: "#FFFFFF",
+      uiDensity: "comfortable",
+      reduceMotion: false,
+      soundEffects: true,
+      aiModel: "gemini-3.7-flash",
+      webSearchEnabled: true,
+      codeExecution: true,
+      defaultSpaceId: "",
+      language: "en",
+
       activeRoute: "home",
-      activeSpaceId: "career",
+      activeSpaceId: "",
       activeSpaceTab: "overview",
       activeSpaceSection: "all",
-      selectedObject: sampleObjects[0],
+      selectedObject: null,
       isObjectModalOpen: false,
 
       isFocusMode: false,
@@ -491,11 +568,18 @@ export const useMyndStore = create<MyndState>()(
       isSettingsOpen: false,
       activeSettingsTab: "general",
 
+      personalization: defaultPersonalizationSettings,
+      updatePersonalization: (updates) =>
+        set((state) => ({
+          personalization: { ...state.personalization, ...updates },
+        })),
+      resetPersonalization: () => set({ personalization: defaultPersonalizationSettings }),
+
       userProfile: initialProfile,
-      spaces: initialSpaces,
-      activityFeed: sampleActivityFeed,
-      recentObjects: sampleObjects,
-      uploadedDocuments: sampleObjects,
+      spaces: [],
+      activityFeed: [],
+      recentObjects: [],
+      uploadedDocuments: [],
       captureQueue: [],
 
       setRoute: (route) => set({ activeRoute: route }),
@@ -515,8 +599,10 @@ export const useMyndStore = create<MyndState>()(
       closeObjectModal: () => set({ isObjectModalOpen: false }),
 
       toggleTheme: () => {
+        const themes: MyndState["theme"][] = ["dark", "light", "zen", "cyberpunk", "sepia", "arctic"];
         const cur = get().theme;
-        const next = cur === "light" ? "dark" : cur === "dark" ? "zen" : "light";
+        const nextIdx = (themes.indexOf(cur) + 1) % themes.length;
+        const next = themes[nextIdx];
         if (typeof document !== "undefined") {
           document.documentElement.setAttribute("data-theme", next);
         }
@@ -528,6 +614,26 @@ export const useMyndStore = create<MyndState>()(
         }
         set({ theme });
       },
+      setAccentColor: (color) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.style.setProperty("--accent", color);
+          document.documentElement.style.setProperty("--accent-soft", color + "26");
+        }
+        set({ accentColor: color });
+      },
+      setUiDensity: (density) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-density", density);
+        }
+        set({ uiDensity: density });
+      },
+      setReduceMotion: (reduce) => set({ reduceMotion: reduce }),
+      setSoundEffects: (enabled) => set({ soundEffects: enabled }),
+      setAiModel: (model) => set({ aiModel: model }),
+      setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
+      setCodeExecution: (enabled) => set({ codeExecution: enabled }),
+      setDefaultSpaceId: (id) => set({ defaultSpaceId: id }),
+      setLanguage: (lang) => set({ language: lang }),
       toggleFocusMode: () => set((s) => ({ isFocusMode: !s.isFocusMode })),
       toggleZenMode: () => set((s) => ({ isZenMode: !s.isZenMode })),
 
@@ -537,6 +643,10 @@ export const useMyndStore = create<MyndState>()(
       closeAskAi: () => set({ isAskAiOpen: false, askAiTarget: null }),
       openSettings: (tab) => set({ isSettingsOpen: true, activeSettingsTab: tab || "general" }),
       closeSettings: () => set({ isSettingsOpen: false }),
+
+      isEditProfileOpen: false,
+      openEditProfile: () => set({ isEditProfileOpen: true }),
+      closeEditProfile: () => set({ isEditProfileOpen: false }),
 
       isCreateSpaceOpen: false,
       openCreateSpace: () => set({ isCreateSpaceOpen: true }),
@@ -705,8 +815,8 @@ export const useMyndStore = create<MyndState>()(
           time: "Just now",
           space: targetSpace.charAt(0).toUpperCase() + targetSpace.slice(1),
           iconType: "sparkles",
-          color: "#8B5CF6",
-          bg: "#F5F3FF",
+          color: "#FFFFFF",
+          bg: "#1F1F1F",
         };
 
         set((state) => {
@@ -764,7 +874,7 @@ export const useMyndStore = create<MyndState>()(
           updated: "Just now",
           pinned: false,
           desc: space.desc || "Custom knowledge space",
-          color: space.color || "#6366F1",
+          color: space.color || "#FFFFFF",
           icon: space.icon || "sparkles",
           goal: space.goal || { title: `Master ${space.name} Domain`, progress: 0 },
           milestones: space.milestones || [
@@ -776,7 +886,7 @@ export const useMyndStore = create<MyndState>()(
             title: `Dedicated ${space.name} Co-pilot`,
             specialty: `Autonomous synthesis and domain analysis for ${space.name}`,
             status: "active",
-            avatarBg: space.color || "#6366F1",
+            avatarBg: space.color || "#262626",
           },
           scratchpad: space.scratchpad || `# ${space.name} Notes\n\n- Space created on ${new Date().toLocaleDateString()}.\n- Ready for knowledge ingestion and autonomous agent synthesis.`,
           sections: { knowledge: [], notes: [], projects: [] },
@@ -785,6 +895,85 @@ export const useMyndStore = create<MyndState>()(
         set((state) => ({
           spaces: [...state.spaces, newSpace],
         }));
+      },
+
+      hasCompletedOnboarding: false,
+      setHasCompletedOnboarding: (completed: boolean) => set({ hasCompletedOnboarding: completed }),
+
+      deleteSpace: (spaceId: string) => {
+        set((state) => {
+          const remainingSpaces = state.spaces.filter((s) => s.id !== spaceId);
+          const nextActiveId =
+            state.activeSpaceId === spaceId
+              ? remainingSpaces[0]?.id || ""
+              : state.activeSpaceId;
+
+          const remainingDocs = state.uploadedDocuments.filter((d) => d.spaceId !== spaceId);
+          const remainingRecent = state.recentObjects.filter((d) => d.spaceId !== spaceId);
+
+          return {
+            spaces: remainingSpaces,
+            activeSpaceId: nextActiveId,
+            uploadedDocuments: remainingDocs,
+            recentObjects: remainingRecent,
+          };
+        });
+      },
+
+      provisionSpacesFromInterests: (interestIds: string[]) => {
+        const selected = PRESET_INTERESTS.filter((p) => interestIds.includes(p.id));
+        const newSpaces: Space[] = [];
+
+        selected.forEach((interest) => {
+          interest.spacesToCreate.forEach((def) => {
+            const newSpace: Space = {
+              id: def.id,
+              name: def.name,
+              status: "Active",
+              count: 0,
+              updated: "Just now",
+              pinned: true,
+              desc: def.desc,
+              color: def.color,
+              icon: def.icon,
+              goal: { title: def.goalTitle, progress: 0 },
+              milestones: def.milestoneTitles.map((title, idx) => ({
+                id: `m-${def.id}-${idx + 1}`,
+                title,
+                completed: false,
+              })),
+              agentPersona: {
+                name: def.agentName,
+                title: def.agentRole,
+                specialty: def.agentSpecialty,
+                status: "active",
+                avatarBg: def.color,
+              },
+              scratchpad: def.scratchpad,
+              sections: { knowledge: [], notes: [], projects: [] },
+              objects: [],
+            };
+            newSpaces.push(newSpace);
+          });
+        });
+
+        // Set ONLY the selected spaces! No retaining unselected/default spaces.
+        set({
+          spaces: newSpaces,
+          activeSpaceId: newSpaces[0]?.id || "",
+          hasCompletedOnboarding: true,
+        });
+
+        // Asynchronously sync newly provisioned spaces with backend DB
+        newSpaces.forEach((s) => {
+          queryMindApi.createSpace({
+            name: s.name,
+            description: s.desc,
+            color: s.color,
+            icon: s.icon,
+            slug: s.id,
+          }).catch((err) => console.warn("Backend space creation notice:", err));
+        });
       },
 
       setSpaces: (spaces: Space[]) => {
@@ -818,51 +1007,136 @@ export const useMyndStore = create<MyndState>()(
       },
 
       loadSampleData: () => {
-        // Optional demo dataset for users who want to preview a fully populated graph
-        const sampleDoc1: KnowledgeObject = {
-          id: "sample-1",
-          title: "System Architecture & Consensus Protocols.pdf",
-          type: "PDF",
-          badge: "PDF",
-          updated: "2h ago",
-          connections: 8,
-          confidence: "98%",
-          summary: "Distributed event streaming, Raft consensus invariants, and sub-12ms response streaming.",
-          meta: "2.4 MB • 14 chunks",
-          tags: ["Architecture", "Distributed Systems"],
-        };
-        const sampleDoc2: KnowledgeObject = {
-          id: "sample-2",
-          title: "Streaming Engine Transcoding Specs.md",
-          type: "MARKDOWN",
-          badge: "MD",
-          updated: "Yesterday",
-          connections: 5,
-          confidence: "95%",
-          summary: "HLS segmentation and Redis queue workers for real-time video feeds.",
-          meta: "34 KB • 8 chunks",
-          tags: ["Video", "Streaming"],
-        };
+        // No-op: strict real-time user data mode enabled.
+      },
 
-        set((state) => ({
-          uploadedDocuments: [sampleDoc1, sampleDoc2],
-          recentObjects: [sampleDoc1, sampleDoc2],
-          spaces: [
-            {
-              ...state.spaces[0],
-              count: 2,
-              sections: { knowledge: [sampleDoc1, sampleDoc2] },
-              objects: [sampleDoc1, sampleDoc2],
-            },
-            ...state.spaces.slice(1),
-          ],
-        }));
+      syncWithBackend: async () => {
+        try {
+          const [meData, spacesData, knowledgeData] = await Promise.allSettled([
+            authApi.getMe(),
+            queryMindApi.getSpaces(),
+            queryMindApi.getKnowledge(),
+          ]);
+
+          const updates: Partial<MyndState> = {};
+
+          if (meData.status === "fulfilled" && meData.value) {
+            const me = meData.value;
+            updates.userProfile = {
+              name: me.display_name || me.email.split("@")[0],
+              email: me.email,
+              username: me.email.split("@")[0],
+              avatarUrl: me.avatar_url || "",
+              role: "Knowledge Architect",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+              focusDomain: "Personal Knowledge",
+              stats: {
+                knowledgeObjects: me.stats?.knowledge_objects || 0,
+                connections: me.stats?.connections || 0,
+                daemonsRunning: 1,
+                learningHours: "12 hrs",
+              },
+            };
+          }
+
+          if (spacesData.status === "fulfilled" && Array.isArray(spacesData.value) && spacesData.value.length > 0) {
+            const currentSpaces = get().spaces;
+            const apiSpaces: Space[] = spacesData.value.map((s) => {
+              const existing = currentSpaces.find((x) => x.id === s.id || x.name.toLowerCase() === s.name.toLowerCase());
+              return {
+                id: s.id,
+                name: s.name,
+                status: "Active",
+                count: existing?.count || 0,
+                updated: "Recently",
+                pinned: s.is_default || existing?.pinned || false,
+                desc: s.description || existing?.desc || "Workspace",
+                color: s.color || existing?.color || "#FFFFFF",
+                icon: s.icon || existing?.icon || "folder",
+                slug: s.slug,
+                goal: existing?.goal || { title: `Master ${s.name} Domain`, progress: 0 },
+                milestones: existing?.milestones || [],
+                agentPersona: existing?.agentPersona || {
+                  name: `${s.name} Specialist`,
+                  title: `Dedicated ${s.name} Co-pilot`,
+                  specialty: `Autonomous synthesis and domain analysis for ${s.name}`,
+                  status: "active",
+                  avatarBg: s.color || "#262626",
+                },
+                scratchpad: existing?.scratchpad || `# ${s.name} Notes\n\n- Connected to real-time agent and backend database.`,
+                sections: existing?.sections || { knowledge: [], notes: [], projects: [] },
+                objects: existing?.objects || [],
+              };
+            });
+
+            updates.spaces = apiSpaces;
+            if (!get().activeSpaceId || !apiSpaces.find((s) => s.id === get().activeSpaceId)) {
+              updates.activeSpaceId = apiSpaces[0].id;
+            }
+            updates.hasCompletedOnboarding = true;
+          }
+
+          if (knowledgeData.status === "fulfilled" && Array.isArray(knowledgeData.value)) {
+            const objects: KnowledgeObject[] = knowledgeData.value.map((k) => ({
+              id: k.id,
+              title: k.title || k.content.slice(0, 40),
+              type: (k.knowledge_type || "NOTE").toUpperCase(),
+              badge: (k.knowledge_type || "NOTE").toUpperCase(),
+              updated: "Recently",
+              time: "Recently",
+              spaceId: k.space_id,
+              confidence: `${Math.round((k.confidence || 0.9) * 100)}%`,
+              summary: k.content.slice(0, 150),
+              content: k.content,
+              meta: `${k.knowledge_type} • ${new Date(k.created_at).toLocaleDateString()}`,
+              tags: [k.knowledge_type],
+            }));
+            updates.recentObjects = objects;
+            updates.uploadedDocuments = objects.filter((o) => o.type === "DOCUMENT");
+          }
+
+          set((state) => ({ ...state, ...updates }));
+        } catch (err) {
+          console.warn("Backend sync error:", err);
+        }
       },
     }),
     {
-      name: "querymind_storage_v2",
+      name: "querymind_storage_v3",
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Default theme must be dark
+        if (!state.theme || state.theme === "light") {
+          state.theme = "dark";
+        }
+        if (!state.accentColor) state.accentColor = "#FFFFFF";
+        if (!state.uiDensity) state.uiDensity = "comfortable";
+        if (state.reduceMotion === undefined) state.reduceMotion = false;
+        if (state.soundEffects === undefined) state.soundEffects = true;
+        if (!state.aiModel) state.aiModel = "gemini-3.7-flash";
+        if (state.webSearchEnabled === undefined) state.webSearchEnabled = true;
+        if (state.codeExecution === undefined) state.codeExecution = true;
+        if (!state.defaultSpaceId) state.defaultSpaceId = "";
+        if (!state.language) state.language = "en";
+
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-theme", state.theme || "dark");
+          document.documentElement.setAttribute("data-density", state.uiDensity || "comfortable");
+          if (state.accentColor) {
+            document.documentElement.style.setProperty("--accent", state.accentColor);
+            document.documentElement.style.setProperty("--accent-soft", state.accentColor + "26");
+          }
+        }
+        // If onboarding has not been completed, spaces must be empty
+        if (!state.hasCompletedOnboarding) {
+          state.spaces = [];
+          state.activeSpaceId = "";
+        }
+        if (!state.personalization) {
+          state.personalization = defaultPersonalizationSettings;
+        } else {
+          state.personalization = { ...defaultPersonalizationSettings, ...state.personalization };
+        }
         const dedupe = <T extends { id?: string }>(arr: T[] | undefined): T[] => {
           if (!Array.isArray(arr)) return [];
           const seen = new Set<string>();
@@ -872,7 +1146,11 @@ export const useMyndStore = create<MyndState>()(
             return true;
           });
         };
-        state.spaces = dedupe(state.spaces);
+        state.spaces = dedupe(state.spaces).map((s) => ({
+          ...s,
+          color: s.color || "#FFFFFF",
+          agentPersona: s.agentPersona ? { ...s.agentPersona, avatarBg: s.agentPersona.avatarBg || "#262626" } : undefined,
+        }));
         state.recentObjects = dedupe(state.recentObjects);
         state.uploadedDocuments = dedupe(state.uploadedDocuments);
       },

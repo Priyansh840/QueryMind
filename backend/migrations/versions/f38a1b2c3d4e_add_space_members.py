@@ -37,7 +37,14 @@ def upgrade() -> None:
     op.create_index('ix_space_members_user_id', 'space_members', ['user_id'])
     op.create_index('ix_space_members_space_user', 'space_members', ['space_id', 'user_id'])
 
-    # 3. Backfill existing Space creators as 'owner'
+    # 3. Ensure spaces.updated_at exists (historically introduced in Step 3 Space model)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    spaces_cols = [c["name"] for c in inspector.get_columns("spaces")]
+    if "updated_at" not in spaces_cols:
+        op.add_column("spaces", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
+
+    # 4. Backfill existing Space creators as 'owner'
     op.execute(
         """
         INSERT INTO space_members (id, space_id, user_id, role, created_at, updated_at)
@@ -47,7 +54,7 @@ def upgrade() -> None:
             user_id,
             'owner',
             created_at,
-            updated_at
+            COALESCE(updated_at, created_at)
         FROM spaces
         ON CONFLICT (space_id, user_id) DO NOTHING;
         """

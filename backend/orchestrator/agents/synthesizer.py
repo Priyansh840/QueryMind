@@ -6,13 +6,14 @@ Structures research findings into a final, user-friendly response.
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from orchestrator.state import AgentState
 from llm.provider import get_llm
 from models.orchestrator import AgentRun, WorkflowStep, Workflow, Synthesis
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
 logger = logging.getLogger(__name__)
@@ -30,16 +31,20 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
     workflow_iteration = state.get("workflow_iteration", 1)
     
     if db and objective_id:
+        obj_uuid = uuid.UUID(objective_id)
+        workflow_id = uuid.uuid5(obj_uuid, "workflow")
+        step_id = uuid.uuid5(workflow_id, "synthesizer")
+        
         try:
-            obj_uuid = uuid.UUID(objective_id)
-            workflow_id = uuid.uuid5(obj_uuid, "workflow")
-            step_id = uuid.uuid5(workflow_id, "synthesizer")
-            
             step_order = 90  # Final step
             step_stmt = insert(WorkflowStep).values(
                 id=step_id, workflow_id=workflow_id, step_order=step_order, 
-                iteration=workflow_iteration, intent_type="synthesis"
-            ).on_conflict_do_nothing()
+                iteration=workflow_iteration, intent_type="synthesis",
+                status="running"
+            ).on_conflict_do_update(
+                index_elements=['id'],
+                set_={'status': 'running'}
+            )
             await db.execute(step_stmt)
             
             run_id = uuid.uuid4()
@@ -48,14 +53,15 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
                 workflow_step_id=step_id,
                 agent_type="synthesizer",
                 status="running",
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
                 input_context={"results_count": len(state.get("research_results", []))}
             )
             db.add(run)
             await db.commit()
         except Exception as e:
-            logger.warning(f"Error creating DB records for synthesizer: {e}")
+            logger.error(f"Error creating DB records for synthesizer: {e}")
             await db.rollback()
+            raise
 
     try:
         llm = get_llm(temperature=0.4)
@@ -90,6 +96,38 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         ctx_str = format_workspace_context(state.get("workspace_context"))
         if ctx_str:
             system_prompt += f"\n\n{ctx_str}"
+
+        personalization = state.get("personalization") or (state.get("workspace_context") or {}).get("personalization")
+        if personalization:
+            cog_style = personalization.get("cognitiveStyle", "")
+            if cog_style == "first_principles":
+                system_prompt += "\n\nCOGNITIVE STYLE: First-Principles Architect. Deconstruct problems to fundamental components, emphasize systems architecture, trade-offs, and causality."
+            elif cog_style == "executive":
+                system_prompt += "\n\nCOGNITIVE STYLE: Executive Synthesizer. Deliver dense, high-impact bulleted briefings with clear action items and minimal preamble."
+            elif cog_style == "socratic":
+                system_prompt += "\n\nCOGNITIVE STYLE: Socratic Sparring Partner. Challenge implicit assumptions, highlight potential blind spots, and propose alternative perspectives."
+            elif cog_style == "speed":
+                system_prompt += "\n\nCOGNITIVE STYLE: Fast Builder. Be ultra-concise, practical, and direct. Provide immediate working code and execution steps."
+
+            verbosity = personalization.get("verbosity", "")
+            if verbosity == "concise":
+                system_prompt += "\nVERBOSITY: Be highly concise. Deliver essential points without filler."
+            elif verbosity == "deep_dive":
+                system_prompt += "\nVERBOSITY: Provide an exhaustive deep-dive breakdown with thorough analysis."
+
+            code_std = personalization.get("codeStandard", "")
+            if code_std == "staff_engineer":
+                system_prompt += "\nCODE STANDARD: Staff Engineer. Write production-grade code with strict typing, robust error handling, and scalable design patterns."
+            elif code_std == "academic":
+                system_prompt += "\nCODE STANDARD: Academic & Formal. Emphasize algorithmic proofs, computational complexity, and theoretical foundations."
+
+            directives = personalization.get("customDirectives")
+            if directives:
+                system_prompt += f"\nUSER DIRECTIVE: {directives}"
+
+            user_ctx = personalization.get("userContext")
+            if user_ctx:
+                system_prompt += f"\nUSER BACKGROUND: {user_ctx}"
         
         planner_out = state.get("planner_output", {})
         results = state.get("research_results", [])
@@ -138,16 +176,23 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
             if res.get("status") == "completed":
                 for e in res.get("evidence", []):
                     title = e.get("document_title") or "Unknown"
-                    chunk_id = e.get("chunk_id")
-                    key = f"{title}_{chunk_id}"
+                    chunk_id = e.get("chunk_id") or e.get("source_chunk_id")
+                    k_id = e.get("knowledge_id")
+                    key = f"{title}_{chunk_id}_{k_id or ''}"
                     if key not in seen_keys:
                         seen_keys.add(key)
-                        citations.append({
+                        cit_dict = {
                             "document_title": title,
                             "chunk_id": chunk_id,
                             "page_number": e.get("page_number"),
-                            "snippet": e.get("content", "")[:200] if e.get("content") else None
-                        })
+                            "snippet": e.get("content", "")[:200] if e.get("content") else None,
+                            "source_type": e.get("source_type", "document"),
+                        }
+                        if e.get("document_id"):
+                            cit_dict["document_id"] = e.get("document_id")
+                        if e.get("knowledge_type"):
+                            cit_dict["knowledge_type"] = e.get("knowledge_type")
+                        citations.append(cit_dict)
         
         state["final_synthesis"] = final_text
         state["citations"] = citations
@@ -157,18 +202,30 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         if db and 'run' in locals():
             try:
                 run.status = "completed"
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 run.output_summary = {"text": final_text, "citations": citations}
                 db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="completed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
                 
                 # Synthesis record
                 if 'obj_uuid' in locals():
+                    dec_output = state.get("decision_output") or {}
+                    recs = dec_output.get("recommendations", []) or []
+                    blockers = dec_output.get("blockers", []) or []
                     synth_record = Synthesis(
                         id=uuid.uuid4(),
                         objective_id=obj_uuid,
-                        findings=[],
-                        recommendations=[],
-                        evidence=citations
+                        findings=blockers,
+                        recommendations=recs,
+                        evidence=citations,
+                        created_at=datetime.now(timezone.utc)
                     )
                     db.add(synth_record)
                 await db.commit()
@@ -183,11 +240,19 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
             try:
                 run.status = "failed"
                 run.error = str(e)
-                run.completed_at = datetime.utcnow()
+                run.completed_at = datetime.now(timezone.utc)
                 db.add(run)
+                # Step 13: Update step status in real-time
+                if 'step_id' in locals():
+                    try:
+                        await db.execute(
+                            update(WorkflowStep).where(WorkflowStep.id == step_id).values(status="failed")
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Step status update error: {ex}")
                 await db.commit()
-            except Exception:
-                pass
+            except Exception as db_err:
+                logger.warning(f"Telemetry error update failed in synthesizer: {db_err}")
         
         state["final_synthesis"] = "I encountered a critical error while synthesizing the final response. Please try again later."
         state["workflow_status"] = "failed"

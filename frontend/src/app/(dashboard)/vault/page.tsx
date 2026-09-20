@@ -212,9 +212,9 @@ export default function VaultPage() {
             alignItems: "center",
             gap: "10px",
             fontSize: "13px",
-            background: uploadStatus.type === "success" ? "#ECFDF5" : "#FEF2F2",
-            color: uploadStatus.type === "success" ? "#065F46" : "#991B1B",
-            border: `1px solid ${uploadStatus.type === "success" ? "#A7F3D0" : "#FECACA"}`,
+            background: uploadStatus.type === "success" ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
+            color: uploadStatus.type === "success" ? "#10B981" : "#EF4444",
+            border: `1px solid ${uploadStatus.type === "success" ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
           }}
         >
           {uploadStatus.type === "success" ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -239,25 +239,27 @@ export default function VaultPage() {
             placeholder="Filter files..."
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
-            className="kbd"
             style={{
-              padding: "6px 12px",
+              padding: "7px 14px",
               borderRadius: "8px",
               background: "var(--surface)",
               border: "1px solid var(--border)",
+              color: "var(--text-primary)",
               fontSize: "13px",
+              outline: "none",
             }}
           />
 
-          <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden" }}>
+          <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", background: "var(--surface)" }}>
             <button
               onClick={() => setView("grid")}
               style={{
-                padding: "6px 10px",
-                background: view === "grid" ? "var(--surface-subtle)" : "var(--surface)",
+                padding: "6px 12px",
+                background: view === "grid" ? "#262626" : "transparent",
                 border: "none",
                 cursor: "pointer",
-                color: view === "grid" ? "var(--accent)" : "var(--text-secondary)",
+                color: view === "grid" ? "#FFFFFF" : "var(--text-secondary)",
+                transition: "all 150ms ease",
               }}
             >
               <Grid3X3 className="w-4 h-4" />
@@ -265,11 +267,12 @@ export default function VaultPage() {
             <button
               onClick={() => setView("list")}
               style={{
-                padding: "6px 10px",
-                background: view === "list" ? "var(--surface-subtle)" : "var(--surface)",
+                padding: "6px 12px",
+                background: view === "list" ? "#262626" : "transparent",
                 border: "none",
                 cursor: "pointer",
-                color: view === "list" ? "var(--accent)" : "var(--text-secondary)",
+                color: view === "list" ? "#FFFFFF" : "var(--text-secondary)",
+                transition: "all 150ms ease",
               }}
             >
               <List className="w-4 h-4" />
