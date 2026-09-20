@@ -317,6 +317,8 @@ export default function ConversationPage({ params }: ConversationPageProps) {
     }
   };
 
+  const handleNewConversation = handleNewSession;
+
   // Delete Thread
   const handleDeleteThread = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -556,7 +558,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
   );
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-[#f8fafc] flex overflow-hidden select-none font-sans">
+    <div className="h-screen w-screen bg-[#08090d] text-zinc-100 flex overflow-hidden select-none font-sans">
       {/* 1. Primary Workspace Sidebar (Collapsible Icon Rail or Full Sidebar) */}
       <CommandSidebar
         spaceId={spaceId}
@@ -568,7 +570,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
 
       {/* 2. Collapsible Threads Panel */}
       {isThreadsOpen && (
-        <aside className="w-60 shrink-0 border-r border-white/[0.07] bg-[#090a10] flex flex-col justify-between p-3 z-10 animate-in slide-in-from-left duration-150">
+        <aside className="w-60 shrink-0 border-r border-white/[0.06] bg-[#08090d]/90 backdrop-blur-xl flex flex-col justify-between p-3 z-10 animate-in slide-in-from-left duration-150">
           <div className="space-y-2.5 min-w-0">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-semibold text-slate-300">Threads</span>
@@ -634,18 +636,16 @@ export default function ConversationPage({ params }: ConversationPageProps) {
             </button>
           </div>
         </aside>
-      )}
-
-      {/* 3. Main Agent Chat Cockpit (Claude / ChatGPT Benchmark) */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#07070a]">
+      )}      {/* 3. Main Agent Chat Cockpit (Linear / Claude Benchmark) */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#000000]">
         {/* Sleek Top Header */}
-        <header className="h-14 px-5 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#07070a]/80 backdrop-blur-md z-20">
+        <header className="h-13 px-5 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#000000] z-20">
           <div className="flex items-center gap-2 min-w-0">
             {/* Sidebar Collapse Toggle */}
             <button
               type="button"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title={isSidebarCollapsed ? "Expand workspace sidebar" : "Collapse workspace sidebar"}
             >
               <PanelLeft className="w-4 h-4" />
@@ -657,8 +657,8 @@ export default function ConversationPage({ params }: ConversationPageProps) {
               onClick={() => setIsThreadsOpen(!isThreadsOpen)}
               className={`p-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 cursor-pointer ${
                 isThreadsOpen
-                  ? "text-slate-300 hover:text-white hover:bg-white/[0.06]"
-                  : "text-slate-500 hover:text-white hover:bg-white/[0.04]"
+                  ? "text-zinc-300 hover:text-white hover:bg-white/[0.06]"
+                  : "text-zinc-500 hover:text-white hover:bg-white/[0.04]"
               }`}
               title="Toggle thread history"
             >
@@ -671,80 +671,78 @@ export default function ConversationPage({ params }: ConversationPageProps) {
               <span className="text-xs font-semibold text-white truncate">
                 {space?.name || "Workspace"}
               </span>
-              <span className="text-slate-600 text-xs">/</span>
-              <span className="text-xs text-slate-400 truncate max-w-[200px]">
-                {currentConv?.title || "New Thread"}
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono text-emerald-400 ml-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Active
+              <span className="text-zinc-600 text-xs">/</span>
+              <span className="text-xs text-zinc-400 truncate max-w-[200px]">
+                {currentConv?.title || "Thread"}
               </span>
             </div>
           </div>
 
+          {/* Right Header Utilities */}
           <div className="flex items-center gap-2">
-            {/* Live Workspace Deck Toggle */}
+            {/* Deck Toggle Button */}
             <button
               type="button"
               onClick={() => setIsDeckOpen(!isDeckOpen)}
-              className={`px-3 py-1 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5 border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5 cursor-pointer ${
                 isDeckOpen
-                  ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30 font-medium"
-                  : "bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/[0.06]"
+                  ? "bg-white/10 text-white border-white/15"
+                  : "bg-white/[0.03] text-zinc-400 border-white/[0.08] hover:text-white hover:bg-white/[0.06]"
               }`}
               title="Toggle Workspace Deck"
             >
               <PanelRight className="w-3.5 h-3.5" />
               <span>Workspace Deck</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-slate-300 ml-0.5">
-                {documents.length}
-              </span>
+              {documents.length > 0 && (
+                <span className="text-[10px] font-mono text-zinc-500 ml-0.5">
+                  {documents.length}
+                </span>
+              )}
             </button>
+
             <button
               type="button"
-              onClick={handleNewSession}
-              className="px-3 py-1 rounded-lg bg-white text-[#09090b] hover:bg-slate-200 text-xs font-semibold transition-colors cursor-pointer shadow-sm flex items-center gap-1"
+              onClick={handleNewConversation}
+              className="px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>New</span>
             </button>
           </div>
         </header>
 
-        {/* Message Stream (Calibrated Reading Width) */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 w-full space-y-6">
+        {/* Message Stream */}
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-8">
           <div className="max-w-3xl xl:max-w-4xl mx-auto w-full space-y-6">
             {messages.length === 0 ? (
-              /* Empty State / Welcome Screen */
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-8 py-16 animate-in fade-in duration-300 w-full">
-                <div className="space-y-3 max-w-lg">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-500 via-violet-500 to-cyan-400 p-[1.5px] shadow-lg shadow-indigo-500/20">
-                    <div className="w-full h-full bg-[#090a10] rounded-[14px] flex items-center justify-center">
-                      <Sparkles className="w-6 h-6 text-indigo-400" />
-                    </div>
+              /* Minimalist Empty State */
+              <div className="min-h-[50vh] flex flex-col items-center justify-center text-center space-y-6 max-w-xl mx-auto py-12 animate-in fade-in duration-300">
+                <div className="space-y-2 max-w-lg">
+                  <div className="w-10 h-10 mx-auto rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                    <MessageSquare className="w-5 h-5" />
                   </div>
-                  <h2 className="text-2xl font-semibold text-white tracking-tight">
-                    What are we building today?
+                  <h2 className="text-xl font-semibold text-white tracking-tight pt-2">
+                    How can I help you today?
                   </h2>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    Grounded in <strong className="text-white font-medium">{space?.name || "workspace"}</strong> with {documents.length} indexed files and autonomous execution capabilities.
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Grounded in <strong className="text-zinc-200 font-medium">{space?.name || "workspace"}</strong> with {documents.length} indexed documents.
                   </p>
                 </div>
 
                 {/* Sample Starters */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
                   {currentArchetype.samplePrompts.slice(0, 4).map((promptText, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => handleSendMessage(promptText)}
-                      className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.16] hover:bg-white/[0.05] text-left transition-all text-xs text-slate-300 hover:text-white flex flex-col justify-between group cursor-pointer shadow-xs"
+                      className="p-3 rounded-xl bg-zinc-900/60 border border-white/[0.06] hover:border-white/[0.15] hover:bg-zinc-900 text-left transition-all text-xs text-zinc-300 hover:text-white flex flex-col justify-between group cursor-pointer"
                     >
-                      <span className="font-medium text-slate-200 group-hover:text-white leading-relaxed text-[13px]">
+                      <span className="font-medium text-zinc-200 group-hover:text-white leading-relaxed text-xs">
                         {promptText}
                       </span>
-                      <span className="text-[10px] font-mono text-slate-500 group-hover:text-indigo-300 mt-2 flex items-center gap-1">
-                        <span>Ask MYND</span>
+                      <span className="text-[10px] font-mono text-zinc-500 group-hover:text-zinc-300 mt-2 flex items-center gap-1">
+                        <span>Ask</span>
                         <span>→</span>
                       </span>
                     </button>
@@ -759,29 +757,32 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 const isLatestAssistant = !isUser && index === messages.length - 1 && isStreaming;
 
                 return isUser ? (
-                  /* User Prompt (Clean Soft Pill Bubble) */
+                  /* User Prompt (Quiet Neutral Bubble) */
                   <div key={msg.id} className="flex justify-end my-4">
-                    <div className="bg-[#1f202b] text-slate-100 px-5 py-3 rounded-2xl rounded-tr-md max-w-xl text-[15px] leading-relaxed border border-white/[0.07] shadow-sm">
+                    <div className="bg-zinc-800 text-zinc-100 px-4 py-2.5 rounded-2xl rounded-tr-md max-w-xl text-sm leading-relaxed border border-zinc-700/50 shadow-xs">
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
                 ) : (
-                  /* Assistant Response (Clean Open Prose Canvas) */
-                  <div key={msg.id} className="flex flex-col space-y-3.5 my-6 group w-full">
-                    {/* Identity Row with Glowing AI Brand Mark */}
+                  /* Assistant Response (Editorial Typography Canvas) */
+                  <div key={msg.id} className="flex flex-col space-y-3 my-6 group w-full">
+                    {/* Identity Row */}
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-indigo-500 via-violet-500 to-cyan-400 p-[1px] shadow-sm shadow-indigo-500/20 flex items-center justify-center shrink-0">
-                        <div className="w-full h-full bg-[#090a10] rounded-[11px] flex items-center justify-center">
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                        </div>
+                      <div className="w-6 h-6 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 font-mono text-xs font-bold shrink-0">
+                        M
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white tracking-tight">MYND</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/[0.08]">
-                          Reasoning
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        <span className="text-xs font-semibold text-zinc-200 tracking-tight">MYND</span>
+                        {msg.metadata_json?.mode && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
+                            {msg.metadata_json.mode}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono text-zinc-600">
+                          {new Date(msg.created_at || Date.now()).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                       </div>
                     </div>
@@ -977,7 +978,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
         </div>
 
         {/* Studio Input Composer */}
-        <div className="px-6 pb-6 bg-gradient-to-t from-[#07070a] via-[#07070a]/95 to-transparent w-full">
+        <div className="px-6 pb-6 bg-[#000000] w-full">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -985,7 +986,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
             }}
             className="max-w-3xl xl:max-w-4xl mx-auto w-full"
           >
-            <div className="relative rounded-2xl sm:rounded-3xl bg-[#141520]/95 backdrop-blur-xl border border-white/[0.1] focus-within:border-white/25 focus-within:ring-1 focus-within:ring-white/20 transition-all p-3.5 px-5 shadow-[0_12px_40px_rgba(0,0,0,0.5)] w-full">
+            <div className="relative rounded-2xl bg-[#111114] border border-white/[0.08] focus-within:border-white/20 transition-all p-3 px-4 shadow-xl w-full">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -997,9 +998,9 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                   }
                 }}
                 rows={1}
-                placeholder={`Message MYND in ${space?.name || "workspace"}...`}
+                placeholder={`Message in ${space?.name || "workspace"}...`}
                 disabled={isStreaming}
-                className="w-full bg-transparent text-[15px] text-slate-100 placeholder:text-slate-500 py-1.5 px-1 focus:outline-none resize-none leading-relaxed max-h-48"
+                className="w-full bg-transparent text-[14px] text-zinc-100 placeholder:text-zinc-500 py-1 px-1 focus:outline-none resize-none leading-relaxed max-h-48"
               />
 
               <div className="flex items-center justify-between pt-2 border-t border-white/[0.05] mt-1">
@@ -1010,18 +1011,18 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                       setDeckTab("scope");
                       setIsDeckOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-xs text-slate-300 hover:text-white border border-white/[0.06] transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 hover:text-white border border-zinc-800 transition-colors cursor-pointer"
                   >
-                    <BookOpen className="w-3 h-3 text-indigo-400" />
-                    <span>{documents.length} Grounded Files</span>
+                    <BookOpen className="w-3 h-3 text-zinc-400" />
+                    <span>{documents.length} Files</span>
                   </button>
 
-                  <div className="hidden sm:flex items-center bg-white/[0.03] border border-white/[0.06] rounded-full p-0.5 text-[11px]">
+                  <div className="hidden sm:flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[11px]">
                     <button
                       type="button"
                       onClick={() => setActiveMode("reason")}
-                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
-                        activeMode === "reason" ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:text-white"
+                      className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                        activeMode === "reason" ? "bg-white/10 text-white font-medium" : "text-zinc-400 hover:text-white"
                       }`}
                     >
                       Reasoning
@@ -1029,8 +1030,8 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                     <button
                       type="button"
                       onClick={() => setActiveMode("action")}
-                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
-                        activeMode === "action" ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:text-white"
+                      className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                        activeMode === "action" ? "bg-white/10 text-white font-medium" : "text-zinc-400 hover:text-white"
                       }`}
                     >
                       Action
@@ -1042,40 +1043,40 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 <button
                   type="submit"
                   disabled={!input.trim() || isStreaming}
-                  className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center transition-all ${
+                  className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center transition-all ${
                     input.trim() && !isStreaming
-                      ? "bg-white text-black hover:bg-slate-200 shadow-md hover:scale-105 active:scale-95 cursor-pointer"
-                      : "bg-white/[0.08] text-slate-500 cursor-not-allowed"
+                      ? "bg-white text-black hover:bg-zinc-200 cursor-pointer"
+                      : "bg-white/[0.06] text-zinc-600 cursor-not-allowed"
                   }`}
                   title="Send message (Enter)"
                 >
-                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                  <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
             </div>
 
             {/* Subtle Disclaimer */}
-            <p className="text-[11px] text-slate-500 text-center mt-2.5">
+            <p className="text-[10px] text-zinc-600 text-center mt-2 font-mono">
               MYND can make mistakes. Verify important workspace facts and code.
             </p>
           </form>
         </div>
       </main>
 
-      {/* 4. Live Workspace Deck (Claude Artifacts & Canvas Style Studio Pane) */}
+      {/* 4. Live Workspace Deck (Clean Minimalist Studio Pane) */}
       {isDeckOpen && (
-        <aside className="w-80 lg:w-96 shrink-0 border-l border-white/[0.08] bg-[#090a12] flex flex-col justify-between z-10 animate-in slide-in-from-right duration-150 select-none">
+        <aside className="w-80 lg:w-96 shrink-0 border-l border-white/[0.06] bg-[#000000] flex flex-col justify-between z-10 animate-in slide-in-from-right duration-150 select-none">
           {/* Deck Header & Tabs */}
-          <div className="p-3.5 border-b border-white/[0.07] space-y-2.5">
+          <div className="p-3.5 border-b border-white/[0.06] space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-white tracking-tight">Workspace Deck</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">Synced</span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDeckOpen(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
                 title="Collapse Deck"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1083,12 +1084,12 @@ export default function ConversationPage({ params }: ConversationPageProps) {
             </div>
 
             {/* Tab Switcher */}
-            <div className="grid grid-cols-3 bg-white/[0.03] p-0.5 rounded-lg border border-white/[0.06] text-xs">
+            <div className="grid grid-cols-3 bg-zinc-900/60 p-0.5 rounded-lg border border-white/[0.06] text-xs">
               <button
                 type="button"
                 onClick={() => setDeckTab("scope")}
                 className={`py-1 rounded-md transition-all cursor-pointer font-medium text-[11px] flex items-center justify-center gap-1 ${
-                  deckTab === "scope" ? "bg-white/10 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                  deckTab === "scope" ? "bg-white/10 text-white shadow-xs" : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <BookOpen className="w-3 h-3" />
@@ -1098,7 +1099,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 type="button"
                 onClick={() => setDeckTab("milestones")}
                 className={`py-1 rounded-md transition-all cursor-pointer font-medium text-[11px] flex items-center justify-center gap-1 ${
-                  deckTab === "milestones" ? "bg-white/10 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                  deckTab === "milestones" ? "bg-white/10 text-white shadow-xs" : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <Target className="w-3 h-3" />
@@ -1108,7 +1109,7 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 type="button"
                 onClick={() => setDeckTab("artifacts")}
                 className={`py-1 rounded-md transition-all cursor-pointer font-medium text-[11px] flex items-center justify-center gap-1 ${
-                  deckTab === "artifacts" ? "bg-white/10 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                  deckTab === "artifacts" ? "bg-white/10 text-white shadow-xs" : "text-zinc-400 hover:text-white"
                 }`}
               >
                 <Code2 className="w-3 h-3" />
@@ -1122,32 +1123,32 @@ export default function ConversationPage({ params }: ConversationPageProps) {
             {deckTab === "scope" && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
-                    <span>Grounded Documents ({documents.length})</span>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-300">
+                    <span>Documents ({documents.length})</span>
                     <Link
                       href={`/spaces/${spaceId}/knowledge`}
-                      className="text-indigo-400 hover:text-indigo-300 font-normal"
+                      className="text-zinc-400 hover:text-white font-normal"
                     >
                       Manage
                     </Link>
                   </div>
                   <div className="space-y-1.5">
                     {documents.length === 0 ? (
-                      <p className="text-slate-500 text-[11px] italic py-2">No documents indexed in this space yet.</p>
+                      <p className="text-zinc-500 text-[11px] italic py-2">No documents indexed in this space yet.</p>
                     ) : (
                       documents.map((doc) => (
                         <Link
                           key={doc.id}
                           href={`/spaces/${spaceId}/knowledge/documents/${doc.id}`}
-                          className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.14] hover:bg-white/[0.04] transition-colors flex items-center justify-between group block"
+                          className="p-2.5 rounded-xl bg-zinc-900/40 border border-white/[0.05] hover:border-white/[0.14] hover:bg-zinc-900 transition-colors flex items-center justify-between group block"
                         >
                           <div className="flex items-center gap-2 truncate">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                            <span className="text-xs text-slate-200 group-hover:text-white truncate">
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 shrink-0" />
+                            <span className="text-xs text-zinc-200 group-hover:text-white truncate">
                               {doc.title}
                             </span>
                           </div>
-                          <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-white shrink-0 ml-1.5" />
+                          <ExternalLink className="w-3 h-3 text-zinc-500 group-hover:text-white shrink-0 ml-1.5" />
                         </Link>
                       ))
                     )}
@@ -1155,22 +1156,22 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-white/[0.06]">
-                  <div className="text-[11px] font-semibold text-slate-300">
-                    Invariant Principles ({memories.length})
+                  <div className="text-[11px] font-semibold text-zinc-300">
+                    Rules & Invariants ({memories.length})
                   </div>
                   <div className="space-y-1.5">
                     {memories.length === 0 ? (
-                      <p className="text-slate-500 text-[11px] italic py-1">No invariant principles locked.</p>
+                      <p className="text-zinc-500 text-[11px] italic py-1">No invariant rules locked.</p>
                     ) : (
                       memories.map((m) => (
                         <div
                           key={m.id}
-                          className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1"
+                          className="p-2.5 rounded-xl bg-zinc-900/40 border border-white/[0.04] space-y-1"
                         >
-                          <div className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-semibold">
+                          <div className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider font-semibold">
                             {m.memory_type}
                           </div>
-                          <p className="text-slate-300 text-[11px] leading-relaxed">
+                          <p className="text-zinc-300 text-[11px] leading-relaxed">
                             {m.content}
                           </p>
                         </div>
@@ -1183,38 +1184,38 @@ export default function ConversationPage({ params }: ConversationPageProps) {
 
             {deckTab === "milestones" && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
-                  <span>Sprint Goals ({goals.length})</span>
+                <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-300">
+                  <span>Goals ({goals.length})</span>
                   <Link
                     href={`/spaces/${spaceId}/goals`}
-                    className="text-indigo-400 hover:text-indigo-300 font-normal"
+                    className="text-zinc-400 hover:text-white font-normal"
                   >
                     View All
                   </Link>
                 </div>
                 <div className="space-y-2">
                   {goals.length === 0 ? (
-                    <p className="text-slate-500 text-[11px] italic py-2">No active goals found in space.</p>
+                    <p className="text-zinc-500 text-[11px] italic py-2">No active goals found in space.</p>
                   ) : (
                     goals.map((g) => (
                       <div
                         key={g.id}
-                        className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2"
+                        className="p-3 rounded-xl bg-zinc-900/40 border border-white/[0.05] space-y-2"
                       >
                         <div className="flex items-start gap-2">
-                          <span className="mt-0.5 text-indigo-400">
+                          <span className="mt-0.5 text-zinc-400">
                             {g.status === "completed" ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-zinc-200" />
                             ) : (
-                              <Circle className="w-3.5 h-3.5 text-slate-500" />
+                              <Circle className="w-3.5 h-3.5 text-zinc-600" />
                             )}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs text-slate-200 font-medium leading-snug">
+                            <p className="text-xs text-zinc-200 font-medium leading-snug">
                               {g.description}
                             </p>
                             {g.created_at && (
-                              <span className="text-[10px] font-mono text-slate-500 block mt-1">
+                              <span className="text-[10px] font-mono text-zinc-500 block mt-1">
                                 Added {new Date(g.created_at).toLocaleDateString()}
                               </span>
                             )}
@@ -1228,10 +1229,10 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                 <div className="pt-2 border-t border-white/[0.06]">
                   <Link
                     href={`/spaces/${spaceId}/tasks`}
-                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.06] text-xs text-slate-300 hover:text-white transition-colors"
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/40 hover:bg-zinc-900 border border-white/[0.06] text-xs text-zinc-300 hover:text-white transition-colors"
                   >
-                    <span>Autonomous Workflows</span>
-                    <span className="text-indigo-400 font-mono">Open →</span>
+                    <span>Tasks & Execution</span>
+                    <span className="text-zinc-400 font-mono">Open →</span>
                   </Link>
                 </div>
               </div>
@@ -1241,9 +1242,9 @@ export default function ConversationPage({ params }: ConversationPageProps) {
               <div className="space-y-3 h-full flex flex-col">
                 {selectedArtifact ? (
                   <div className="space-y-3 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900 border border-white/[0.06]">
                       <div className="flex items-center gap-2 truncate">
-                        <FileCode className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                         <span className="font-mono text-xs text-white truncate font-medium">
                           {selectedArtifact.title}
                         </span>
@@ -1254,32 +1255,32 @@ export default function ConversationPage({ params }: ConversationPageProps) {
                           navigator.clipboard.writeText(selectedArtifact.content);
                           alert("Artifact copied to clipboard!");
                         }}
-                        className="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[11px] text-slate-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[11px] text-zinc-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
                       >
                         <Copy className="w-3 h-3" />
                         <span>Copy</span>
                       </button>
                     </div>
 
-                    <div className="flex-1 rounded-xl bg-[#0b0c13] border border-white/[0.08] overflow-hidden flex flex-col">
-                      <div className="px-3 py-1.5 bg-white/[0.02] border-b border-white/[0.05] text-[10px] font-mono text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <div className="flex-1 rounded-xl bg-[#0a0a0a] border border-white/[0.08] overflow-hidden flex flex-col">
+                      <div className="px-3 py-1.5 bg-zinc-900/60 border-b border-white/[0.05] text-[10px] font-mono text-zinc-500 uppercase tracking-wider flex items-center justify-between">
                         <span>{selectedArtifact.language || "PLAIN TEXT"}</span>
                         <span>{selectedArtifact.content.split("\n").length} lines</span>
                       </div>
-                      <pre className="p-3.5 overflow-auto text-xs font-mono text-slate-200 leading-relaxed flex-1 max-h-[calc(100vh-280px)]">
+                      <pre className="p-3.5 overflow-auto text-xs font-mono text-zinc-200 leading-relaxed flex-1 max-h-[calc(100vh-280px)]">
                         <code>{selectedArtifact.content}</code>
                       </pre>
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center text-slate-400">
-                      <Code2 className="w-5 h-5 text-indigo-400" />
+                    <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/[0.08] flex items-center justify-center text-zinc-400">
+                      <Code2 className="w-5 h-5 text-zinc-400" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-xs font-semibold text-white">Live Artifacts Canvas</h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed max-w-[220px]">
-                        Click <strong className="text-indigo-300">Canvas</strong> on any code block or synthesis in chat to inspect it here live side-by-side.
+                      <h4 className="text-xs font-semibold text-white">Artifacts Canvas</h4>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed max-w-[220px]">
+                        Click <strong className="text-zinc-200 font-medium">Canvas</strong> on any code block in chat to view it here side-by-side.
                       </p>
                     </div>
                   </div>
@@ -1289,9 +1290,9 @@ export default function ConversationPage({ params }: ConversationPageProps) {
           </div>
 
           {/* Deck Footer */}
-          <div className="p-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 font-mono">
-            <span className="truncate">{space?.name || "Workspace"} Context</span>
-            <span className="text-emerald-400 font-medium">● Synced</span>
+          <div className="p-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+            <span className="truncate">{space?.name || "Workspace"}</span>
+            <span className="text-zinc-400 font-medium">Synced</span>
           </div>
         </aside>
       )}

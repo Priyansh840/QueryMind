@@ -160,28 +160,25 @@ export default function WorkPage({ params }: WorkPageProps) {
     : goals.filter((g) => g.project_id === selectedProjectFilter);
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-slate-100 flex overflow-hidden select-none font-sans antialiased">
+    <div className="h-screen w-screen bg-[#08090d] text-zinc-100 flex overflow-hidden select-none font-sans antialiased">
       {/* 1. Command Sidebar */}
       <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
       {/* 2. Main Executive Work Hub */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#09090d]">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#08090d] ambient-mesh">
         {/* Top Header */}
-        <header className="h-16 px-8 border-b border-white/[0.07] flex items-center justify-between shrink-0 bg-[#0c0d14]/90 backdrop-blur-md z-20">
+        <header className="h-14 px-6 md:px-8 xl:px-12 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#08090d]/80 backdrop-blur-xl z-20">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
               <Layers className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
+              <h1 className="text-sm font-semibold text-white tracking-tight truncate flex items-center gap-2">
                 <span>Work & Initiatives</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-white/[0.05] text-slate-400 border border-white/[0.08]">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
                   OPERATIONAL HUB
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 truncate">
-                Deliverables, milestones, authorized governance, and background execution
-              </p>
             </div>
           </div>
 
@@ -189,7 +186,7 @@ export default function WorkPage({ params }: WorkPageProps) {
             <button
               type="button"
               onClick={() => setIsCreatingProject(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm hover:shadow-emerald-500/20 transition-all cursor-pointer"
+              className="btn-white-premium flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New Initiative</span>
@@ -198,14 +195,14 @@ export default function WorkPage({ params }: WorkPageProps) {
         </header>
 
         {/* Executive Velocity Strip */}
-        <div className="px-8 py-3.5 border-b border-white/[0.06] bg-[#0a0a0f] grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
+        <div className="px-6 md:px-8 xl:px-12 py-3 border-b border-white/[0.06] bg-[#0a0b10] grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
               <FolderGit2 className="w-4 h-4" />
             </div>
             <div>
               <div className="text-xs font-bold text-white">{projects.length} Initiatives</div>
-              <div className="text-[10px] text-slate-400">Active projects in space</div>
+              <div className="text-[10px] text-zinc-400">Active space roadmap</div>
             </div>
           </div>
 
@@ -217,7 +214,7 @@ export default function WorkPage({ params }: WorkPageProps) {
               <div className="text-xs font-bold text-white">
                 {completedGoalsCount}/{goals.length} Milestones ({velocityPercentage}%)
               </div>
-              <div className="w-24 h-1 bg-white/[0.08] rounded-full overflow-hidden mt-1">
+              <div className="w-24 h-1.5 bg-white/[0.08] rounded-full overflow-hidden mt-1">
                 <div
                   className="h-full bg-emerald-400 rounded-full"
                   style={{ width: `${velocityPercentage}%` }}
@@ -234,7 +231,7 @@ export default function WorkPage({ params }: WorkPageProps) {
               <div className="text-xs font-bold text-white">
                 {executedDecisionsCount} Authorized
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[10px] text-zinc-400">
                 {pendingDecisionsCount > 0 ? `${pendingDecisionsCount} pending approval` : "All decisions aligned"}
               </div>
             </div>
@@ -249,7 +246,7 @@ export default function WorkPage({ params }: WorkPageProps) {
                 <span>Autonomous</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               </div>
-              <div className="text-[10px] text-slate-400">Subagent pipeline ready</div>
+              <div className="text-[10px] text-zinc-400">Reasoning pipelines ready</div>
             </div>
           </div>
         </div>
@@ -425,36 +422,36 @@ export default function WorkPage({ params }: WorkPageProps) {
                       <Link
                         key={proj.id}
                         href={`/spaces/${spaceId}/work/projects/${proj.id}`}
-                        className="rounded-2xl border border-white/[0.07] bg-[#0c0d14] p-5 space-y-4 hover:border-emerald-500/40 hover:bg-[#0f1019] transition-all text-decoration-none block group shadow-xs"
+                        className="rounded-xl border border-white/[0.08] bg-[#0d0e15] p-5 space-y-3.5 hover:border-white/[0.18] hover:bg-[#11121c] transition-all text-decoration-none block group shadow-xs"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1 min-w-0">
-                            <div className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors truncate flex items-center gap-2">
+                            <div className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors truncate flex items-center gap-1.5">
                               <span>{proj.name}</span>
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:translate-x-0.5 transition-transform" />
+                              <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:translate-x-0.5 transition-transform" />
                             </div>
-                            {(proj as any).description && (
-                              <p className="text-xs text-slate-400 line-clamp-1">
-                                {(proj as any).description}
+                            {proj.description && (
+                              <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                                {proj.description}
                               </p>
                             )}
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold shrink-0">
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-bold shrink-0">
                             {proj.status || "Active"}
                           </span>
                         </div>
 
                         {/* Progress Bar & Milestones Count */}
                         <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-400">
+                          <div className="flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-zinc-400">
                               {projGoals.length} {projGoals.length === 1 ? "Milestone" : "Milestones"}
                             </span>
-                            <span className="font-mono text-emerald-400 font-bold">
+                            <span className="text-emerald-400 font-semibold">
                               {completed}/{projGoals.length} ({pct}%)
                             </span>
                           </div>
-                          <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div className="w-full h-1.5 rounded-full bg-zinc-900 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-emerald-400 transition-all duration-300"
                               style={{ width: `${pct}%` }}

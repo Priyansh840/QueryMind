@@ -5,24 +5,24 @@ import {
   Sparkles,
   ZoomIn,
   ZoomOut,
-  Maximize2,
-  Play,
-  Pause,
   RotateCcw,
   Search,
   FileText,
   Brain,
   FolderGit2,
   Zap,
-  Bookmark,
-  Compass,
+  Play,
+  Pause,
   Layers,
+  Info,
+  ExternalLink,
+  X,
 } from "lucide-react";
 
 export interface GraphNode {
   id: string;
   title: string;
-  type: "core" | "document" | "memory" | "concept" | "project" | "proposal";
+  type: "document" | "memory" | "concept" | "project" | "proposal" | "core";
   subtitle?: string;
   content?: string;
   confidence?: number | string;
@@ -34,6 +34,7 @@ export interface GraphNode {
   color: string;
   secondaryColor: string;
   glowColor: string;
+  phase: number;
   isDragging?: boolean;
 }
 
@@ -41,15 +42,26 @@ export interface GraphLink {
   source: string;
   target: string;
   strength: number;
+  distance: number;
+  speed: number;
+  pulsePhase: number;
 }
 
-interface Ripple {
+interface SynapticPulse {
   x: number;
   y: number;
-  radius: number;
-  maxRadius: number;
   color: string;
-  opacity: number;
+  radius: number;
+  alpha: number;
+}
+
+interface AmbientDust {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  alpha: number;
 }
 
 interface NeuralGraphCanvasProps {
@@ -90,15 +102,32 @@ export function NeuralGraphCanvas({
   const draggedNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
 
   // Simulation Data
   const nodesRef = useRef<GraphNode[]>([]);
   const linksRef = useRef<GraphLink[]>([]);
-  const ripplesRef = useRef<Ripple[]>([]);
+  const ambientDustRef = useRef<AmbientDust[]>([]);
   const animationFrameRef = useRef<number | null>(null);
   const timeRef = useRef<number>(0);
 
-  // Build Graph Nodes & Links
+  // Initialize Ambient Dust Particles
+  useEffect(() => {
+    const dust: AmbientDust[] = [];
+    for (let i = 0; i < 45; i++) {
+      dust.push({
+        x: Math.random() * 2000 - 500,
+        y: Math.random() * 2000 - 500,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2,
+        radius: Math.random() * 1.5 + 0.5,
+        alpha: Math.random() * 0.25 + 0.05,
+      });
+    }
+    ambientDustRef.current = dust;
+  }, []);
+
+  // Build Natural Organic Graph (Clusters, Hubs, Cross-Links)
   useEffect(() => {
     const width = containerRef.current?.clientWidth || 1000;
     const height = containerRef.current?.clientHeight || 700;
@@ -108,105 +137,114 @@ export function NeuralGraphCanvas({
     const newNodes: GraphNode[] = [];
     const newLinks: GraphLink[] = [];
 
-    // 1. Central Core Hub (Celestial White & Indigo)
-    const coreNode: GraphNode = {
-      id: "core-hub",
-      title: "Workspace Sovereign Core",
-      type: "core",
-      subtitle: "Grounded Vector Matrix",
-      content: "Central vector coordination hub connecting grounded documents, invariant principles, and active execution outcomes.",
-      x: centerX,
-      y: centerY,
-      vx: 0,
-      vy: 0,
-      radius: 16,
-      color: "#ffffff",
-      secondaryColor: "#6366f1",
-      glowColor: "rgba(99, 102, 241, 0.7)",
+    // Helper for seeded pseudo-random deterministic offset
+    const pseudoRandom = (seed: number) => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
     };
-    newNodes.push(coreNode);
 
-    // 2. Documents (Electric Cyan #38bdf8 & Neon Azure)
+    // 1. Primary Hubs: Documents
+    const docNodes: GraphNode[] = [];
+    const totalDocs = Math.max(documents.length, 1);
     documents.forEach((doc, idx) => {
-      const angle = (idx / Math.max(documents.length, 1)) * Math.PI * 2 + 0.2;
-      const dist = 150 + (idx % 2) * 45;
+      // Natural scattered cluster positions around center with spacious organic spread
+      const angle = (idx / totalDocs) * Math.PI * 2 + (pseudoRandom(idx + 1) - 0.5) * 0.5;
+      const radiusDist = 210 + pseudoRandom(idx + 7) * 110;
+      const x = centerX + Math.cos(angle) * radiusDist;
+      const y = centerY + Math.sin(angle) * radiusDist;
+
       const node: GraphNode = {
         id: doc.id,
         title: doc.title,
         type: "document",
         subtitle: `${doc.chunks_count || 4} vector chunks indexed`,
-        content: `Document evidence item: "${doc.title}". Grounded and queryable by autonomous agents during reasoning sessions.`,
-        x: centerX + Math.cos(angle) * dist,
-        y: centerY + Math.sin(angle) * dist,
+        content: `Document item: "${doc.title}". Grounded and queryable by workspace agents.`,
+        x,
+        y,
         vx: 0,
         vy: 0,
-        radius: 10,
-        color: "#38bdf8",
-        secondaryColor: "#0284c7",
-        glowColor: "rgba(56, 189, 248, 0.6)",
+        radius: 14,
+        color: "#ffffff", // Primary white
+        secondaryColor: "#d4d4d8",
+        glowColor: "rgba(255, 255, 255, 0.2)",
+        phase: idx * 1.3,
       };
       newNodes.push(node);
-      newLinks.push({ source: "core-hub", target: doc.id, strength: 0.85 });
+      docNodes.push(node);
     });
 
-    // 3. Invariant Memories (Neural Violet #a78bfa & Electric Purple)
-    memories.forEach((mem, idx) => {
-      const angle = (idx / Math.max(memories.length, 1)) * Math.PI * 2 + 1.2;
-      const dist = 220 + (idx % 3) * 40;
-      const node: GraphNode = {
-        id: mem.id,
-        title: mem.content.length > 34 ? `${mem.content.slice(0, 34)}...` : mem.content,
-        type: "memory",
-        subtitle: `${mem.memory_type || "Invariant"} · ${Math.round((Number(mem.confidence) || 0.95) * 100)}% Conf`,
-        content: mem.content,
-        confidence: mem.confidence || 0.95,
-        x: centerX + Math.cos(angle) * dist,
-        y: centerY + Math.sin(angle) * dist,
-        vx: 0,
-        vy: 0,
-        radius: 9,
-        color: "#c084fc",
-        secondaryColor: "#9333ea",
-        glowColor: "rgba(192, 132, 252, 0.6)",
-      };
-      newNodes.push(node);
-      newLinks.push({ source: "core-hub", target: mem.id, strength: 0.6 });
-
-      // Link to nearest document
-      if (documents.length > 0) {
-        const targetDoc = documents[idx % documents.length];
-        newLinks.push({ source: mem.id, target: targetDoc.id, strength: 0.45 });
+    // Cross-link documents together if multiple exist (synaptic document backbone)
+    if (docNodes.length > 1) {
+      for (let i = 0; i < docNodes.length; i++) {
+        const next = (i + 1) % docNodes.length;
+        newLinks.push({
+          source: docNodes[i].id,
+          target: docNodes[next].id,
+          strength: 0.45,
+          distance: 240,
+          speed: 0.35,
+          pulsePhase: pseudoRandom(i) * Math.PI * 2,
+        });
       }
-    });
+    }
 
-    // 4. Projects & Initiatives (Emerald Aurora #34d399)
+    // 2. Strategic Initiatives (Projects)
     projects.forEach((proj, idx) => {
-      const angle = (idx / Math.max(projects.length, 1)) * Math.PI * 2 + 2.6;
-      const dist = 280 + (idx % 2) * 50;
+      const parentDoc = docNodes.length > 0 ? docNodes[idx % docNodes.length] : null;
+      const baseAngle = parentDoc
+        ? Math.atan2(parentDoc.y - centerY, parentDoc.x - centerX) + 0.7
+        : (idx / Math.max(projects.length, 1)) * Math.PI * 2;
+      const dist = parentDoc ? 150 + pseudoRandom(idx + 31) * 60 : 220;
+
+      const x = parentDoc ? parentDoc.x + Math.cos(baseAngle) * dist : centerX + Math.cos(baseAngle) * dist;
+      const y = parentDoc ? parentDoc.y + Math.sin(baseAngle) * dist : centerY + Math.sin(baseAngle) * dist;
+
       const node: GraphNode = {
         id: proj.id,
         title: proj.name,
         type: "project",
-        subtitle: `Initiative • Status: ${proj.status || "active"}`,
-        content: `Active initiative: ${proj.name}. Tracked and governed in the Work Hub.`,
-        x: centerX + Math.cos(angle) * dist,
-        y: centerY + Math.sin(angle) * dist,
+        subtitle: `Project • Status: ${proj.status || "active"}`,
+        content: `Project: ${proj.name}. Tracked and governed in the Work Hub.`,
+        x,
+        y,
         vx: 0,
         vy: 0,
-        radius: 11,
-        color: "#34d399",
-        secondaryColor: "#059669",
-        glowColor: "rgba(52, 211, 153, 0.6)",
+        radius: 12,
+        color: "#e4e4e7", // Off-white zinc
+        secondaryColor: "#a1a1aa",
+        glowColor: "rgba(228, 228, 231, 0.2)",
+        phase: (idx + 10) * 1.5,
       };
       newNodes.push(node);
-      newLinks.push({ source: "core-hub", target: proj.id, strength: 0.7 });
+
+      if (parentDoc) {
+        newLinks.push({
+          source: node.id,
+          target: parentDoc.id,
+          strength: 0.75,
+          distance: 180,
+          speed: 0.4,
+          pulsePhase: pseudoRandom(idx + 50) * Math.PI * 2,
+        });
+      }
     });
 
-    // 5. Concepts / Knowledge Items (Indigo #818cf8)
-    knowledgeItems.slice(0, 16).forEach((k, idx) => {
-      const angle = (idx / Math.max(knowledgeItems.length, 1)) * Math.PI * 2 + 0.5;
-      const dist = 190 + (idx % 3) * 45;
+    // 3. Extracted Concepts / Knowledge Chunks (Clustered around source documents)
+    knowledgeItems.slice(0, 18).forEach((k, idx) => {
       const title = k.title || (k.content.length > 28 ? `${k.content.slice(0, 28)}...` : k.content);
+
+      let parentDoc = docNodes.find(
+        (d) => k.document_title && d.title.toLowerCase().includes(k.document_title.toLowerCase())
+      );
+      if (!parentDoc && docNodes.length > 0) {
+        parentDoc = docNodes[idx % docNodes.length];
+      }
+
+      const angle = (idx * 1.1) + pseudoRandom(idx + 12);
+      const dist = 100 + pseudoRandom(idx + 88) * 60;
+      const x = parentDoc ? parentDoc.x + Math.cos(angle) * dist : centerX + Math.cos(angle) * (180 + dist);
+      const y = parentDoc ? parentDoc.y + Math.sin(angle) * dist : centerY + Math.sin(angle) * (180 + dist);
+
       const node: GraphNode = {
         id: k.id,
         title,
@@ -214,57 +252,153 @@ export function NeuralGraphCanvas({
         subtitle: `${k.knowledge_type} • ${Math.round((k.confidence || 1) * 100)}% Match`,
         content: k.content,
         confidence: k.confidence || 1,
-        x: centerX + Math.cos(angle) * dist,
-        y: centerY + Math.sin(angle) * dist,
+        x,
+        y,
         vx: 0,
         vy: 0,
-        radius: 7.5,
-        color: "#818cf8",
-        secondaryColor: "#4f46e5",
-        glowColor: "rgba(129, 140, 248, 0.55)",
+        radius: 8,
+        color: "#a1a1aa", // Neutral zinc-400
+        secondaryColor: "#52525b",
+        glowColor: "rgba(161, 161, 170, 0.15)",
+        phase: idx * 0.9,
       };
       newNodes.push(node);
 
-      if (k.document_title) {
-        const parentDoc = newNodes.find((n) => n.type === "document" && n.title === k.document_title);
-        if (parentDoc) {
-          newLinks.push({ source: k.id, target: parentDoc.id, strength: 0.85 });
-        } else {
-          newLinks.push({ source: "core-hub", target: k.id, strength: 0.5 });
+      if (parentDoc) {
+        newLinks.push({
+          source: node.id,
+          target: parentDoc.id,
+          strength: 0.85,
+          distance: 120,
+          speed: 0.5,
+          pulsePhase: pseudoRandom(idx + 100) * Math.PI * 2,
+        });
+      }
+
+      if (idx > 0 && idx % 3 === 0) {
+        const prevConcept = newNodes[newNodes.length - 2];
+        if (prevConcept && prevConcept.type === "concept") {
+          newLinks.push({
+            source: node.id,
+            target: prevConcept.id,
+            strength: 0.35,
+            distance: 90,
+            speed: 0.3,
+            pulsePhase: pseudoRandom(idx + 200) * Math.PI * 2,
+          });
         }
-      } else {
-        newLinks.push({ source: "core-hub", target: k.id, strength: 0.5 });
       }
     });
 
-    // 6. Action Proposals (Warm Amber #fbbf24)
-    proposals.slice(0, 3).forEach((prop, idx) => {
-      const angle = idx * 1.9 - 0.6;
-      const dist = 120 + idx * 35;
+    // 4. Invariant Memories / Axioms
+    memories.forEach((mem, idx) => {
+      const title = mem.content.length > 32 ? `${mem.content.slice(0, 32)}...` : mem.content;
+      const anchorNode = docNodes.length > 0 ? docNodes[idx % docNodes.length] : null;
+      const angle = (idx * 1.6) + 2.0;
+      const dist = 120 + pseudoRandom(idx + 44) * 55;
+      const x = anchorNode ? anchorNode.x + Math.cos(angle) * dist : centerX + Math.cos(angle) * 200;
+      const y = anchorNode ? anchorNode.y + Math.sin(angle) * dist : centerY + Math.sin(angle) * 200;
+
+      const node: GraphNode = {
+        id: mem.id,
+        title,
+        type: "memory",
+        subtitle: `${mem.memory_type || "Rule"}`,
+        content: mem.content,
+        confidence: mem.confidence || 0.95,
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 9,
+        color: "#d4d4d8", // Light zinc
+        secondaryColor: "#71717a",
+        glowColor: "rgba(212, 212, 216, 0.18)",
+        phase: (idx + 5) * 1.1,
+      };
+      newNodes.push(node);
+
+      if (anchorNode) {
+        newLinks.push({
+          source: node.id,
+          target: anchorNode.id,
+          strength: 0.65,
+          distance: 140,
+          speed: 0.42,
+          pulsePhase: pseudoRandom(idx + 300) * Math.PI * 2,
+        });
+      }
+    });
+
+    // 5. Action Proposals (Pending Impulses)
+    proposals.slice(0, 4).forEach((prop, idx) => {
+      const anchorNode = docNodes[idx % Math.max(docNodes.length, 1)] || null;
+      const angle = idx * 1.8 + 0.8;
+      const dist = 110 + idx * 30;
+      const x = anchorNode ? anchorNode.x + Math.cos(angle) * dist : centerX + Math.cos(angle) * 180;
+      const y = anchorNode ? anchorNode.y + Math.sin(angle) * dist : centerY + Math.sin(angle) * 180;
+
       const node: GraphNode = {
         id: prop.id,
         title: prop.action_type ? prop.action_type.replace(/_/g, " ") : "Action Proposal",
         type: "proposal",
-        subtitle: "Pending Executive Decision",
-        content: prop.reason || "Autonomous action proposal awaiting executive approval.",
-        x: centerX + Math.cos(angle) * dist,
-        y: centerY + Math.sin(angle) * dist,
+        subtitle: "Pending Decision",
+        content: prop.reason || "Action proposal awaiting executive review.",
+        x,
+        y,
         vx: 0,
         vy: 0,
-        radius: 9.5,
-        color: "#fbbf24",
-        secondaryColor: "#d97706",
-        glowColor: "rgba(251, 191, 36, 0.65)",
+        radius: 9,
+        color: "#e4e4e7",
+        secondaryColor: "#71717a",
+        glowColor: "rgba(228, 228, 231, 0.2)",
+        phase: (idx + 15) * 1.4,
       };
       newNodes.push(node);
-      newLinks.push({ source: "core-hub", target: prop.id, strength: 0.9 });
+
+      if (anchorNode) {
+        newLinks.push({
+          source: node.id,
+          target: anchorNode.id,
+          strength: 0.7,
+          distance: 130,
+          speed: 0.55,
+          pulsePhase: pseudoRandom(idx + 400) * Math.PI * 2,
+        });
+      }
     });
+
+    // Fallback if empty space: create a delicate starter network
+    if (newNodes.length === 0) {
+      const sampleNodes = [
+        { id: "s-core", title: "Workspace Neural Cortex", type: "document" as const, x: centerX, y: centerY, radius: 13, color: "#38bdf8", secondaryColor: "#0284c7", glowColor: "rgba(56, 189, 248, 0.45)" },
+        { id: "s-1", title: "Grounded Knowledge", type: "concept" as const, x: centerX - 100, y: centerY - 60, radius: 8, color: "#818cf8", secondaryColor: "#4f46e5", glowColor: "rgba(129, 140, 248, 0.4)" },
+        { id: "s-2", title: "Autonomous Planning", type: "project" as const, x: centerX + 110, y: centerY - 40, radius: 11, color: "#34d399", secondaryColor: "#059669", glowColor: "rgba(52, 211, 153, 0.45)" },
+        { id: "s-3", title: "Invariant Memory", type: "memory" as const, x: centerX - 40, y: centerY + 110, radius: 8.5, color: "#c084fc", secondaryColor: "#9333ea", glowColor: "rgba(192, 132, 252, 0.45)" },
+      ];
+      sampleNodes.forEach((s, idx) => {
+        newNodes.push({
+          ...s,
+          subtitle: "Workspace Substrate",
+          content: "Living synaptic network representing connected workspace intelligence.",
+          vx: 0,
+          vy: 0,
+          phase: idx * 1.2,
+        });
+      });
+      newLinks.push(
+        { source: "s-core", target: "s-1", strength: 0.8, distance: 110, speed: 0.4, pulsePhase: 0 },
+        { source: "s-core", target: "s-2", strength: 0.75, distance: 130, speed: 0.4, pulsePhase: 1 },
+        { source: "s-core", target: "s-3", strength: 0.7, distance: 110, speed: 0.4, pulsePhase: 2 },
+        { source: "s-1", target: "s-3", strength: 0.4, distance: 100, speed: 0.3, pulsePhase: 3 }
+      );
+    }
 
     nodesRef.current = newNodes;
     linksRef.current = newLinks;
   }, [documents, memories, knowledgeItems, projects, proposals]);
 
-  // Main Canvas Rendering Loop with Force Physics & Cosmic Aesthetics
+  // Main Canvas Rendering Loop with Organic Synaptic Physics & Bioluminescent Aesthetics
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -290,34 +424,39 @@ export function NeuralGraphCanvas({
     const stepSimulation = () => {
       const nodes = nodesRef.current;
       const links = linksRef.current;
+      const dust = ambientDustRef.current;
       const width = canvas.parentElement?.clientWidth || 1000;
       const height = canvas.parentElement?.clientHeight || 700;
       const centerX = width / 2;
       const centerY = height / 2;
 
-      timeRef.current += 0.018;
+      timeRef.current += 0.016;
+      const t = timeRef.current;
 
-      if (isPhysicsRunning) {
-        // 1. Coulomb Repulsion
+      // ---- 1. ORGANIC SYNAPTIC PHYSICS ----
+      if (isPhysicsRunning && nodes.length > 0) {
+        // A. Soft Repulsion (Electrostatic & Collision Avoidance)
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const na = nodes[i];
             const nb = nodes[j];
             const dx = nb.x - na.x;
             const dy = nb.y - na.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const minDist = (na.radius + nb.radius) * 3.8;
+            const distSq = dx * dx + dy * dy || 1;
+            const dist = Math.sqrt(distSq);
 
-            if (dist < 340) {
-              const force = (dist < minDist ? 240 : 75) / (dist * dist);
+            const idealMinDist = na.radius + nb.radius + 35;
+            if (dist < 320) {
+              const strength = dist < idealMinDist ? 360 : 90;
+              const force = strength / (distSq + 50);
               const fx = (dx / dist) * force;
               const fy = (dy / dist) * force;
 
-              if (!na.isDragging && na.type !== "core") {
+              if (!na.isDragging) {
                 na.vx -= fx;
                 na.vy -= fy;
               }
-              if (!nb.isDragging && nb.type !== "core") {
+              if (!nb.isDragging) {
                 nb.vx += fx;
                 nb.vy += fy;
               }
@@ -325,7 +464,7 @@ export function NeuralGraphCanvas({
           }
         }
 
-        // 2. Hooke Spring Attraction
+        // B. Synaptic Spring Attraction (Hooke's Elastic Links)
         const nodeMap = new Map(nodes.map((n) => [n.id, n]));
         for (const link of links) {
           const source = nodeMap.get(link.source);
@@ -335,148 +474,135 @@ export function NeuralGraphCanvas({
           const dx = target.x - source.x;
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const targetDist = 130 / link.strength;
-          const diff = dist - targetDist;
-          const force = diff * 0.0035 * link.strength;
+          const delta = dist - link.distance;
+          const force = delta * 0.0028 * link.strength;
 
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
-          if (!source.isDragging && source.type !== "core") {
+          if (!source.isDragging) {
             source.vx += fx;
             source.vy += fy;
           }
-          if (!target.isDragging && target.type !== "core") {
+          if (!target.isDragging) {
             target.vx -= fx;
             target.vy -= fy;
           }
         }
 
-        // 3. Center Gravity & Inertia
+        // C. Soft Center Gravitational Well + Living Harmonic Oscillation (Breathing)
         for (const node of nodes) {
-          if (node.type === "core") {
-            node.x = centerX;
-            node.y = centerY;
-            node.vx = 0;
-            node.vy = 0;
-            continue;
-          }
-
           if (node.isDragging) continue;
 
+          // Gentle pull toward center
           const cdx = centerX - node.x;
           const cdy = centerY - node.y;
-          node.vx += cdx * 0.0005;
-          node.vy += cdy * 0.0005;
+          node.vx += cdx * 0.00045;
+          node.vy += cdy * 0.00045;
 
-          node.vx *= 0.88;
-          node.vy *= 0.88;
+          // Biological harmonic breathing (micro-drift so network feels organically alive)
+          const breathX = Math.sin(t * 0.9 + node.phase) * 0.08;
+          const breathY = Math.cos(t * 0.8 + node.phase * 1.3) * 0.08;
+          node.vx += breathX;
+          node.vy += breathY;
 
+          // Velocity Damping
+          node.vx *= 0.90;
+          node.vy *= 0.90;
+
+          // Position Update
           node.x += node.vx;
           node.y += node.vy;
         }
       }
 
-      // Update Shockwave Ripples
-      const ripples = ripplesRef.current;
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        const r = ripples[i];
-        r.radius += 3.5;
-        r.opacity *= 0.94;
-        if (r.opacity < 0.02 || r.radius > r.maxRadius) {
-          ripples.splice(i, 1);
-        }
+      // Update Ambient Dust
+      for (const d of dust) {
+        d.x += d.vx;
+        d.y += d.vy;
+        if (d.x < -300) d.x = width + 300;
+        if (d.x > width + 300) d.x = -300;
+        if (d.y < -300) d.y = height + 300;
+        if (d.y > height + 300) d.y = -300;
       }
 
-      // ---- RENDER PASS ----
+      // ---- 2. RENDER PASS ----
       const dpr = window.devicePixelRatio || 1;
       const viewW = canvas.width / dpr;
       const viewH = canvas.height / dpr;
 
       ctx.clearRect(0, 0, viewW, viewH);
 
-      // 1. Cosmic Atmosphere Background Gradient
+      // Deep Neural Matrix Atmosphere
       const bgGrad = ctx.createRadialGradient(
         centerX,
         centerY,
-        50,
+        100,
         centerX,
         centerY,
-        Math.max(viewW, viewH) * 0.8
+        Math.max(viewW, viewH) * 0.85
       );
-      bgGrad.addColorStop(0, "rgba(22, 16, 38, 0.45)");
-      bgGrad.addColorStop(0.5, "rgba(11, 12, 20, 0.9)");
-      bgGrad.addColorStop(1, "rgba(5, 5, 8, 1)");
+      bgGrad.addColorStop(0, "#080a14");
+      bgGrad.addColorStop(0.6, "#05060b");
+      bgGrad.addColorStop(1, "#030305");
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, viewW, viewH);
 
       ctx.save();
-      // Apply pan & zoom
       const { x: panX, y: panY, scale } = transformRef.current;
       ctx.translate(panX, panY);
       ctx.scale(scale, scale);
 
-      // 2. Delicate Celestial Grid with Coordinate Crosses
-      const gridSize = 50;
-      const startX = -panX / scale - 200;
-      const startY = -panY / scale - 200;
-      const endX = startX + viewW / scale + 400;
-      const endY = startY + viewH / scale + 400;
-
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
-      ctx.lineWidth = 1;
-
-      for (let gx = Math.floor(startX / gridSize) * gridSize; gx < endX; gx += gridSize) {
-        for (let gy = Math.floor(startY / gridSize) * gridSize; gy < endY; gy += gridSize) {
-          // Delicate crosshair cross at grid intersections
-          ctx.beginPath();
-          ctx.moveTo(gx - 3, gy);
-          ctx.lineTo(gx + 3, gy);
-          ctx.moveTo(gx, gy - 3);
-          ctx.lineTo(gx, gy + 3);
-          ctx.stroke();
-        }
-      }
-
-      // 3. Animated Gravitational Waves radiating from Core
-      const coreNode = nodes.find((n) => n.type === "core");
-      if (coreNode) {
-        for (let ring = 1; ring <= 3; ring++) {
-          const waveRadius = ((timeRef.current * 25 + ring * 110) % 360) + 30;
-          const waveAlpha = Math.max(0, 0.15 * (1 - waveRadius / 360));
-          ctx.beginPath();
-          ctx.arc(coreNode.x, coreNode.y, waveRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(99, 102, 241, ${waveAlpha})`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
-
-      // 4. Draw Shockwave Ripples
-      for (const r of ripples) {
+      // Ambient Floating Synaptic Dust
+      for (const d of dust) {
         ctx.beginPath();
-        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = r.color.replace(")", `, ${r.opacity})`).replace("rgb", "rgba");
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(165, 180, 252, ${d.alpha})`;
+        ctx.fill();
+      }
+
+      // Determine active / focused node for synaptic activation cascade
+      const activeHoverId = hoveredNodeRef.current?.id || null;
+      const activeFocusId = selectedNodeId || activeHoverId;
+
+      // Find all 1-hop connected neighbors of active node
+      const connectedNodeIds = new Set<string>();
+      if (activeFocusId) {
+        connectedNodeIds.add(activeFocusId);
+        for (const link of links) {
+          if (link.source === activeFocusId) connectedNodeIds.add(link.target);
+          if (link.target === activeFocusId) connectedNodeIds.add(link.source);
+        }
       }
 
       const q = searchQuery.toLowerCase().trim();
       const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-      // 5. Draw Multi-Stop Gradient Links with Flowing Comets
+      // ---- 3. DRAW SYNAPTIC AXONS (LINKS) ----
       for (const link of links) {
         const source = nodeMap.get(link.source);
         const target = nodeMap.get(link.target);
         if (!source || !target) continue;
 
+        const isConnectedToFocus =
+          activeFocusId &&
+          (source.id === activeFocusId || target.id === activeFocusId);
         const isHovered =
-          hoveredNodeRef.current &&
-          (hoveredNodeRef.current.id === source.id || hoveredNodeRef.current.id === target.id);
-        const isSelected =
-          selectedNodeId &&
-          (selectedNodeId === source.id || selectedNodeId === target.id);
+          activeHoverId &&
+          (source.id === activeHoverId || target.id === activeHoverId);
 
+        // Alpha & Line width
+        let linkAlpha = 0.16;
+        let lineWidth = 1.0;
+
+        if (isConnectedToFocus || isHovered) {
+          linkAlpha = 0.85;
+          lineWidth = 2.0;
+        } else if (activeFocusId) {
+          linkAlpha = 0.05; // Dim unconnected links
+        }
+
+        // Synaptic line with soft gradient
         const lineGrad = ctx.createLinearGradient(source.x, source.y, target.x, target.y);
         lineGrad.addColorStop(0, source.color);
         lineGrad.addColorStop(1, target.color);
@@ -485,159 +611,172 @@ export function NeuralGraphCanvas({
         ctx.moveTo(source.x, source.y);
         ctx.lineTo(target.x, target.y);
 
-        if (isSelected) {
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 2.5;
+        ctx.save();
+        ctx.globalAlpha = linkAlpha;
+        ctx.strokeStyle = isConnectedToFocus ? lineGrad : "rgba(148, 163, 184, 0.2)";
+        ctx.lineWidth = lineWidth;
+        if (isConnectedToFocus) {
           ctx.shadowColor = source.color;
-          ctx.shadowBlur = 12;
-        } else if (isHovered) {
-          ctx.strokeStyle = lineGrad;
-          ctx.lineWidth = 2;
-          ctx.shadowColor = target.color;
           ctx.shadowBlur = 8;
-        } else {
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
-          ctx.lineWidth = 1;
         }
         ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.restore();
 
-        // Flowing Photon Comet with Trail
-        const particleT = (timeRef.current * 0.45 * link.strength) % 1;
-        const px = source.x + (target.x - source.x) * particleT;
-        const py = source.y + (target.y - source.y) * particleT;
+        // Action Potential Signal Pulse (Flowing electric impulse across synapse)
+        const progress = ((t * link.speed + link.pulsePhase) % 1);
+        const px = source.x + (target.x - source.x) * progress;
+        const py = source.y + (target.y - source.y) * progress;
 
-        // Comet Head
+        const pulseAlpha = isConnectedToFocus ? 0.95 : activeFocusId ? 0.1 : 0.6;
+
+        ctx.save();
+        ctx.globalAlpha = pulseAlpha;
         ctx.beginPath();
-        ctx.arc(px, py, 1.8, 0, Math.PI * 2);
+        ctx.arc(px, py, isConnectedToFocus ? 2.5 : 1.8, 0, Math.PI * 2);
         ctx.fillStyle = source.color;
         ctx.shadowColor = source.color;
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = isConnectedToFocus ? 8 : 4;
         ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.restore();
       }
 
-      // 6. Draw Nodes as Tactile Glossy Orbs with Glassmorphic Badges
+      // ---- 4. DRAW NEURONS (NODES) ----
       for (const node of nodes) {
         const isSelected = selectedNodeId === node.id;
-        const isHovered = hoveredNodeRef.current?.id === node.id;
+        const isHovered = activeHoverId === node.id;
+        const isNeighbor = connectedNodeIds.has(node.id);
+
         const matchesQuery =
           !q ||
           node.title.toLowerCase().includes(q) ||
           (node.subtitle && node.subtitle.toLowerCase().includes(q));
         const matchesFilter =
-          activeFilter === "all" || node.type === activeFilter || node.type === "core";
+          activeFilter === "all" || node.type === activeFilter;
 
-        const isDimmed = (!matchesQuery || !matchesFilter) && !isSelected;
-
-        ctx.save();
-        if (isDimmed) {
-          ctx.globalAlpha = 0.12;
+        // Cascade dimming
+        let nodeAlpha = 1.0;
+        if (!matchesQuery || !matchesFilter) {
+          nodeAlpha = 0.12;
+        } else if (activeFocusId && !isNeighbor) {
+          nodeAlpha = 0.2;
         }
 
-        // Layer A: Outer Diffuse Bloom
-        const bloomRadius = node.radius + (isSelected ? 16 : isHovered ? 12 : 8);
-        const bloomGrad = ctx.createRadialGradient(
+        ctx.save();
+        ctx.globalAlpha = nodeAlpha;
+
+        // A. Bioluminescent Outer Aura (Soft Neural Halo)
+        const haloRadius = node.radius + (isSelected ? 22 : isHovered ? 16 : 9);
+        const haloGrad = ctx.createRadialGradient(
           node.x,
           node.y,
-          node.radius * 0.4,
+          node.radius * 0.3,
           node.x,
           node.y,
-          bloomRadius
+          haloRadius
         );
-        bloomGrad.addColorStop(0, node.glowColor);
-        bloomGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        haloGrad.addColorStop(0, node.glowColor);
+        haloGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+
         ctx.beginPath();
-        ctx.arc(node.x, node.y, bloomRadius, 0, Math.PI * 2);
-        ctx.fillStyle = bloomGrad;
+        ctx.arc(node.x, node.y, haloRadius, 0, Math.PI * 2);
+        ctx.fillStyle = haloGrad;
         ctx.fill();
 
-        // Layer B: Glass Orb Body with 3D Specular Shading
-        const sphereGrad = ctx.createRadialGradient(
-          node.x - node.radius * 0.35,
-          node.y - node.radius * 0.35,
+        // B. Living Organic Pulse Ring (Gentle breathing ring around node)
+        const pulseWave = (Math.sin(t * 1.5 + node.phase) + 1) * 0.5;
+        if (node.type === "document" || isSelected || isHovered) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius + 3 + pulseWave * 3, 0, Math.PI * 2);
+          ctx.strokeStyle = isSelected ? "#ffffff" : node.color;
+          ctx.lineWidth = isSelected ? 1.5 : 1;
+          ctx.globalAlpha = nodeAlpha * (isSelected ? 0.8 : 0.35 + pulseWave * 0.25);
+          ctx.stroke();
+          ctx.globalAlpha = nodeAlpha;
+        }
+
+        // C. Neuron Soma (Core Body)
+        const somaGrad = ctx.createRadialGradient(
+          node.x - node.radius * 0.25,
+          node.y - node.radius * 0.25,
           node.radius * 0.1,
           node.x,
           node.y,
           node.radius
         );
-        sphereGrad.addColorStop(0, "#ffffff");
-        sphereGrad.addColorStop(0.35, node.color);
-        sphereGrad.addColorStop(1, node.secondaryColor);
+        somaGrad.addColorStop(0, "#ffffff");
+        somaGrad.addColorStop(0.35, node.color);
+        somaGrad.addColorStop(1, node.secondaryColor);
 
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = sphereGrad;
+        ctx.fillStyle = somaGrad;
         ctx.shadowColor = node.color;
-        ctx.shadowBlur = isSelected ? 18 : 8;
+        ctx.shadowBlur = isSelected ? 16 : isHovered ? 12 : 6;
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Layer C: Specular Glass Rim Light Highlight
+        // D. Bright Nucleus Dot
         ctx.beginPath();
-        ctx.arc(
-          node.x - node.radius * 0.25,
-          node.y - node.radius * 0.25,
-          node.radius * 0.35,
-          0,
-          Math.PI * 2
-        );
-        ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+        ctx.arc(node.x - node.radius * 0.2, node.y - node.radius * 0.2, node.radius * 0.25, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
         ctx.fill();
 
-        // Layer D: Outer Selection Ring
-        if (isSelected) {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
+        // E. Elegant Floating Typography Labels
+        const shouldShowLabel =
+          node.type === "document" ||
+          node.type === "project" ||
+          isSelected ||
+          isHovered ||
+          isNeighbor ||
+          scale > 1.25;
 
-        // Layer E: Frosted Glass Label Badge Pill
-        if (!isDimmed || isSelected || isHovered) {
+        if (shouldShowLabel && nodeAlpha > 0.3) {
+          const rawText = node.title;
           const labelText =
-            node.title.length > 22 ? `${node.title.slice(0, 22)}...` : node.title;
+            isSelected || isHovered
+              ? rawText
+              : rawText.length > 20
+              ? `${rawText.slice(0, 20)}…`
+              : rawText;
 
-          ctx.font = isSelected || isHovered
-            ? "600 11px system-ui, -apple-system, sans-serif"
-            : "500 10px system-ui, -apple-system, sans-serif";
+          ctx.font =
+            isSelected || isHovered
+              ? "600 11px system-ui, -apple-system, sans-serif"
+              : "500 10px system-ui, -apple-system, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
 
-          const textMetrics = ctx.measureText(labelText);
-          const badgeW = textMetrics.width + 18;
-          const badgeH = 20;
+          const textWidth = ctx.measureText(labelText).width;
+          const badgeW = textWidth + 14;
+          const badgeH = 18;
           const badgeX = node.x - badgeW / 2;
-          const badgeY = node.y + node.radius + 8;
+          const badgeY = node.y + node.radius + 6;
 
-          // Glass Badge Pill Background
+          // Frosted Glass Label Underlay
           ctx.beginPath();
-          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 10);
+          ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
           ctx.fillStyle = isSelected
-            ? "rgba(20, 22, 36, 0.95)"
+            ? "rgba(15, 23, 42, 0.95)"
             : isHovered
-            ? "rgba(16, 18, 28, 0.9)"
-            : "rgba(10, 11, 18, 0.75)";
+            ? "rgba(15, 23, 42, 0.9)"
+            : "rgba(8, 10, 18, 0.75)";
           ctx.fill();
 
           ctx.strokeStyle = isSelected
-            ? "rgba(255, 255, 255, 0.35)"
+            ? "rgba(255, 255, 255, 0.4)"
             : isHovered
             ? node.color
-            : "rgba(255, 255, 255, 0.1)";
+            : "rgba(255, 255, 255, 0.08)";
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Type Dot inside badge
-          ctx.beginPath();
-          ctx.arc(badgeX + 8, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = node.color;
-          ctx.fill();
-
-          // Label Text
-          ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#38bdf8" : "rgba(226, 232, 240, 0.9)";
-          ctx.fillText(labelText, node.x + 3, badgeY + badgeH / 2);
+          // Text with Crisp Contrast
+          ctx.fillStyle = isSelected
+            ? "#ffffff"
+            : isHovered
+            ? "#f8fafc"
+            : "rgba(226, 232, 240, 0.85)";
+          ctx.fillText(labelText, node.x, badgeY + badgeH / 2);
         }
 
         ctx.restore();
@@ -677,7 +816,7 @@ export function NeuralGraphCanvas({
       const n = nodes[i];
       const dx = n.x - gx;
       const dy = n.y - gy;
-      if (Math.sqrt(dx * dx + dy * dy) <= n.radius + 8) {
+      if (Math.sqrt(dx * dx + dy * dy) <= n.radius + 10) {
         return n;
       }
     }
@@ -694,16 +833,6 @@ export function NeuralGraphCanvas({
       hit.isDragging = true;
       hit.vx = 0;
       hit.vy = 0;
-
-      // Trigger Shockwave ripple on click
-      ripplesRef.current.push({
-        x: hit.x,
-        y: hit.y,
-        radius: hit.radius,
-        maxRadius: 180,
-        color: hit.color,
-        opacity: 0.8,
-      });
     } else {
       isPanningRef.current = true;
       panStartRef.current = {
@@ -743,12 +872,14 @@ export function NeuralGraphCanvas({
       const hit = draggedNodeRef.current;
       hit.isDragging = false;
       draggedNodeRef.current = null;
+      setActiveNode(hit);
       if (onSelectNode) onSelectNode(hit);
     } else if (isPanningRef.current) {
       isPanningRef.current = false;
     } else {
       const { x, y } = getGraphCoords(e.clientX, e.clientY);
       const hit = getNodeAt(x, y);
+      setActiveNode(hit);
       if (onSelectNode) onSelectNode(hit);
     }
   };
@@ -764,7 +895,7 @@ export function NeuralGraphCanvas({
 
     const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
     setTransform((prev) => {
-      const newScale = Math.max(0.3, Math.min(3.5, prev.scale * zoomFactor));
+      const newScale = Math.max(0.35, Math.min(3.5, prev.scale * zoomFactor));
       const newX = mouseX - (mouseX - prev.x) * (newScale / prev.scale);
       const newY = mouseY - (mouseY - prev.y) * (newScale / prev.scale);
       return { x: newX, y: newY, scale: newScale };
@@ -781,7 +912,7 @@ export function NeuralGraphCanvas({
   const handleZoomOut = () => {
     setTransform((prev) => ({
       ...prev,
-      scale: Math.max(0.3, prev.scale * 0.8),
+      scale: Math.max(0.35, prev.scale * 0.8),
     }));
   };
 
@@ -790,81 +921,81 @@ export function NeuralGraphCanvas({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-[#050508] select-none overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-full bg-[#030305] select-none overflow-hidden">
       {/* Interactive Top Glass HUD Overlay */}
       <div className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between gap-4 pointer-events-none">
-        {/* Left: Frosted Filter Pills */}
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] shadow-2xl pointer-events-auto">
+        {/* Left: Filter Pills */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#0a0a0a] border border-white/[0.08] shadow-xl pointer-events-auto">
           {[
-            { id: "all", label: "All Nodes", count: nodesRef.current.length },
-            { id: "document", label: "Documents", count: documents.length, color: "#38bdf8" },
-            { id: "memory", label: "Memories", count: memories.length, color: "#c084fc" },
-            { id: "concept", label: "Concepts", count: knowledgeItems.length, color: "#818cf8" },
-            { id: "project", label: "Initiatives", count: projects.length, color: "#34d399" },
+            { id: "all", label: "All", count: nodesRef.current.length },
+            { id: "document", label: "Documents", count: documents.length, color: "#ffffff" },
+            { id: "memory", label: "Rules", count: memories.length, color: "#d4d4d8" },
+            { id: "concept", label: "Concepts", count: knowledgeItems.length, color: "#a1a1aa" },
+            { id: "project", label: "Projects", count: projects.length, color: "#e4e4e7" },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveFilter(tab.id as any)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeFilter === tab.id
-                  ? "bg-white/15 text-white font-semibold shadow-sm border border-white/15"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                  ? "bg-white/10 text-white font-semibold"
+                  : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
               }`}
             >
               {tab.color && (
                 <span
-                  className="w-2 h-2 rounded-full shadow-sm"
+                  className="w-1.5 h-1.5 rounded-full"
                   style={{ backgroundColor: tab.color }}
                 />
               )}
               <span>{tab.label}</span>
-              <span className="text-[10px] font-mono text-slate-500">({tab.count})</span>
+              <span className="text-[10px] font-mono text-zinc-500">({tab.count})</span>
             </button>
           ))}
         </div>
 
         {/* Right: Search & Viewport Tools */}
-        <div className="flex items-center gap-2.5 pointer-events-auto">
+        <div className="flex items-center gap-2 pointer-events-auto">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search graph..."
-              className="w-48 pl-9 pr-3.5 py-2 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 shadow-2xl transition-all"
+              placeholder="Search map..."
+              className="w-44 pl-8 pr-3 py-1.5 rounded-xl bg-[#0a0a0a] border border-white/[0.08] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-all"
             />
           </div>
 
-          <div className="flex items-center p-1 rounded-2xl bg-[#0c0d16]/80 backdrop-blur-2xl border border-white/[0.1] shadow-2xl text-slate-400">
+          <div className="flex items-center p-1 rounded-xl bg-[#0a0a0a] border border-white/[0.08] text-zinc-400">
             <button
               onClick={handleZoomIn}
-              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Zoom In"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleZoomOut}
-              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleResetView}
-              className="p-2 rounded-xl hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Recenter"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
-            <div className="w-px h-4 bg-white/10 mx-1" />
+            <div className="w-px h-3.5 bg-white/10 mx-1" />
             <button
               onClick={() => setIsPhysicsRunning(!isPhysicsRunning)}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                isPhysicsRunning ? "text-emerald-400 hover:bg-white/[0.06]" : "text-amber-400 hover:bg-white/[0.06]"
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                isPhysicsRunning ? "text-zinc-300 hover:bg-white/[0.06]" : "text-zinc-500 hover:bg-white/[0.06]"
               }`}
-              title={isPhysicsRunning ? "Freeze Physics" : "Resume Physics"}
+              title={isPhysicsRunning ? "Pause Physics" : "Resume Physics"}
             >
               {isPhysicsRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </button>
@@ -882,28 +1013,67 @@ export function NeuralGraphCanvas({
         className="w-full h-full cursor-grab active:cursor-grabbing block"
       />
 
-      {/* Bottom Floating Navigation Legend */}
-      <div className="absolute bottom-5 left-6 z-20 flex items-center gap-3 text-[11px] font-mono text-slate-400 bg-[#0c0d16]/80 backdrop-blur-2xl px-3.5 py-2 rounded-2xl border border-white/[0.08] shadow-2xl">
+      {/* Bottom Floating Legend */}
+      <div className="absolute bottom-5 left-6 z-20 flex items-center gap-3 text-[11px] font-mono text-zinc-400 bg-[#0a0a0a] px-3 py-1.5 rounded-xl border border-white/[0.08]">
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-sky-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-white" />
           <span>Documents</span>
         </span>
-        <span className="text-slate-600">•</span>
+        <span className="text-zinc-600">•</span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-purple-400" />
-          <span>Axioms</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
+          <span>Rules</span>
         </span>
-        <span className="text-slate-600">•</span>
+        <span className="text-zinc-600">•</span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>Initiatives</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+          <span>Projects</span>
         </span>
-        <span className="text-slate-600">•</span>
+        <span className="text-zinc-600">•</span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
           <span>Concepts</span>
         </span>
       </div>
+
+      {/* Floating Node Inspection Card */}
+      {activeNode && (
+        <div className="absolute bottom-5 right-6 z-20 w-80 p-4 rounded-xl bg-[#0a0a0a] border border-white/10 shadow-2xl space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full shadow-sm"
+                style={{ backgroundColor: activeNode.color }}
+              />
+              <span className="text-[10px] uppercase font-mono tracking-wider font-semibold text-slate-400">
+                {activeNode.type}
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveNode(null)}
+              className="text-slate-500 hover:text-white p-0.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <h3 className="text-xs font-semibold text-white leading-snug">
+            {activeNode.title}
+          </h3>
+
+          {activeNode.subtitle && (
+            <p className="text-[10px] font-mono text-slate-400">
+              {activeNode.subtitle}
+            </p>
+          )}
+
+          {activeNode.content && (
+            <p className="text-[11px] text-slate-300 leading-relaxed max-h-24 overflow-y-auto pr-1">
+              {activeNode.content}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

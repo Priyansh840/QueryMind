@@ -52,17 +52,24 @@ export default function SpaceKnowledgeMapPage({
     async function loadData() {
       try {
         const [docsRes, memsRes, knowRes, projsRes, actionsRes] = await Promise.all([
-          apiClient<DocumentItem[]>(`/api/v1/spaces/${spaceId}/documents`).catch(() => []),
-          apiClient<MemoryItem[]>(`/api/v1/spaces/${spaceId}/memories`).catch(() => []),
+          apiClient<DocumentItem[]>(`/api/v1/documents/?space_id=${spaceId}`).catch(() => []),
+          apiClient<MemoryItem[]>(`/api/v1/memories?space_id=${spaceId}`).catch(() => []),
           apiClient<KnowledgeItem[]>(`/api/v1/knowledge?space_id=${spaceId}`).catch(() => []),
-          apiClient<ProjectItem[]>(`/api/v1/spaces/${spaceId}/projects`).catch(() => []),
-          apiClient<ActionProposal[]>(`/api/v1/spaces/${spaceId}/actions/pending`).catch(() => []),
+          apiClient<ProjectItem[]>(`/api/v1/projects?space_id=${spaceId}`).catch(() => []),
+          apiClient<{ items: ActionProposal[] } | ActionProposal[]>(
+            `/api/v1/actions?space_id=${spaceId}&limit=50`
+          ).catch(() => ({ items: [] })),
         ]);
         setDocuments(docsRes || []);
         setMemories(memsRes || []);
         setKnowledgeItems(knowRes || []);
         setProjects(projsRes || []);
-        setProposals(actionsRes || []);
+        const actionList = Array.isArray(actionsRes)
+          ? actionsRes
+          : (actionsRes && "items" in actionsRes && Array.isArray(actionsRes.items))
+          ? actionsRes.items
+          : [];
+        setProposals(actionList);
       } catch (err) {
         console.error("Failed to load map data:", err);
       }
@@ -107,42 +114,38 @@ export default function SpaceKnowledgeMapPage({
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#050508] text-slate-100 antialiased font-sans select-none">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#08090d] text-zinc-100 antialiased font-sans select-none">
       <CommandSidebar spaceId={spaceId} space={space} />
 
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         {/* Top Header Bar */}
-        <header className="h-14 px-6 border-b border-white/[0.08] bg-[#0c0d16]/90 backdrop-blur-2xl flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-3.5">
+        <header className="h-13 px-6 border-b border-white/[0.06] bg-[#08090d]/80 backdrop-blur-xl flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-3">
             <Link
               href={`/spaces/${spaceId}`}
-              className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Overview</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Overview</span>
             </Link>
 
             <div className="h-4 w-px bg-white/10" />
 
             <div>
-              <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Neural Knowledge Graph</span>
-                <span className="px-2 py-0.2 rounded text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold">
-                  FORCE-DIRECTED PHYSICS
-                </span>
+              <h1 className="text-xs font-semibold text-white tracking-tight flex items-center gap-2">
+                <span>Knowledge Map</span>
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-            <span className="text-sky-400 font-medium">{documents.length} Docs</span>
-            <span>•</span>
-            <span className="text-purple-400 font-medium">{memories.length} Axioms</span>
-            <span>•</span>
-            <span className="text-emerald-400 font-medium">{projects.length} Initiatives</span>
-            <span>•</span>
-            <span className="text-indigo-400 font-medium">{knowledgeItems.length} Concepts</span>
+          <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+            <span>{documents.length} Documents</span>
+            <span className="text-zinc-600">•</span>
+            <span>{memories.length} Rules</span>
+            <span className="text-zinc-600">•</span>
+            <span>{projects.length} Projects</span>
+            <span className="text-zinc-600">•</span>
+            <span>{knowledgeItems.length} Concepts</span>
           </div>
         </header>
 

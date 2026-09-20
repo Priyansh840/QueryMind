@@ -74,7 +74,7 @@ export default function DecisionDetailPage({ params }: DecisionDetailPageProps) 
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#08090d] text-white">
         <div className="text-xs font-mono text-slate-400 animate-pulse">
           AUDITING DECISION LINEAGE...
         </div>
@@ -84,7 +84,7 @@ export default function DecisionDetailPage({ params }: DecisionDetailPageProps) 
 
   if (error || !decision) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white p-6">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#08090d] text-white p-6">
         <div className="max-w-md w-full p-6 rounded-2xl bg-[#0c0d12] border border-white/[0.08] text-center space-y-4">
           <AlertCircle className="w-8 h-8 text-[#f87171] mx-auto" />
           <h2 className="text-sm font-semibold text-white">Decision Not Found</h2>
@@ -104,14 +104,14 @@ export default function DecisionDetailPage({ params }: DecisionDetailPageProps) 
   const isExecuted = decision.status === "executed";
 
   return (
-    <div className="h-screen w-screen bg-[#09090b] text-[#f8fafc] flex overflow-hidden select-none">
+    <div className="h-screen w-screen bg-[#08090d] text-zinc-100 flex overflow-hidden select-none">
       {/* 1. Command Sidebar */}
       <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
       {/* 2. Main Content */}
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* Header Bar */}
-        <header className="h-16 px-8 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
+        <header className="h-16 px-8 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#08090d]/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href={`/spaces/${spaceId}/work`}

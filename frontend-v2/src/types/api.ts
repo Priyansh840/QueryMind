@@ -42,6 +42,7 @@ export interface Space {
   icon?: string | null;
   color?: string | null;
   is_default: boolean;
+  type?: string;
   role?: SpaceRole;
   members_count?: number;
   created_at?: string;
@@ -190,6 +191,7 @@ export interface ProjectItem {
   id: string;
   space_id: string;
   name: string;
+  description?: string | null;
   status: string;
   created_at: string;
 }

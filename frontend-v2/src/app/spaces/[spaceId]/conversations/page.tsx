@@ -42,17 +42,24 @@ export default function ConversationsIndexPage({ params }: ConversationsIndexPag
         if (convs && convs.length > 0) {
           router.replace(`/spaces/${spaceId}/conversations/${convs[0].id}`);
         } else {
-          const newConv = await apiClient<ConversationItem>(`/api/v1/conversations`, {
-            method: "POST",
-            body: JSON.stringify({
-              space_id: spaceId,
-              title: "Autonomous Reasoning Session",
-            }),
-          });
-          router.replace(`/spaces/${spaceId}/conversations/${newConv.id}`);
+          try {
+            const newConv = await apiClient<ConversationItem>(`/api/v1/conversations`, {
+              method: "POST",
+              body: JSON.stringify({
+                space_id: spaceId,
+                title: "Autonomous Reasoning Session",
+              }),
+            });
+            router.replace(`/spaces/${spaceId}/conversations/${newConv.id}`);
+          } catch (postErr) {
+            console.warn("Backend unavailable, falling back to local conversation view:", postErr);
+            router.replace(`/spaces/${spaceId}/conversations/default`);
+          }
         }
       } catch (err) {
         console.error("Failed to initialize conversation session:", err);
+        // Fallback so user is never stuck in infinite loading
+        router.replace(`/spaces/${spaceId}/conversations/default`);
       }
     };
 
@@ -60,10 +67,20 @@ export default function ConversationsIndexPage({ params }: ConversationsIndexPag
   }, [spaceId, prompt, router]);
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white select-none">
-      <div className="text-xs font-mono text-slate-400 animate-pulse">
-        CONNECTING REASONING SESSION...
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#08090d] text-white select-none gap-4">
+      <div className="relative flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+        <div className="absolute w-6 h-6 rounded-full bg-indigo-500/10 blur-sm animate-pulse" />
       </div>
+      <div className="text-xs font-mono tracking-widest text-slate-400 uppercase">
+        Connecting Reasoning Session...
+      </div>
+      <button
+        onClick={() => router.replace(`/spaces/${spaceId}/conversations/default`)}
+        className="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 underline mt-2 transition-colors cursor-pointer"
+      >
+        Taking too long? Open session directly &rarr;
+      </button>
     </div>
   );
 }

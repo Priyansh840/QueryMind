@@ -137,16 +137,16 @@ export default function ActionsPage({ params }: ActionsPageProps) {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-[#f8fafc] flex overflow-hidden select-none font-sans">
+    <div className="h-screen w-screen bg-[#08090d] text-zinc-100 flex overflow-hidden select-none font-sans antialiased">
       {/* 1. Command Sidebar */}
       <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
       {/* 2. Main Actions Substrate */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-[#08090d] ambient-mesh">
         {/* Header Bar */}
-        <header className="h-16 px-8 border-b border-white/[0.07] flex items-center justify-between shrink-0 bg-[#07070a]/90 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+        <header className="h-14 px-6 md:px-8 xl:px-12 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#08090d]/80 backdrop-blur-xl sticky top-0 z-20">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
               <Zap className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -154,34 +154,31 @@ export default function ActionsPage({ params }: ActionsPageProps) {
                 <h1 className="text-sm font-semibold tracking-tight text-white truncate">
                   Actions & Outcomes
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                  Execution & Verifiable Outcomes
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
+                  VERIFIABLE GOVERNANCE
                 </span>
               </div>
-              <p className="text-xs text-slate-400 truncate">
-                Proposed autonomous interventions, approval gates, and verifiable outcome results
-              </p>
             </div>
           </div>
 
           {/* Quick Filter Pills */}
-          <div className="flex items-center p-0.5 rounded-xl bg-white/[0.04] border border-white/[0.07]">
+          <div className="flex items-center p-0.5 rounded-lg bg-white/[0.03] backdrop-blur-sm border border-white/[0.08]">
             <button
               onClick={() => setActionFilter("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 actionFilter === "all"
-                  ? "bg-white/[0.1] text-white shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white/[0.12] text-white shadow-xs"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               All ({proposals.length})
             </button>
             <button
               onClick={() => setActionFilter("pending")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 actionFilter === "pending"
-                  ? "bg-amber-500/20 text-amber-200 border border-amber-500/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-amber-500/20 text-amber-200 border border-amber-500/30 font-semibold"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               <Clock className="w-3 h-3 text-amber-400" />
@@ -189,10 +186,10 @@ export default function ActionsPage({ params }: ActionsPageProps) {
             </button>
             <button
               onClick={() => setActionFilter("executed")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 actionFilter === "executed"
-                  ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-semibold"
+                  : "text-zinc-400 hover:text-white"
               }`}
             >
               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -202,37 +199,37 @@ export default function ActionsPage({ params }: ActionsPageProps) {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 p-8 pb-20 max-w-6xl mx-auto w-full space-y-8 min-w-0">
+        <div className="flex-1 px-6 md:px-8 xl:px-12 py-8 pb-20 max-w-[1700px] mx-auto w-full space-y-8 min-w-0">
           {/* Executive KPI Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-4 rounded-2xl bg-[#0c0d14] border border-white/[0.07] space-y-1">
-              <div className="text-[11px] font-medium text-slate-400">Total Actions Proposed</div>
-              <div className="text-xl font-bold text-white tracking-tight">{proposals.length}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] hover:border-white/[0.2] transition-all space-y-1.5 shadow-xs">
+              <div className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">Total Actions Proposed</div>
+              <div className="text-2xl font-bold text-white tracking-tight">{proposals.length}</div>
             </div>
-            <div className="p-4 rounded-2xl bg-[#0c0d14] border border-white/[0.07] space-y-1">
-              <div className="text-[11px] font-medium text-amber-300 flex items-center gap-1.5">
+            <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] hover:border-white/[0.2] transition-all space-y-1.5 shadow-xs">
+              <div className="text-[11px] font-mono text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
                 <Clock className="w-3 h-3" />
                 <span>Pending Approval</span>
               </div>
-              <div className="text-xl font-bold text-amber-400 tracking-tight">
+              <div className="text-2xl font-bold text-amber-400 tracking-tight">
                 {pendingProposals.length}
               </div>
             </div>
-            <div className="p-4 rounded-2xl bg-[#0c0d14] border border-white/[0.07] space-y-1">
-              <div className="text-[11px] font-medium text-emerald-400 flex items-center gap-1.5">
+            <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] hover:border-white/[0.2] transition-all space-y-1.5 shadow-xs">
+              <div className="text-[11px] font-mono text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
                 <CheckCircle2 className="w-3 h-3" />
                 <span>Verified Outcomes</span>
               </div>
-              <div className="text-xl font-bold text-emerald-400 tracking-tight">
+              <div className="text-2xl font-bold text-emerald-400 tracking-tight">
                 {executedProposals.length}
               </div>
             </div>
-            <div className="p-4 rounded-2xl bg-[#0c0d14] border border-white/[0.07] space-y-1">
-              <div className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5">
+            <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] hover:border-white/[0.2] transition-all space-y-1.5 shadow-xs">
+              <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5 uppercase tracking-wider">
                 <ShieldCheck className="w-3 h-3 text-indigo-400" />
                 <span>Safety Guardrail</span>
               </div>
-              <div className="text-sm font-semibold text-slate-200 tracking-tight pt-1">
+              <div className="text-sm font-semibold text-zinc-200 tracking-tight pt-1">
                 Human-in-the-Loop
               </div>
             </div>
@@ -262,7 +259,7 @@ export default function ActionsPage({ params }: ActionsPageProps) {
                   return (
                     <div
                       key={pId}
-                      className="p-5 rounded-2xl border border-amber-500/25 bg-[#0e0f18] shadow-lg space-y-4 transition-all"
+                      className="glass-card p-5 border-amber-500/25 space-y-4 hover-glow-amber"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3.5 min-w-0">

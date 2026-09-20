@@ -113,78 +113,75 @@ export default function GoalsPage({ params }: GoalsPageProps) {
   const velocityPct = goals.length > 0 ? Math.round((completedCount / goals.length) * 100) : 0;
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-slate-100 flex overflow-hidden select-none font-sans antialiased">
+    <div className="h-screen w-screen bg-[#08090d] text-zinc-100 flex overflow-hidden select-none font-sans antialiased">
       {/* 1. Global Navigation Sidebar */}
       <CommandSidebar spaceId={spaceId} space={space} spaces={spaces} />
 
       {/* 2. Main Goals Viewport */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#09090d]">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-[#08090d] ambient-mesh">
         {/* Top Header */}
-        <header className="h-16 px-8 border-b border-white/[0.07] flex items-center justify-between shrink-0 bg-[#0c0d14]/90 backdrop-blur-md z-20">
+        <header className="h-14 px-6 md:px-8 xl:px-12 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-[#08090d]/80 backdrop-blur-xl sticky top-0 z-20">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
               <Target className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
+              <h1 className="text-sm font-semibold text-white tracking-tight truncate flex items-center gap-2">
                 <span>Goals & Milestones</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
                   DECOMPOSITION LAYER
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 truncate">
-                Goal → Milestones → Projects → Tasks → Actions → Outcomes
-              </p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={() => setIsCreatingGoal(true)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-all cursor-pointer shadow-sm"
+            className="btn-white-premium flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Create Milestone Goal</span>
+            <span>Create Milestone</span>
           </button>
         </header>
 
         {/* Executive Goal Velocity Banner */}
-        <div className="px-8 py-3.5 border-b border-white/[0.06] bg-[#0a0a0f] flex items-center justify-between shrink-0">
+        <div className="px-6 md:px-8 xl:px-12 py-3 border-b border-white/[0.06] bg-[#0a0b10] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
-            <div className="text-xs font-bold text-white flex items-center gap-2">
+            <div className="text-xs font-semibold text-white flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span>Overall Milestone Velocity:</span>
-              <span className="font-mono text-emerald-400">
+              <span className="font-mono text-emerald-400 font-bold">
                 {completedCount}/{goals.length} ({velocityPct}%)
               </span>
             </div>
             <div className="w-32 h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                className="h-full progress-gradient transition-all duration-500"
                 style={{ width: `${velocityPct}%` }}
               />
             </div>
           </div>
 
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-zinc-400 font-mono">
             Across {projects.length} Active Initiatives
           </div>
         </div>
 
         {/* Goals Body */}
-        <div className="flex-1 p-8 pb-16 overflow-y-auto max-w-5xl mx-auto w-full space-y-6">
+        <div className="flex-1 px-6 md:px-8 xl:px-12 py-8 max-w-[1700px] mx-auto w-full space-y-6 min-w-0 relative z-[1]">
           {/* New Goal Drawer */}
           {isCreatingGoal && (
-            <div className="p-5 rounded-2xl border border-white/[0.1] bg-[#0c0d14] space-y-3 shadow-xl">
+            <div className="glass-card p-5 space-y-3 shadow-xl animate-fade-in-up">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-white flex items-center gap-2">
+                <div className="text-xs font-semibold text-white flex items-center gap-2">
                   <Target className="w-4 h-4 text-emerald-400" />
                   <span>Define New Strategic Milestone</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsCreatingGoal(false)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-zinc-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -197,16 +194,16 @@ export default function GoalsPage({ params }: GoalsPageProps) {
                   onChange={(e) => setNewGoalDescription(e.target.value)}
                   placeholder="e.g. Implement full vector embeddings pipeline with zero regressions"
                   autoFocus
-                  className="w-full bg-[#11121b] text-xs text-white placeholder-slate-500 px-3.5 py-2.5 rounded-xl border border-white/[0.08] focus:border-emerald-400/50 focus:outline-hidden"
+                  className="w-full bg-[#12131c] text-xs text-white placeholder-zinc-500 px-3.5 py-2.5 rounded-xl border border-white/[0.08] focus:border-emerald-400/50 focus:outline-hidden"
                 />
 
                 {projects.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-400">Attach to Project:</span>
+                    <span className="text-[11px] text-zinc-400">Attach to Project:</span>
                     <select
                       value={selectedProjectId}
                       onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="bg-[#11121b] text-xs text-white px-2.5 py-1.5 rounded-lg border border-white/[0.08] focus:outline-hidden"
+                      className="bg-[#12131c] text-xs text-white px-2.5 py-1.5 rounded-lg border border-white/[0.08] focus:outline-hidden cursor-pointer"
                     >
                       <option value="">None (Top-Level Goal)</option>
                       {projects.map((p) => (
@@ -222,14 +219,14 @@ export default function GoalsPage({ params }: GoalsPageProps) {
                   <button
                     type="button"
                     onClick={() => setIsCreatingGoal(false)}
-                    className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white bg-white/[0.04]"
+                    className="px-3.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white bg-white/[0.04] cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={!newGoalDescription.trim()}
-                    className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40"
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-zinc-200 text-black disabled:opacity-40 cursor-pointer shadow-xs"
                   >
                     Create Milestone
                   </button>
@@ -240,23 +237,23 @@ export default function GoalsPage({ params }: GoalsPageProps) {
 
           {/* Goals List */}
           {goals.length === 0 ? (
-            <div className="p-12 rounded-2xl border border-dashed border-white/[0.08] text-center space-y-3 bg-[#0c0d14]/40">
-              <Target className="w-10 h-10 text-slate-500 mx-auto" />
-              <div className="text-sm font-semibold text-white">No strategic goals defined yet</div>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            <div className="p-12 rounded-xl border border-dashed border-white/[0.08] text-center space-y-3 bg-[#0d0e15]">
+              <Target className="w-8 h-8 text-zinc-500 mx-auto" />
+              <div className="text-xs font-semibold text-white">No strategic goals defined yet</div>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
                 Define measurable milestones. MYND converts goals into projects, tasks, actions, and verifiable outcomes.
               </p>
               <button
                 type="button"
                 onClick={() => setIsCreatingGoal(true)}
-                className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
+                className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-zinc-200 text-black transition-colors cursor-pointer shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Create First Goal</span>
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5 stagger-children">
               {goals.map((goal) => {
                 const isCompleted = goal.status === "completed";
                 const isToggling = togglingGoalId === goal.id;
@@ -265,33 +262,33 @@ export default function GoalsPage({ params }: GoalsPageProps) {
                 return (
                   <div
                     key={goal.id}
-                    className="p-4 rounded-2xl border border-white/[0.07] bg-[#0c0d14] flex items-center justify-between gap-4 hover:border-white/[0.14] transition-all shadow-xs"
+                    className="glass-card p-4 flex items-center justify-between gap-4 hover-glow-emerald"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <button
                         type="button"
                         disabled={isToggling}
                         onClick={() => handleToggleGoal(goal)}
-                        className="text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                        className="text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
                       >
                         {isCompleted ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                         ) : (
-                          <Circle className="w-5 h-5 text-slate-500 hover:text-emerald-400 transition-colors" />
+                          <Circle className="w-4 h-4 text-zinc-600 hover:text-emerald-400 transition-colors" />
                         )}
                       </button>
 
                       <div className="min-w-0 space-y-0.5">
                         <Link
                           href={`/spaces/${spaceId}/work/goals/${goal.id}`}
-                          className={`text-xs font-semibold truncate block hover:text-emerald-300 transition-colors ${
-                            isCompleted ? "line-through text-slate-500" : "text-slate-200"
+                          className={`text-xs font-medium truncate block hover:text-white transition-colors ${
+                            isCompleted ? "line-through text-zinc-600" : "text-zinc-200"
                           }`}
                         >
                           {goal.description}
                         </Link>
                         {parentProj && (
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1.5 font-mono">
+                          <div className="text-[10px] text-zinc-500 flex items-center gap-1.5 font-mono">
                             <FolderGit2 className="w-3 h-3 text-indigo-400" />
                             <span>{parentProj.name}</span>
                           </div>
@@ -301,19 +298,19 @@ export default function GoalsPage({ params }: GoalsPageProps) {
 
                     <div className="flex items-center gap-2.5 shrink-0">
                       <span
-                        className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md font-bold ${
+                        className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded font-semibold ${
                           isCompleted
-                            ? "bg-emerald-400/10 text-emerald-400 border border-emerald-400/20"
-                            : "bg-white/[0.04] text-slate-400 border border-white/[0.06]"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
+                            : "bg-white/[0.04] text-zinc-400 border border-white/[0.06]"
                         }`}
                       >
                         {goal.status}
                       </span>
                       <Link
                         href={`/spaces/${spaceId}/work/goals/${goal.id}`}
-                        className="p-1 text-slate-500 hover:text-white transition-colors"
+                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
                       >
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
                   </div>

@@ -120,12 +120,12 @@ export default function ReflectionPage() {
   ];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-slate-100 antialiased">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#08090d] text-zinc-100 antialiased">
       <CommandSidebar spaceId={spaceId} space={space} />
 
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#0a0a0f]">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#08090d] ambient-mesh-cyan">
         {/* Top Header */}
-        <header className="px-8 py-6 border-b border-white/[0.07] bg-[#0c0d14]/80 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between">
+        <header className="px-8 py-6 border-b border-white/[0.06] bg-[#08090d]/80 backdrop-blur-xl sticky top-0 z-20 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
               <span>{space?.name || "Workspace"}</span>
@@ -146,7 +146,7 @@ export default function ReflectionPage() {
           </div>
         </header>
 
-        <div className="p-8 max-w-6xl space-y-8">
+        <div className="p-8 max-w-6xl space-y-8 relative z-[1]">
           {/* Section 1: Weekly Cognitive Health */}
           <div>
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">

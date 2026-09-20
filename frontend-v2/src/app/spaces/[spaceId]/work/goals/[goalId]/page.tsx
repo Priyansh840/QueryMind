@@ -123,7 +123,7 @@ export default function GoalDetailPage({ params }: GoalDetailPageProps) {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#08090d] text-white">
         <div className="text-xs font-mono text-slate-400 animate-pulse">
           LOADING TRACKED MILESTONE...
         </div>
@@ -133,7 +133,7 @@ export default function GoalDetailPage({ params }: GoalDetailPageProps) {
 
   if (error || !goal) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#09090b] text-white p-6">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#08090d] text-white p-6">
         <div className="max-w-md w-full p-6 rounded-2xl bg-[#0c0d12] border border-white/[0.08] text-center space-y-4">
           <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
           <h2 className="text-sm font-semibold text-white">Milestone Not Found</h2>
@@ -153,10 +153,10 @@ export default function GoalDetailPage({ params }: GoalDetailPageProps) {
   const isCompleted = goal.status === "completed";
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-slate-100 antialiased font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#08090d] text-slate-100 antialiased font-sans">
       <CommandSidebar spaceId={spaceId} space={space} />
 
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#0a0a0f]">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#08090d]">
         {/* Top Header */}
         <header className="px-8 py-5 border-b border-white/[0.07] bg-[#0c0d14]/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between">
           <div className="flex items-center gap-3">

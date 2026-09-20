@@ -220,7 +220,7 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
   const completedGoalsCount = goals.filter((g) => g.status === "completed").length;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#09090b] text-slate-100 antialiased font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#08090d] text-zinc-100 antialiased font-sans">
       {/* 1. Command Sidebar */}
       <CommandSidebar
         spaceId={spaceId}
@@ -230,61 +230,43 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
       />
 
       {/* 2. Main Executive Viewport */}
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#0a0a0f]">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto bg-[#08090d] ambient-mesh">
         {/* Top Header */}
-        <header className="px-8 py-5 border-b border-white/[0.07] bg-[#0c0d14]/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between shrink-0">
-          {(() => {
-            const currentArchetype = getSpaceArchetype(space);
-            return (
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base border border-white/10 shrink-0 shadow-sm"
-                  style={{ backgroundColor: `${space?.color || currentArchetype.color}20` }}
-                >
-                  {space?.icon || currentArchetype.icon}
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
-                    <span>{space?.name || "Executive Workspace"}</span>
-                    <span
-                      className="px-2 py-0.5 rounded text-[10px] font-mono uppercase border font-bold"
-                      style={{
-                        backgroundColor: `${currentArchetype.color}15`,
-                        color: currentArchetype.color,
-                        borderColor: `${currentArchetype.color}30`,
-                      }}
-                    >
-                      {currentArchetype.badge}
-                    </span>
-                  </h1>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">
-                    {space?.description || currentArchetype.description}
-                  </p>
-                </div>
-              </div>
-            );
-          })()}
+        <header className="px-6 md:px-8 xl:px-12 h-14 border-b border-white/[0.06] bg-[#08090d]/80 backdrop-blur-xl sticky top-0 z-20 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-[#12131c] border border-white/[0.08] flex items-center justify-center text-xs text-zinc-200 shrink-0">
+              {space?.icon || "📁"}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-white tracking-tight truncate flex items-center gap-2">
+                <span>{space?.name || "Workspace"}</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-zinc-400 border border-white/[0.08]">
+                  {space?.type || "space"}
+                </span>
+              </h1>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => loadSpaceData(true)}
-              className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.07] text-slate-400 hover:text-white transition-colors cursor-pointer"
-              title="Refresh workspace telemetry"
+              className="p-1.5 rounded-lg bg-[#12131c] hover:bg-zinc-800 border border-white/[0.08] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              title="Refresh"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
 
             <button
               onClick={() => setIsUploadOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs text-slate-200 hover:text-white font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-[#12131c] hover:bg-zinc-800 border border-white/[0.08] text-xs text-zinc-200 hover:text-white font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 text-indigo-400" />
+              <Plus className="w-3.5 h-3.5 text-zinc-400" />
               <span>Add Document</span>
             </button>
 
             <Link
               href={`/spaces/${spaceId}/conversations`}
-              className="px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold shadow-md transition-colors flex items-center gap-2 cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span>New Session</span>
@@ -293,102 +275,106 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
         </header>
 
         {/* Overview Body */}
-        <div className="p-8 max-w-6xl w-full mx-auto space-y-8">
+        <div className="px-6 md:px-8 xl:px-12 py-8 max-w-[1700px] w-full mx-auto space-y-8 relative z-[1]">
           {/* STATS METRIC STRIP */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
             <Link
               href={`/spaces/${spaceId}/knowledge`}
-              className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] transition-all group block"
-            >
+              className="stat-card p-5 hover-glow-sky group block">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-400">Indexed Evidence</span>
-                <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-                  <FileText className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium text-zinc-400">Grounding Documents</span>
+                <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
+                  <FileText className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-white tracking-tight group-hover:text-sky-400 transition-colors">
+              <div className="text-2xl font-bold text-white tracking-tight">
                 {documents.length}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                {knowledgeItems.length} vector chunks active
+              <div className="text-[11px] text-zinc-400 font-mono mt-2 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400" />
+                <span>{knowledgeItems.length} indexed chunks</span>
               </div>
             </Link>
 
             <Link
               href={`/spaces/${spaceId}/work`}
-              className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] transition-all group block"
-            >
+              className="stat-card p-5 hover-glow-emerald group block">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-400">Active Initiatives</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <FolderGit2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium text-zinc-400">Active Initiatives</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                  <FolderGit2 className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-white tracking-tight group-hover:text-emerald-400 transition-colors">
+              <div className="text-2xl font-bold text-white tracking-tight">
                 {projects.length}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Outcome tracking active
+              <div className="text-[11px] text-zinc-400 font-mono mt-2 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Operational roadmap</span>
               </div>
             </Link>
 
             <Link
               href={`/spaces/${spaceId}/work`}
-              className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] transition-all group block"
-            >
+              className="stat-card p-5 hover-glow-amber group block">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-400">Tracked Milestones</span>
-                <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium text-zinc-400">Milestone Progress</span>
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                  <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">
-                {completedGoalsCount}/{goals.length}
+              <div className="text-2xl font-bold text-white tracking-tight">
+                {completedGoalsCount}
+                <span className="text-sm font-normal text-zinc-500 ml-1">/ {goals.length}</span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                {goals.length > 0 ? `${Math.round((completedGoalsCount / goals.length) * 100)}% completed` : "Ready to plan"}
+              <div className="text-[11px] text-zinc-400 font-mono mt-2 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span>{goals.length > 0 ? `${Math.round((completedGoalsCount / goals.length) * 100)}% achieved` : "No targets set"}</span>
               </div>
             </Link>
 
             <Link
               href={`/spaces/${spaceId}/memory`}
-              className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] transition-all group block"
-            >
+              className="stat-card p-5 hover-glow-purple group block">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-400">Invariant Axioms</span>
-                <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                  <Brain className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium text-zinc-400">Retained Axioms</span>
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform">
+                  <Brain className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-white tracking-tight group-hover:text-purple-400 transition-colors">
+              <div className="text-2xl font-bold text-white tracking-tight">
                 {memories.length}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Consistent principles
+              <div className="text-[11px] text-zinc-400 font-mono mt-2 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span>Verified workspace rules</span>
               </div>
             </Link>
           </div>
 
           {/* PENDING ACTIONS APPROVAL QUEUE (Prominent if pending) */}
           {pendingActions.length > 0 && (
-            <div className="p-6 rounded-2xl bg-[#14120f] border border-amber-500/30 space-y-4 animate-in fade-in duration-200">
+            <div className="p-5 rounded-xl bg-[#0e0d14] border border-amber-500/30 space-y-3.5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-                  <h2 className="text-sm font-semibold text-white">
-                    Action Proposals Awaiting Your Decision ({pendingActions.length})
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <h2 className="text-xs font-semibold text-amber-300 uppercase tracking-wider font-mono">
+                    Action Approvals Required ({pendingActions.length})
                   </h2>
                 </div>
                 <Link
                   href={`/spaces/${spaceId}/tasks`}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                  className="text-xs text-amber-400/80 hover:text-amber-300 transition-colors font-mono"
                 >
-                  View all in Audit →
+                  View full queue in Tasks →
                 </Link>
               </div>
 
-              <div className="space-y-3">
-                {pendingActions.slice(0, 2).map((proposal) => {
+              <div className="space-y-2.5">
+                {pendingActions.slice(0, 3).map((proposal) => {
                   const propId = proposal.proposal_id || proposal.id;
                   const isExecuting = executingActionId === propId;
                   const title =
@@ -400,18 +386,18 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
                   return (
                     <div
                       key={propId}
-                      className="p-4 rounded-xl bg-[#0c0d12] border border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="p-4 rounded-xl bg-[#08090d] border border-white/[0.08] hover:border-amber-500/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-amber-500/10 text-amber-300 border border-amber-500/20 font-semibold">
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold">
                             {proposal.action_type.replace(/_/g, " ")}
                           </span>
-                          <span className="text-sm font-semibold text-white truncate">
+                          <span className="text-xs font-medium text-white truncate">
                             {title}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                        <p className="text-xs text-zinc-300 leading-relaxed max-w-3xl">
                           {proposal.reason}
                         </p>
                       </div>
@@ -420,17 +406,17 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
                         <button
                           onClick={() => handleRejectAction(propId)}
                           disabled={isExecuting}
-                          className="px-3.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white text-xs transition-colors cursor-pointer disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-mono border border-white/[0.08] transition-colors cursor-pointer disabled:opacity-50"
                         >
                           Reject
                         </button>
                         <button
                           onClick={() => handleApproveAction(propId)}
                           disabled={isExecuting}
-                          className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                          className="px-4 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>{isExecuting ? "Executing..." : "Approve & Execute"}</span>
+                          <span>{isExecuting ? "Executing..." : "Authorize"}</span>
                         </button>
                       </div>
                     </div>
@@ -440,172 +426,184 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
             </div>
           )}
 
-          {/* CENTRAL DIRECTIVE BAR (Ask MYND) */}
-          <div className="p-6 rounded-2xl bg-[#0f1017] border border-white/[0.08] space-y-3.5 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-semibold text-white uppercase tracking-wider">
-                  Issue Directive to MYND
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 font-mono">
-                Multi-hop retrieval across {documents.length} files & {memories.length} axioms
-              </span>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleLaunchDirective();
-              }}
-              className="relative flex items-center bg-[#13141f] border border-white/[0.08] focus-within:border-indigo-500/50 rounded-xl p-1.5 transition-all shadow-inner"
-            >
-              <input
-                type="text"
-                value={commandInput}
-                onChange={(e) => setCommandInput(e.target.value)}
-                placeholder="Ask anything about this space, audit decisions, or generate new initiatives..."
-                className="w-full bg-transparent px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={!commandInput.trim()}
-                className="px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-30 cursor-pointer flex items-center gap-1.5 shrink-0"
-              >
-                <span>Reason</span>
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-
-            {(() => {
-              const currentArchetype = getSpaceArchetype(space);
-              return (
-                <div className="flex items-center gap-2 pt-1 flex-wrap text-xs text-slate-400">
-                  <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
-                    <span>{currentArchetype.icon}</span>
-                    <span>{currentArchetype.name.toUpperCase()} SUGGESTIONS:</span>
+          {/* ASYMMETRIC 12-COLUMN OPERATIONAL GRID */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* LEFT 8-COLUMN COLUMN: DIRECTIVE BAR, INITIATIVES & MILESTONES */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* CENTRAL DIRECTIVE BAR (Ask MYND) */}
+              <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] space-y-3.5 shadow-sm animate-fade-in-up-delayed">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-semibold">
+                      Directive Substrate
+                    </span>
+                    <span className="text-xs font-medium text-zinc-200">
+                      Direct Workspace Reasoning
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-zinc-500 font-mono">
+                    {documents.length} docs • {memories.length} rules
                   </span>
-                  {currentArchetype.samplePrompts.map((promptText, i) => (
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleLaunchDirective();
+                  }}
+                  className="relative flex items-center"
+                >
+                  <input
+                    type="text"
+                    value={commandInput}
+                    onChange={(e) => setCommandInput(e.target.value)}
+                    placeholder="Ask anything about this space, audit decisions, or generate milestones..."
+                    className="w-full bg-white/[0.03] text-xs text-white placeholder-zinc-500 pl-4 pr-24 py-3 rounded-xl border border-white/[0.08] focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/20 focus:outline-hidden transition-all font-sans"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commandInput.trim()}
+                    className="absolute right-2 btn-primary-glow px-3.5 py-1.5 text-xs font-medium disabled:opacity-30 cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    <span>Dispatch</span>
+                    <Send className="w-3 h-3" />
+                  </button>
+                </form>
+
+                <div className="flex items-center gap-2 pt-1 flex-wrap text-xs">
+                  <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+                    SUGGESTED:
+                  </span>
+                  {[
+                    "Summarize primary objectives and open risks",
+                    "Audit stored documents for missing specifications",
+                    "Formulate actionable milestones for this space",
+                  ].map((promptText, i) => (
                     <button
                       key={i}
                       type="button"
                       onClick={() => handleLaunchDirective(promptText)}
-                      className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 hover:text-white transition-colors text-[11px] cursor-pointer"
+                      className="px-2.5 py-1 rounded-md bg-[#12131c] hover:bg-zinc-800 border border-white/[0.08] hover:border-indigo-500/30 text-zinc-300 hover:text-white transition-colors text-[11px] cursor-pointer"
                     >
                       {promptText}
                     </button>
                   ))}
                 </div>
-              );
-            })()}
-          </div>
-
-          {/* 2-COLUMN OPERATIONAL GRID */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* COLUMN 1: ACTIVE INITIATIVES & TRACKED MILESTONES */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FolderGit2 className="w-4 h-4 text-emerald-400" />
-                  <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
-                    Active Initiatives
-                  </h2>
-                </div>
-                <Link
-                  href={`/spaces/${spaceId}/work`}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
-                >
-                  <span>Work Hub</span>
-                  <ChevronRight className="w-3 h-3" />
-                </Link>
               </div>
 
-              {projects.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-[#0f1017] border border-dashed border-white/[0.08] text-center text-xs text-slate-500">
-                  No projects initialized yet. Ask MYND to propose an initiative based on your documents.
+              {/* INITIATIVES SECTION */}
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <h2 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider font-mono">
+                      Active Initiatives ({projects.length})
+                    </h2>
+                  </div>
+                  <Link
+                    href={`/spaces/${spaceId}/work`}
+                    className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors flex items-center gap-1 font-mono"
+                  >
+                    <span>Manage Hub</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </Link>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {projects.slice(0, 3).map((proj) => {
-                    const projectGoals = goals.filter((g) => g.project_id === proj.id);
-                    const completed = projectGoals.filter((g) => g.status === "completed").length;
-                    const pct = projectGoals.length > 0 ? Math.round((completed / projectGoals.length) * 100) : 0;
 
-                    return (
-                      <Link
-                        key={proj.id}
-                        href={`/spaces/${spaceId}/work/projects/${proj.id}`}
-                        className="p-4 rounded-2xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.14] transition-all block group"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold text-white group-hover:text-emerald-400 transition-colors">
-                            {proj.name}
-                          </span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">
-                            {proj.status}
-                          </span>
-                        </div>
+                {projects.length === 0 ? (
+                  <div className="p-8 rounded-xl bg-[#0d0e15] border border-dashed border-white/[0.08] text-center text-xs text-zinc-500">
+                    No active initiatives recorded. Dispatch a directive to formulate strategic projects.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {projects.map((proj) => {
+                      const projectGoals = goals.filter((g) => g.project_id === proj.id);
+                      const completed = projectGoals.filter((g) => g.status === "completed").length;
+                      const pct = projectGoals.length > 0 ? Math.round((completed / projectGoals.length) * 100) : 0;
 
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                            <span>{completed} of {projectGoals.length} milestones complete</span>
-                            <span>{pct}%</span>
+                      return (
+                        <Link
+                          key={proj.id}
+                          href={`/spaces/${spaceId}/work/projects/${proj.id}`}
+                          className="glass-card p-4 hover-glow-emerald group block"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors truncate">
+                              {proj.name}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 capitalize font-medium">
+                              {proj.status}
+                            </span>
                           </div>
-                          <div className="w-full h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
 
-              {/* Milestones Checklist */}
-              <div className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] space-y-3">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                  <span>Immediate Milestones Checklist</span>
-                  <span className="text-[11px] font-mono text-slate-500">
-                    {completedGoalsCount}/{goals.length}
+                          <p className="text-xs text-zinc-400 line-clamp-2 mb-3 leading-relaxed">
+                            {proj.description || "Active initiative for space objectives."}
+                          </p>
+
+                          <div className="space-y-1.5 pt-1 border-t border-white/[0.05]">
+                            <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono">
+                              <span>{completed}/{projectGoals.length} targets</span>
+                              <span className="font-semibold text-emerald-400">{pct}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-zinc-900 overflow-hidden">
+                              <div
+                                className="h-full progress-gradient transition-all duration-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* MILESTONES CHECKLIST */}
+              <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider font-mono">
+                      Milestones Checklist
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-amber-400 font-medium">
+                    {completedGoalsCount} of {goals.length} achieved
                   </span>
                 </div>
 
                 {goals.length === 0 ? (
-                  <div className="text-xs text-slate-500 py-3 text-center">
-                    No milestones active. Add one from the Work Hub.
+                  <div className="text-xs text-zinc-500 py-4 text-center">
+                    No active milestones set for this workspace.
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {goals.slice(0, 4).map((goal) => {
+                    {goals.slice(0, 5).map((goal) => {
                       const isCompleted = goal.status === "completed";
                       const isToggling = togglingGoalId === goal.id;
 
                       return (
                         <div
                           key={goal.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-colors text-xs"
+                          className="flex items-center justify-between p-3 rounded-lg bg-[#08090d] border border-white/[0.06] hover:border-white/[0.14] transition-colors text-xs"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             <button
                               type="button"
                               disabled={isToggling}
                               onClick={() => handleToggleGoal(goal)}
-                              className="text-slate-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                              className="cursor-pointer shrink-0"
                             >
                               {isCompleted ? (
                                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                               ) : (
-                                <Circle className="w-4 h-4 text-slate-500" />
+                                <Circle className="w-4 h-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
                               )}
                             </button>
                             <Link
                               href={`/spaces/${spaceId}/work/goals/${goal.id}`}
-                              className={`truncate hover:text-white transition-colors ${
-                                isCompleted ? "line-through text-slate-500" : "text-slate-200"
+                              className={`truncate hover:text-white transition-colors text-xs ${
+                                isCompleted ? "line-through text-zinc-600" : "text-zinc-200 font-medium"
                               }`}
                             >
                               {goal.description}
@@ -614,7 +612,7 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
 
                           <Link
                             href={`/spaces/${spaceId}/work/goals/${goal.id}`}
-                            className="text-[10px] text-slate-500 hover:text-white transition-colors font-mono shrink-0 ml-2"
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors font-mono shrink-0 ml-3"
                           >
                             Details →
                           </Link>
@@ -626,118 +624,124 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
               </div>
             </div>
 
-            {/* COLUMN 2: GROUNDED EVIDENCE & QUICK CAPTURE */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bookmark className="w-4 h-4 text-sky-400" />
-                  <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
-                    Grounded Evidence & Notes
-                  </h2>
+            {/* RIGHT 4-COLUMN RAIL: EVIDENCE VAULT, NOTE INGESTION, RETAINED RULES */}
+            <div className="lg:col-span-4 space-y-6">
+              {/* Grounded Evidence Vault */}
+              <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] space-y-3.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-sky-500/15 text-sky-400 border border-sky-500/30 font-semibold">
+                      Vault
+                    </span>
+                    <h3 className="text-xs font-semibold text-zinc-200">
+                      Grounded Evidence
+                    </h3>
+                  </div>
+                  <Link
+                    href={`/spaces/${spaceId}/knowledge`}
+                    className="text-xs text-zinc-400 hover:text-sky-400 transition-colors flex items-center gap-1 font-mono"
+                  >
+                    <span>All ({documents.length})</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </Link>
                 </div>
-                <Link
-                  href={`/spaces/${spaceId}/knowledge`}
-                  className="text-xs text-sky-400 hover:text-sky-300 transition-colors flex items-center gap-1"
-                >
-                  <span>Vault Hub</span>
-                  <ChevronRight className="w-3 h-3" />
-                </Link>
-              </div>
 
-              {/* Recent Documents */}
-              <div className="space-y-3">
                 {documents.length === 0 ? (
-                  <div className="p-6 rounded-2xl bg-[#0f1017] border border-dashed border-white/[0.08] text-center text-xs text-slate-500">
-                    No documents uploaded. Add a PDF or document to ground MYND's reasoning.
+                  <div className="p-5 rounded-lg bg-[#08090d] border border-dashed border-white/[0.08] text-center text-xs text-zinc-500">
+                    No documents uploaded. Add a file to ground workspace reasoning.
                   </div>
                 ) : (
-                  documents.slice(0, 3).map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="p-3.5 rounded-xl bg-[#0f1017] border border-white/[0.06] hover:border-white/[0.12] transition-colors flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-                          <FileText className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-white truncate">
-                            {doc.title}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            {doc.type.toUpperCase()} • Ready for Reasoning
-                          </div>
-                        </div>
-                      </div>
-
-                      <Link
-                        href={`/spaces/${spaceId}/knowledge/documents/${doc.id}`}
-                        className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] text-slate-300 hover:text-white transition-colors shrink-0"
+                  <div className="space-y-2">
+                    {documents.slice(0, 3).map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="p-3 rounded-lg bg-[#08090d] border border-white/[0.06] hover:border-sky-500/30 transition-colors flex items-center justify-between"
                       >
-                        Inspect
-                      </Link>
-                    </div>
-                  ))
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium text-zinc-200 truncate">
+                              {doc.title}
+                            </div>
+                            <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                              {doc.type.toUpperCase()} • Indexed
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link
+                          href={`/spaces/${spaceId}/knowledge/documents/${doc.id}`}
+                          className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border border-white/[0.08] text-[11px] text-zinc-300 hover:text-white transition-colors shrink-0 font-mono"
+                        >
+                          Inspect
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {/* Fast Knowledge Note Ingestion */}
-              <div className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] space-y-3">
-                <div className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                  <Plus className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Jot Note to Space Vector Memory</span>
+              {/* Fast Note Scratchpad */}
+              <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] space-y-3 shadow-sm">
+                <div className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Jot to Workspace Memory</span>
                 </div>
 
                 <form onSubmit={handleCaptureNote} className="space-y-2.5">
                   <textarea
                     value={quickNote}
                     onChange={(e) => setQuickNote(e.target.value)}
-                    placeholder="Record architectural decision, constraint, or factual premise..."
-                    className="w-full bg-[#13141f] border border-white/[0.08] focus:border-sky-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none resize-none h-20 leading-relaxed"
+                    placeholder="Record decision, constraint, or factual premise..."
+                    className="w-full bg-[#08090d] border border-white/[0.08] focus:border-emerald-500/50 rounded-lg p-3 text-xs text-white placeholder-zinc-500 focus:outline-hidden resize-none h-20 leading-relaxed font-sans"
                   />
                   <div className="flex justify-end">
                     <button
                       type="submit"
                       disabled={!quickNote.trim() || isCapturing}
-                      className="px-4 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 text-xs font-semibold transition-colors disabled:opacity-40 cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
                     >
-                      {isCapturing ? "Embedding..." : "Ingest to Memory"}
+                      {isCapturing ? "Ingesting..." : "Save Note"}
                     </button>
                   </div>
                 </form>
               </div>
 
-              {/* Invariant Axioms Preview */}
-              <div className="p-5 rounded-2xl bg-[#0f1017] border border-white/[0.06] space-y-3">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                  <span className="flex items-center gap-1.5">
-                    <Brain className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Retained Invariant Principles</span>
-                  </span>
+              {/* Active Retained Axioms */}
+              <div className="p-5 rounded-xl bg-[#0d0e15] border border-white/[0.08] space-y-3.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-purple-500/15 text-purple-400 border border-purple-500/30 font-semibold">
+                      Axioms
+                    </span>
+                    <h3 className="text-xs font-semibold text-zinc-200">
+                      Retained Rules
+                    </h3>
+                  </div>
                   <Link
                     href={`/spaces/${spaceId}/memory`}
-                    className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors"
+                    className="text-[11px] text-zinc-400 hover:text-purple-400 transition-colors font-mono"
                   >
                     View All →
                   </Link>
                 </div>
 
                 <div className="space-y-2">
-                  {memories.slice(0, 2).map((m) => (
+                  {memories.slice(0, 3).map((m) => (
                     <div
                       key={m.id}
-                      className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-start justify-between gap-3 text-xs"
+                      className="p-3 rounded-lg bg-[#08090d] border border-white/[0.06] hover:border-purple-500/30 transition-colors flex items-start justify-between gap-3 text-xs"
                     >
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-purple-400 uppercase">
+                          <span className="text-[10px] font-mono text-purple-400 uppercase font-semibold">
                             {m.memory_type}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-500">
-                            {Math.round((Number(m.confidence) || 0.95) * 100)}% Conf
+                          <span className="text-[10px] font-mono text-zinc-500">
+                            {Math.round((Number(m.confidence) || 0.95) * 100)}% conf
                           </span>
                         </div>
-                        <p className="text-slate-300 line-clamp-2 leading-relaxed text-[11px]">
+                        <p className="text-zinc-300 line-clamp-2 leading-relaxed text-[11px]">
                           {m.content}
                         </p>
                       </div>
@@ -745,7 +749,7 @@ export default function SpaceDetailPage({ params }: SpaceDetailPageProps) {
                       <button
                         onClick={() => handleReinforceMemory(m.id)}
                         disabled={reinforcingMemoryId === m.id}
-                        className="px-2 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.08] text-[10px] text-purple-300 border border-white/[0.06] shrink-0 transition-colors cursor-pointer"
+                        className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-[10px] text-zinc-300 hover:text-white border border-white/[0.08] shrink-0 transition-colors cursor-pointer font-mono"
                       >
                         {reinforcingMemoryId === m.id ? "Done" : "Reinforce"}
                       </button>
