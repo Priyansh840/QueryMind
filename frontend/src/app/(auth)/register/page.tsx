@@ -100,7 +100,7 @@ export default function RegisterPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/onboarding` : undefined,
+          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/onboarding` : undefined,
         },
       });
       if (oauthError) {
