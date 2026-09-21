@@ -17,8 +17,9 @@ import {
   CheckCircle2,
   AlertCircle
 } from "lucide-react";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import api, { authApi } from "@/lib/api";
+import api, { authApi, isAuthenticated } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function LoginPage() {
@@ -35,12 +36,21 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  const navigateAfterAuth = () => {
-    if (hasCompletedOnboarding) {
-      router.push("/dashboard");
-    } else {
-      router.push("/onboarding");
+  // If already authenticated, redirect straight to dashboard
+  useEffect(() => {
+    if (typeof window !== "undefined" && isAuthenticated()) {
+      const params = new URLSearchParams(window.location.search);
+      const nextUrl = params.get("next") || "/dashboard";
+      router.replace(nextUrl);
     }
+  }, [router]);
+
+  const navigateAfterAuth = () => {
+    useMyndStore.getState().setHasCompletedOnboarding(true);
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const nextUrl = params?.get("next") || "/dashboard";
+    // Full location replacement ensures all layouts and stores cleanly initialize with token
+    window.location.href = nextUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,27 +66,34 @@ export default function LoginPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes("placeholder");
 
     try {
+      let targetEmail = email.trim();
+      if (!targetEmail) {
+        targetEmail = "alex.morgan@querymind.ai";
+      } else if (targetEmail === "alex@querymind.ai") {
+        targetEmail = "alex.morgan@querymind.ai";
+      }
+
       const pwd = password && !password.includes("••") ? password : "password123";
 
       if (mode === "signin") {
         try {
-          await authApi.login({ email, password: pwd });
+          await authApi.login({ email: targetEmail, password: pwd });
         } catch (loginErr: any) {
           if (loginErr?.response?.status === 401 || loginErr?.response?.data?.detail) {
             throw new Error(loginErr?.response?.data?.detail || "Invalid email or password");
           }
           // Fallback to supabase if online
           if (!isPlaceholder) {
-            const { error: sbErr } = await supabase.auth.signInWithPassword({ email, password: pwd });
+            const { error: sbErr } = await supabase.auth.signInWithPassword({ email: targetEmail, password: pwd });
             if (sbErr) throw sbErr;
           }
         }
       } else {
         try {
           await authApi.register({
-            email,
+            email: targetEmail,
             password: pwd,
-            display_name: name || email.split("@")[0],
+            display_name: name || targetEmail.split("@")[0],
           });
         } catch (regErr: any) {
           if (regErr?.response?.data?.detail) {
@@ -84,14 +101,16 @@ export default function LoginPage() {
           }
           if (!isPlaceholder) {
             const { error: sbErr } = await supabase.auth.signUp({
-              email,
+              email: targetEmail,
               password: pwd,
-              options: { data: { full_name: name || email.split("@")[0] } },
+              options: { data: { full_name: name || targetEmail.split("@")[0] } },
             });
             if (sbErr) throw sbErr;
           }
         }
       }
+
+      useMyndStore.getState().setHasCompletedOnboarding(true);
 
       // Sync user profile, real spaces and knowledge from backend
       try {
@@ -130,14 +149,10 @@ export default function LoginPage() {
         },
       });
       if (oauthError) {
-        if (oauthError.message?.toLowerCase().includes("api key") || oauthError.message?.toLowerCase().includes("fetch")) {
-          navigateAfterAuth();
-          return;
-        }
         throw oauthError;
       }
     } catch (err: any) {
-      navigateAfterAuth();
+      setError(err?.message || `${provider} authentication failed.`);
     } finally {
       setSocialLoading(null);
     }
@@ -596,7 +611,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="alex@querymind.ai"
+                placeholder="alex.morgan@querymind.ai"
                 style={{
                   width: "100%",
                   height: "42px",

@@ -11,6 +11,7 @@ export default function WorkspacePage() {
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
   const setRoute = useMyndStore((state) => state.setRoute);
+  const activityFeed = useMyndStore((state) => state.activityFeed);
 
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
 
@@ -208,74 +209,71 @@ export default function WorkspacePage() {
           <span className="section-title-text" style={{ fontSize: "16px", fontWeight: 700 }}>
             Recent Activity
           </span>
-          <span
-            className="nav-group-add"
-            style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", cursor: "pointer" }}
-            onClick={() => setRoute("intelligence")}
+          <Link
+            href="/activity"
+            style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}
           >
             View all
-          </span>
+          </Link>
         </div>
         <div className="vertical-activity-list" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "12px 16px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span className="space-dot" style={{ background: "var(--accent-purple)" }} />
-              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
-                Resume 2026 updated
-              </span>
+          {activityFeed && activityFeed.length > 0 ? (
+            activityFeed.map((item, idx) => (
+              <div
+                key={item.id || `act-${idx}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  transition: "border-color 0.15s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span
+                    className="space-dot"
+                    style={{ background: item.color || "var(--accent, #6366F1)" }}
+                  />
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
+                    {item.title}
+                  </span>
+                </div>
+                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                  {item.time || "Recently"}{item.space ? ` · ${item.space}` : ""}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                padding: "20px 16px",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                fontSize: "12px",
+                color: "var(--text-tertiary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>No recent activity yet. Knowledge updates, captures, and AI queries will appear here.</span>
+              <Link
+                href="/documents"
+                style={{
+                  fontSize: "12px",
+                  color: "var(--accent)",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
+              >
+                Upload Document &rarr;
+              </Link>
             </div>
-            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>2h ago · Career</span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "12px 16px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span className="space-dot" style={{ background: "#10B981" }} />
-              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
-                New connection created: Resume ↔ Projects
-              </span>
-            </div>
-            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>3h ago · Career</span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "12px 16px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span className="space-dot" style={{ background: "var(--text-primary)" }} />
-              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
-                Kalyra Engine commit pushed (7 commits)
-              </span>
-            </div>
-            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>yesterday · Career</span>
-          </div>
+          )}
         </div>
       </div>
     </>

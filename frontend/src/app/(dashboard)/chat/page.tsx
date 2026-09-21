@@ -18,11 +18,14 @@ import {
   X,
   FileText,
   AlertCircle,
-  Paperclip,
+  History,
+  Search,
+  Trash2,
+  MessageSquare,
+  Compass,
 } from "lucide-react";
-import { queryMindApi, TraceEvent, ObjectiveTraceData } from "@/lib/api";
+import { queryMindApi } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
-import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { useRouter } from "next/navigation";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
@@ -36,46 +39,80 @@ function getGreeting(name: string) {
   return { emoji: "🌙", text: `Up late, ${name}?` };
 }
 
-/* ─── types ───────────────────────────────────────────────────── */
-
-interface Message {
-  id: number;
-  role: "user" | "ai";
-  content: string;
-  timestamp: string;
-  citations?: string[];
-  objectiveId?: string;
-  traceEvents?: TraceEvent[];
-  isError?: boolean;
+function formatRelativeTime(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
 }
 
-/* ─── quick chips ─────────────────────────────────────────────── */
+/* ─── quick prompt suggestions ───────────────────────────────── */
 
 const quickChips = [
-  { icon: Code2, label: "Code", prompt: "Help me analyze the codebase architecture from my uploaded documents." },
-  { icon: BookOpen, label: "Learn", prompt: "Summarize key concepts and learnings from my knowledge vault." },
-  { icon: PenLine, label: "Write", prompt: "Draft a professional summary based on my uploaded resume and projects." },
-  { icon: FolderOpen, label: "Life stuff", prompt: "Organize and prioritize my pending tasks and goals from my documents." },
-  { icon: Zap, label: "QueryMind's choice", prompt: "Analyze all my uploaded documents and give me the most interesting insight you can find." },
+  {
+    icon: Code2,
+    label: "Architecture Deep Dive",
+    prompt: "Analyze the codebase architecture, module dependencies, and core patterns from my uploaded documents.",
+  },
+  {
+    icon: BookOpen,
+    label: "Knowledge Synthesis",
+    prompt: "Synthesize key concepts, architectural decisions, and retained learnings across all workspace documents.",
+  },
+  {
+    icon: PenLine,
+    label: "Executive Briefing",
+    prompt: "Prepare an executive briefing summarizing our active initiatives, current progress, and key blockers.",
+  },
+  {
+    icon: Compass,
+    label: "Decision Proposals",
+    prompt: "Examine our current project goals and formulate recommended next actions with grounded evidence.",
+  },
+  {
+    icon: Zap,
+    label: "QueryMind Insights",
+    prompt: "Analyze all uploaded documents and highlight unexpected patterns or high-leverage opportunities.",
+  },
 ];
 
 /* ═══════════════════════════════════════════════════════════════ */
 
 export default function ChatPage() {
+  const router = useRouter();
   const userProfile = useMyndStore((state) => state.userProfile);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+  const spaces = useMyndStore((state) => state.spaces);
 
-  const greeting = useMemo(() => getGreeting(userProfile.name), [userProfile.name]);
+  const activeSpace = useMemo(() => {
+    return spaces.find((s) => s.id === activeSpaceId || s.slug === activeSpaceId) || spaces[0];
+  }, [spaces, activeSpaceId]);
+
+  const greeting = useMemo(() => getGreeting(userProfile.name || "there"), [userProfile.name]);
 
   /* ─── state ───────────────────────────────────────────────── */
-  const [hasStartedChat, setHasStartedChat] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isOrchestrating, setIsOrchestrating] = useState(false);
-  const [activeStep, setActiveStep] = useState<"idle" | "objective" | "researcher" | "synthesizer">("idle");
-  const [activeTrace, setActiveTrace] = useState<ObjectiveTraceData | null>(null);
-  const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
+
+  // History Drawer State
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [searchHistory, setSearchHistory] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // File Attachments State
   const [attachments, setAttachments] = useState<{
@@ -87,10 +124,65 @@ export default function ChatPage() {
     errorMessage?: string;
   }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [input]);
+
+  // Ensure activeSpaceId is valid
+  useEffect(() => {
+    if (!activeSpaceId || !activeSpaceId.includes("-")) {
+      queryMindApi.getSpaces().then((sp) => {
+        if (sp && sp.length > 0) {
+          useMyndStore.getState().setActiveSpaceId(sp[0].id);
+        }
+      }).catch((err) => {
+        console.error("Failed to load initial space", err);
+      });
+    }
+  }, [activeSpaceId]);
+
+  // Load past conversations for history drawer
+  const loadConversations = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const data = await queryMindApi.getConversations(activeSpaceId || undefined);
+      if (Array.isArray(data)) {
+        setConversations(data);
+      }
+    } catch (err) {
+      console.warn("Could not fetch conversations:", err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    loadConversations();
+  }, [activeSpaceId]);
+
+  const filteredConversations = useMemo(() => {
+    if (!searchHistory.trim()) return conversations;
+    const q = searchHistory.toLowerCase();
+    return conversations.filter((c) => (c.title || "").toLowerCase().includes(q));
+  }, [conversations, searchHistory]);
+
+  const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await queryMindApi.deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: any) {
+      alert(`Could not delete conversation: ${err.message || err}`);
+    }
+  };
+
+  /* ─── file upload handling ────────────────────────────────── */
   const handleAttachFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const newItems = Array.from(files).map((f) => ({
@@ -136,33 +228,7 @@ export default function ChatPage() {
     setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isOrchestrating]);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "24px";
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
-    }
-  }, [input]);
-
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!activeSpaceId || !activeSpaceId.includes("-")) {
-      queryMindApi.getSpaces().then((spaces) => {
-        if (spaces && spaces.length > 0) {
-          useMyndStore.getState().setActiveSpaceId(spaces[0].id);
-        }
-      }).catch((err) => {
-        console.error("Failed to load initial space", err);
-      });
-    }
-  }, [activeSpaceId]);
-
-  /* ─── send ────────────────────────────────────────────────── */
+  /* ─── send message & create session ───────────────────────── */
   const handleSend = async (queryText?: string) => {
     let textToSend = queryText !== undefined ? queryText : input;
     if ((!textToSend.trim() && attachments.length === 0) || isOrchestrating) return;
@@ -176,843 +242,697 @@ export default function ChatPage() {
 
     setAttachments([]);
 
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let targetSpaceId = activeSpaceId;
-    if (!targetSpaceId || targetSpaceId === "general" || targetSpaceId === "projects" || targetSpaceId === "research" || !targetSpaceId.includes("-")) {
-      try {
-        const spaces = await queryMindApi.getSpaces();
-        if (spaces && spaces.length > 0) {
-          targetSpaceId = spaces[0].id;
-          useMyndStore.getState().setActiveSpaceId(targetSpaceId);
-        } else {
-          // Provision default space if user has none
-          const newSpace = await queryMindApi.createSpace({
-            name: "General Workspace",
-            description: "Default workspace space",
-            color: "#6366f1",
-            icon: "folder",
-            slug: "general",
-          });
-          if (newSpace && newSpace.id) {
-            targetSpaceId = newSpace.id;
-            useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+
+    if (!targetSpaceId || !UUID_REGEX.test(targetSpaceId)) {
+      // 1. Try resolving from loaded spaces in memory
+      const found = spaces.find(
+        (s) =>
+          s.id === targetSpaceId ||
+          s.slug === targetSpaceId ||
+          s.name.toLowerCase() === (targetSpaceId || "").toLowerCase()
+      );
+      if (found && UUID_REGEX.test(found.id)) {
+        targetSpaceId = found.id;
+        useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+      } else {
+        // 2. Fallback to querying backend spaces
+        try {
+          const sp = await queryMindApi.getSpaces();
+          if (sp && sp.length > 0) {
+            const match =
+              sp.find(
+                (s: any) =>
+                  s.id === targetSpaceId ||
+                  s.slug === targetSpaceId ||
+                  s.name.toLowerCase() === (targetSpaceId || "").toLowerCase()
+              ) || sp[0];
+            if (match && UUID_REGEX.test(match.id)) {
+              targetSpaceId = match.id;
+              useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+            }
           }
+        } catch (err) {
+          console.error("Failed to resolve space UUID", err);
         }
-      } catch (err) {
-        console.error("Failed to fetch or create space for conversation", err);
       }
     }
 
-    if (!targetSpaceId) {
-      alert("No active workspace found. Please create or select a space from the sidebar first.");
+    if (!targetSpaceId || !UUID_REGEX.test(targetSpaceId)) {
+      alert("Please select a valid workspace before starting a conversation.");
       return;
     }
 
     setIsOrchestrating(true);
 
     try {
-      // Create new conversation on the backend
       const conv = await queryMindApi.createConversation(
         targetSpaceId,
-        textToSend.substring(0, 40) + (textToSend.length > 40 ? "..." : "")
+        textToSend.substring(0, 48) + (textToSend.length > 48 ? "..." : "")
       );
-      
-      // Navigate to the real UUID conversation and pass the initial query
+
+      // Route directly to the conversation page and trigger the initial query
       router.push(`/chat/${conv.id}?q=${encodeURIComponent(textToSend)}`);
     } catch (err: any) {
       console.error("Conversation creation error:", err);
       const rawDetail = err?.response?.data?.detail;
-      const errMsg = typeof rawDetail === "string" 
-        ? rawDetail 
-        : rawDetail 
-          ? JSON.stringify(rawDetail) 
-          : err?.message || "Failed to create conversation";
+      const errMsg = typeof rawDetail === "string"
+        ? rawDetail
+        : rawDetail
+          ? JSON.stringify(rawDetail)
+          : err?.message || "Failed to start session";
       alert(`Could not start conversation session: ${errMsg}`);
       setIsOrchestrating(false);
     }
   };
 
-  const openTraceModal = (msg: Message) => {
-    if (!msg.objectiveId && (!msg.traceEvents || msg.traceEvents.length === 0)) return;
-    setActiveTrace({
-      objective_id: msg.objectiveId || "local",
-      raw_input: msg.content,
-      status: "completed",
-      created_at: msg.timestamp,
-      trace: msg.traceEvents || [],
-    });
-    setIsTraceModalOpen(true);
-  };
-
-  /* ═══════════════════════════════════════════════════════════ */
-  /*  LANDING — Claude-inspired hero                            */
-  /* ═══════════════════════════════════════════════════════════ */
-  if (!hasStartedChat) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          width: "100%",
-          maxWidth: "880px",
-          margin: "0 auto",
-          padding: "24px",
-          overflow: "hidden",
-        }}
-        className="stagger"
-      >
-        {/* Greeting */}
-        <h1
-          style={{
-            fontSize: "clamp(28px, 5vw, 42px)",
-            fontWeight: 600,
-            color: "var(--text-primary)",
-            letterSpacing: "-0.03em",
-            lineHeight: 1.15,
-            textAlign: "center",
-            marginBottom: "40px",
-          }}
-        >
-          <span style={{ marginRight: "8px" }}>{greeting.emoji}</span>
-          {greeting.text}
-        </h1>
-
-        {/* Central Input */}
-        <div
-          style={{
-            width: "100%",
-            background: "var(--surface-subtle)",
-            border: "1px solid var(--border)",
-            borderRadius: "18px",
-            padding: "16px 20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          {/* File Attachments Pills */}
-          {attachments.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
-              {attachments.map((att, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "6px 12px",
-                    borderRadius: "10px",
-                    background: att.status === "error" ? "#FEF2F2" : "var(--surface)",
-                    border: `1px solid ${att.status === "error" ? "#FECACA" : "var(--border)"}`,
-                    fontSize: "12px",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
-                  <span style={{ fontWeight: 600, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {att.name}
-                  </span>
-                  <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>{att.size}</span>
-                  {att.status === "uploading" && (
-                    <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
-                  )}
-                  {att.status === "ready" && (
-                    <CheckCircle2 style={{ width: "12px", height: "12px", color: "#10B981" }} />
-                  )}
-                  {att.status === "error" && (
-                    <AlertCircle style={{ width: "12px", height: "12px", color: "#EF4444" }} />
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeAttachment(idx);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      padding: "2px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      color: "var(--text-tertiary)",
-                    }}
-                  >
-                    <X style={{ width: "12px", height: "12px" }} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <textarea
-            ref={textareaRef}
-            placeholder="How can I help you today?"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            rows={1}
-            style={{
-              width: "100%",
-              border: "none",
-              background: "transparent",
-              outline: "none",
-              resize: "none",
-              fontSize: "15px",
-              lineHeight: "1.5",
-              color: "var(--text-primary)",
-              fontFamily: "var(--sans)",
-              minHeight: "26px",
-              maxHeight: "160px",
-            }}
-          />
-
-          {/* Bottom row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              onChange={(e) => {
-                handleAttachFiles(e.target.files);
-                e.target.value = "";
-              }}
-              multiple
-            />
-            <button
-              type="button"
-              title="Attach file"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "var(--r-md)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--text-tertiary)",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <Plus style={{ width: "18px", height: "18px" }} />
-            </button>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "4px 12px",
-                  borderRadius: "var(--r-full)",
-                  fontSize: "12px",
-                  color: "var(--text-tertiary)",
-                  background: "var(--surface-hover)",
-                  fontWeight: 500,
-                }}
-              >
-                <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>LangGraph</span>
-                <span style={{ opacity: 0.5 }}>Multi-Agent</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleSend()}
-                disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
-                style={{
-                  width: "34px",
-                  height: "34px",
-                  borderRadius: "var(--r-full)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: (input.trim() || attachments.length > 0) && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
-                  color: (input.trim() || attachments.length > 0) && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
-                  border: "none",
-                  cursor: (input.trim() || attachments.length > 0) && !isOrchestrating ? "pointer" : "default",
-                  transition: "all 200ms var(--ease)",
-                }}
-              >
-                <ArrowUp style={{ width: "16px", height: "16px" }} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick chips */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "8px",
-            justifyContent: "center",
-            marginTop: "20px",
-            maxWidth: "880px",
-          }}
-        >
-          {quickChips.map((chip) => {
-            const Icon = chip.icon;
-            return (
-              <button
-                key={chip.label}
-                onClick={() => handleSend(chip.prompt)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 16px",
-                  borderRadius: "var(--r-full)",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: "var(--text-secondary)",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  cursor: "pointer",
-                  transition: "all 200ms var(--ease)",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--accent)";
-                  e.currentTarget.style.background = "var(--accent-soft)";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                  e.currentTarget.style.background = "var(--surface)";
-                }}
-              >
-                <Icon style={{ width: "14px", height: "14px" }} />
-                <span>{chip.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  /* ═══════════════════════════════════════════════════════════ */
-  /*  CONVERSATION VIEW                                         */
-  /* ═══════════════════════════════════════════════════════════ */
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        maxHeight: "100%",
         width: "100%",
-        maxWidth: "880px",
-        margin: "0 auto",
-        padding: "16px 24px 20px",
+        position: "relative",
+        background: "var(--bg)",
         overflow: "hidden",
       }}
     >
-      {/* Messages */}
+      {/* ─── Top Sub-Header Bar ───────────────────────────────── */}
+      <header
+        style={{
+          height: "48px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 20px",
+          background: "rgba(18, 18, 20, 0.65)",
+          backdropFilter: "blur(12px)",
+          zIndex: 10,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 10px",
+              borderRadius: "var(--r-md)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontSize: "12px",
+              color: "var(--text-primary)",
+              fontWeight: 500,
+            }}
+          >
+            <span style={{ opacity: 0.8 }}>📁</span>
+            <span>{activeSpace?.name || "General Workspace"}</span>
+            <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>
+              • {uploadedDocuments.length} docs
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              color: "var(--text-tertiary)",
+              fontWeight: 500,
+            }}
+          >
+            <Sparkles style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
+            <span>Autonomous Reasoning</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              loadConversations();
+              setIsHistoryOpen(true);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "5px 12px",
+              borderRadius: "var(--r-md)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              fontSize: "12px",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 150ms var(--ease)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+          >
+            <History style={{ width: "13px", height: "13px" }} />
+            <span>Recent Chats</span>
+            {conversations.length > 0 && (
+              <span
+                style={{
+                  background: "var(--surface-hover)",
+                  padding: "1px 6px",
+                  borderRadius: "10px",
+                  fontSize: "10px",
+                  color: "var(--text-primary)",
+                  fontWeight: 600,
+                }}
+              >
+                {conversations.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* ─── Hero Welcome & Composer Container ────────────────── */}
       <div
         style={{
           flex: 1,
           overflowY: "auto",
-          paddingTop: "12px",
-          paddingBottom: "16px",
-          paddingRight: "8px",
           display: "flex",
           flexDirection: "column",
-          gap: "24px",
-          minHeight: 0,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "32px 24px 48px",
+          position: "relative",
         }}
       >
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            style={{
-              display: "flex",
-              gap: "14px",
-              alignItems: "flex-start",
-              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              width: "100%",
-            }}
-          >
-            {/* AI avatar */}
-            {msg.role === "ai" && (
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "var(--r-md)",
-                  background: "var(--accent-soft)",
-                  color: "var(--accent)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  marginTop: "2px",
-                }}
-              >
-                <Sparkles style={{ width: "16px", height: "16px" }} />
-              </div>
-            )}
+        {/* Subtle Ambient Radial Glow */}
+        <div
+          style={{
+            position: "absolute",
+            top: "20%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "600px",
+            height: "360px",
+            background: "radial-gradient(ellipse at center, rgba(99, 102, 241, 0.08) 0%, transparent 70%)",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
 
-            {/* Bubble */}
-            <div
-              style={{
-                maxWidth: msg.role === "user" ? "80%" : "100%",
-                flex: msg.role === "ai" ? 1 : undefined,
-                minWidth: 0,
-                padding: msg.role === "user" ? "14px 20px" : "0",
-                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "0",
-                fontSize: "15px",
-                lineHeight: "1.68",
-                background: msg.role === "user" ? "var(--accent)" : "transparent",
-                color:
-                  msg.role === "user"
-                    ? "#FFFFFF"
-                    : msg.isError
-                    ? "#DC2626"
-                    : "var(--text-primary)",
-              }}
-            >
-              {msg.role === "user" ? (
-                <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
-              ) : (
-                <MarkdownRenderer content={msg.content} />
-              )}
-
-              {/* Citations */}
-              {msg.citations && msg.citations.length > 0 && (
-                <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      fontWeight: 700,
-                      color: "var(--text-tertiary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Sources
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {msg.citations.map((c, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          padding: "4px 12px",
-                          borderRadius: "var(--r-full)",
-                          fontSize: "12px",
-                          fontWeight: 500,
-                          background: "var(--surface-subtle)",
-                          border: "1px solid var(--border)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        📄 {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Trace button */}
-              {msg.role === "ai" && msg.objectiveId && (
-                <div style={{ marginTop: "12px" }}>
-                  <button
-                    onClick={() => openTraceModal(msg)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      padding: "4px 12px",
-                      borderRadius: "var(--r-full)",
-                      background: "var(--surface-subtle)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-tertiary)",
-                      cursor: "pointer",
-                      transition: "all 150ms",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--accent)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--text-tertiary)";
-                    }}
-                  >
-                    <Activity style={{ width: "12px", height: "12px" }} />
-                    View Trace
-                  </button>
-                </div>
-              )}
-
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.5,
-                  marginTop: "8px",
-                  textAlign: msg.role === "user" ? "right" : "left",
-                }}
-              >
-                {msg.timestamp}
-              </div>
-            </div>
-
-            {/* User avatar */}
-            {msg.role === "user" && (
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "var(--r-md)",
-                  background: "var(--surface-subtle)",
-                  color: "var(--text-secondary)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  border: "1px solid var(--border)",
-                  marginTop: "2px",
-                }}
-              >
-                <User style={{ width: "15px", height: "15px" }} />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* Live stepper */}
-        {isOrchestrating && (
-          <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", width: "100%" }}>
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "var(--r-md)",
-                background: "var(--accent-soft)",
-                color: "var(--accent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Sparkles style={{ width: "16px", height: "16px" }} />
-            </div>
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "18px 24px",
-                borderRadius: "16px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                width: "100%",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "var(--text-tertiary)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  marginBottom: "14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <span className="alive-dot" />
-                Multi-Agent Workflow
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {[
-                  { key: "objective", label: "Objective Initialization" },
-                  { key: "researcher", label: "Researcher — Vector Search in Qdrant" },
-                  { key: "synthesizer", label: "Synthesizer — Multi-Source Response" },
-                ].map((step, idx) => {
-                  const keys = ["objective", "researcher", "synthesizer"];
-                  const curIdx = keys.indexOf(activeStep);
-                  const isDone = idx < curIdx;
-                  const isActive = step.key === activeStep;
-                  return (
-                    <div
-                      key={step.key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        color: isActive ? "var(--accent)" : isDone ? "var(--text-primary)" : "var(--text-ghost)",
-                      }}
-                    >
-                      {isActive ? (
-                        <RefreshCw style={{ width: "14px", height: "14px", animation: "spin 1s linear infinite" }} />
-                      ) : isDone ? (
-                        <CheckCircle2 style={{ width: "14px", height: "14px", color: "#10B981" }} />
-                      ) : (
-                        <Clock style={{ width: "14px", height: "14px" }} />
-                      )}
-                      <span style={{ fontSize: "13px", fontWeight: 500 }}>{idx + 1}. {step.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input bar — generous Claude styling */}
-      <div style={{ paddingTop: "12px" }}>
         <div
           style={{
             width: "100%",
-            background: "var(--surface-subtle)",
-            border: "1px solid var(--border)",
-            borderRadius: "18px",
-            padding: "16px 20px",
+            maxWidth: "760px",
             display: "flex",
             flexDirection: "column",
-            gap: "10px",
-            boxShadow: "var(--shadow-sm)",
+            alignItems: "center",
+            zIndex: 1,
           }}
         >
-          <textarea
-            ref={textareaRef}
-            placeholder="Ask a follow-up..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            disabled={isOrchestrating}
-            rows={1}
-            style={{
-              width: "100%",
-              border: "none",
-              background: "transparent",
-              outline: "none",
-              resize: "none",
-              fontSize: "15px",
-              lineHeight: "1.5",
-              color: "var(--text-primary)",
-              fontFamily: "var(--sans)",
-              minHeight: "26px",
-              maxHeight: "140px",
-              opacity: isOrchestrating ? 0.5 : 1,
-            }}
-          />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <button
-              title="Attach file"
+          {/* Greeting Hero */}
+          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+            <h1
               style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "var(--r-md)",
+                fontSize: "clamp(26px, 4vw, 36px)",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.2,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--text-tertiary)",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
+                gap: "10px",
+                marginBottom: "10px",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <Plus style={{ width: "18px", height: "18px" }} />
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--text-tertiary)",
-                  background: "var(--surface-hover)",
-                  padding: "4px 12px",
-                  borderRadius: "var(--r-full)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  fontWeight: 500,
-                }}
-              >
-                <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>LangGraph</span>
-                <span style={{ opacity: 0.5 }}>Multi-Agent</span>
+              <span>{greeting.emoji}</span>
+              <span>{greeting.text}</span>
+            </h1>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "var(--text-secondary)",
+                maxWidth: "520px",
+                margin: "0 auto",
+                lineHeight: 1.6,
+              }}
+            >
+              Synthesize insights across your workspace documents, explore evidence, and formulate actionable proposals.
+            </p>
+          </div>
+
+          {/* Central Composer Box */}
+          <div
+            style={{
+              width: "100%",
+              background: "var(--surface)",
+              border: "1px solid var(--border-strong)",
+              borderRadius: "20px",
+              padding: "16px 20px 14px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              boxShadow: "var(--shadow-md)",
+              transition: "border-color 150ms var(--ease), box-shadow 150ms var(--ease)",
+            }}
+          >
+            {/* Attachment preview pills */}
+            {attachments.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {attachments.map((att, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "5px 12px",
+                      borderRadius: "10px",
+                      background: att.status === "error" ? "rgba(239, 68, 68, 0.12)" : "var(--surface-subtle)",
+                      border: `1px solid ${att.status === "error" ? "rgba(239, 68, 68, 0.3)" : "var(--border)"}`,
+                      fontSize: "12px",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        maxWidth: "180px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {att.name}
+                    </span>
+                    <span style={{ color: "var(--text-tertiary)", fontSize: "11px" }}>{att.size}</span>
+                    {att.status === "uploading" && (
+                      <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                    )}
+                    {att.status === "ready" && (
+                      <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
+                    )}
+                    {att.status === "error" && (
+                      <AlertCircle style={{ width: "13px", height: "13px", color: "#EF4444" }} title={att.errorMessage} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeAttachment(idx);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: "2px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--text-tertiary)",
+                      }}
+                    >
+                      <X style={{ width: "12px", height: "12px" }} />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => handleSend()}
-                disabled={!input.trim() || isOrchestrating}
-                style={{
-                  width: "34px",
-                  height: "34px",
-                  borderRadius: "var(--r-full)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: input.trim() && !isOrchestrating ? "var(--accent)" : "var(--surface-hover)",
-                  color: input.trim() && !isOrchestrating ? "#FFF" : "var(--text-ghost)",
-                  border: "none",
-                  cursor: input.trim() && !isOrchestrating ? "pointer" : "default",
-                  transition: "all 200ms var(--ease)",
-                }}
-              >
-                <ArrowUp style={{ width: "16px", height: "16px" }} />
-              </button>
+            )}
+
+            {/* Input Textarea */}
+            <textarea
+              ref={textareaRef}
+              placeholder="Ask QueryMind anything about your workspace... (Enter to send, Shift+Enter for new line)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              rows={1}
+              style={{
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                resize: "none",
+                fontSize: "15px",
+                lineHeight: "1.55",
+                color: "var(--text-primary)",
+                fontFamily: "var(--sans)",
+                minHeight: "28px",
+                maxHeight: "160px",
+              }}
+            />
+
+            {/* Bottom Actions Row */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingTop: "6px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    handleAttachFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                  multiple
+                />
+                <button
+                  type="button"
+                  title="Attach workspace files"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 10px",
+                    borderRadius: "var(--r-md)",
+                    background: "var(--surface-subtle)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    transition: "all 150ms var(--ease)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }}
+                >
+                  <Plus style={{ width: "14px", height: "14px" }} />
+                  <span>Attach File</span>
+                </button>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "4px 10px",
+                    borderRadius: "var(--r-full)",
+                    fontSize: "11px",
+                    color: "var(--text-tertiary)",
+                    background: "var(--surface-subtle)",
+                    border: "1px solid var(--border)",
+                    fontWeight: 500,
+                  }}
+                >
+                  <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>QueryMind</span>
+                  <span style={{ opacity: 0.5 }}>Reasoning Engine</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
+                  title="Send message (Enter)"
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background:
+                      (input.trim() || attachments.length > 0) && !isOrchestrating
+                        ? "var(--accent)"
+                        : "var(--surface-subtle)",
+                    color:
+                      (input.trim() || attachments.length > 0) && !isOrchestrating
+                        ? "var(--accent-contrast, #000)"
+                        : "var(--text-ghost)",
+                    border: "1px solid var(--border)",
+                    cursor:
+                      (input.trim() || attachments.length > 0) && !isOrchestrating
+                        ? "pointer"
+                        : "not-allowed",
+                    transition: "all 180ms var(--ease)",
+                  }}
+                >
+                  {isOrchestrating ? (
+                    <RefreshCw className="animate-spin" style={{ width: "15px", height: "15px" }} />
+                  ) : (
+                    <ArrowUp style={{ width: "16px", height: "16px", strokeWidth: 2.5 }} />
+                  )}
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* Quick Prompt Chips */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              justifyContent: "center",
+              marginTop: "24px",
+              width: "100%",
+            }}
+          >
+            {quickChips.map((chip) => {
+              const Icon = chip.icon;
+              return (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => handleSend(chip.prompt)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    padding: "8px 14px",
+                    borderRadius: "var(--r-full)",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "var(--text-secondary)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    transition: "all 180ms var(--ease)",
+                    boxShadow: "var(--shadow-xs)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                    e.currentTarget.style.background = "var(--surface-hover)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.background = "var(--surface)";
+                  }}
+                >
+                  <Icon style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <span>{chip.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              marginTop: "28px",
+              fontSize: "11px",
+              color: "var(--text-ghost)",
+              textAlign: "center",
+            }}
+          >
+            QueryMind grounds reasoning in your workspace evidence. Verify critical details.
           </div>
         </div>
       </div>
 
-
-      {/* ─── Trace Modal ────────────────────────────────────── */}
-      {isTraceModalOpen && activeTrace && (
+      {/* ─── Slide-over History Drawer ────────────────────────── */}
+      {isHistoryOpen && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            backdropFilter: "blur(12px)",
+            background: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(4px)",
+            zIndex: 100,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "24px",
+            justifyContent: "flex-end",
           }}
-          onClick={() => setIsTraceModalOpen(false)}
+          onClick={() => setIsHistoryOpen(false)}
         >
           <div
             style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "20px",
-              width: "100%",
-              maxWidth: "600px",
-              maxHeight: "80vh",
+              width: "340px",
+              maxWidth: "85vw",
+              height: "100%",
+              background: "#0E0F14",
+              borderLeft: "1px solid var(--border)",
+              boxShadow: "var(--shadow-lg)",
               display: "flex",
               flexDirection: "column",
-              overflow: "hidden",
-              boxShadow: "var(--shadow-lg)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
-                padding: "18px 24px",
+                padding: "16px 20px",
                 borderBottom: "1px solid var(--border)",
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Activity style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
-                <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)" }}>
-                  Execution Trace
-                </h3>
+                <History style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Recent Conversations
+                </span>
               </div>
               <button
-                onClick={() => setIsTraceModalOpen(false)}
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
                 style={{
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--r-md)",
-                  width: "28px",
-                  height: "28px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  padding: "4px",
                   cursor: "pointer",
                   color: "var(--text-tertiary)",
+                  borderRadius: "var(--r-sm)",
                 }}
               >
-                <X style={{ width: "14px", height: "14px" }} />
+                <X style={{ width: "16px", height: "16px" }} />
               </button>
             </div>
-            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
-              <div style={{ marginBottom: "14px", fontSize: "11px", color: "var(--text-tertiary)" }}>
-                Objective:{" "}
-                <code
+
+            {/* Search Input */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 10px",
+                  borderRadius: "var(--r-md)",
+                  background: "var(--surface-subtle)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <Search style={{ width: "14px", height: "14px", color: "var(--text-ghost)" }} />
+                <input
+                  type="text"
+                  placeholder="Search past conversations..."
+                  value={searchHistory}
+                  onChange={(e) => setSearchHistory(e.target.value)}
                   style={{
-                    color: "var(--accent)",
-                    background: "var(--accent-soft)",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
                   }}
-                >
-                  {activeTrace.objective_id}
-                </code>
+                />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {activeTrace.trace.length === 0 ? (
-                  <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontStyle: "italic" }}>
-                    Trace events recorded in PostgreSQL telemetry.
-                  </div>
-                ) : (
-                  activeTrace.trace.map((evt, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "var(--r-md)",
-                        background: "var(--surface-subtle)",
-                        border: "1px solid var(--border)",
-                        fontSize: "12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div>
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{evt.message}</span>
-                        {evt.tokens_used ? (
-                          <span style={{ marginLeft: "8px", color: "var(--text-tertiary)" }}>
-                            ({evt.tokens_used} tokens)
-                          </span>
-                        ) : null}
-                      </div>
-                      <span style={{ color: "var(--text-ghost)", fontSize: "11px" }}>
-                        {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : ""}
+            </div>
+
+            {/* Conversation List */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+              {isLoadingHistory ? (
+                <div style={{ padding: "24px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12px" }}>
+                  Loading sessions...
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12px" }}>
+                  {searchHistory ? "No matching conversations found." : "No saved conversations yet. Start chatting above!"}
+                </div>
+              ) : (
+                filteredConversations.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setIsHistoryOpen(false);
+                      router.push(`/chat/${c.id}`);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 12px",
+                      borderRadius: "var(--r-md)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: "var(--text-secondary)",
+                      transition: "all 120ms var(--ease)",
+                      marginBottom: "4px",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = "var(--surface-hover)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, paddingRight: "8px" }}>
+                      <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.title || "Untitled Session"}
+                      </span>
+                      <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
+                        {formatRelativeTime(c.created_at)}
                       </span>
                     </div>
-                  ))
-                )}
-              </div>
+                    <button
+                      type="button"
+                      title="Delete conversation"
+                      onClick={(e) => handleDeleteConversation(e, c.id)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: "6px",
+                        cursor: "pointer",
+                        color: "var(--text-ghost)",
+                        borderRadius: "var(--r-sm)",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
+                      onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
+                    >
+                      <Trash2 style={{ width: "13px", height: "13px" }} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

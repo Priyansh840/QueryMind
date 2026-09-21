@@ -17,8 +17,9 @@ import {
   Sparkles,
   AlertCircle
 } from "lucide-react";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import api, { authApi } from "@/lib/api";
+import api, { authApi, isAuthenticated } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function RegisterPage() {
@@ -31,6 +32,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // If already authenticated, redirect straight to dashboard
+  useEffect(() => {
+    if (typeof window !== "undefined" && isAuthenticated()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +75,8 @@ export default function RegisterPage() {
         }
       }
 
+      useMyndStore.getState().setHasCompletedOnboarding(true);
+
       // Sync user profile and spaces
       try {
         await useMyndStore.getState().syncWithBackend();
@@ -74,7 +84,7 @@ export default function RegisterPage() {
         console.warn("Backend sync notice:", syncErr);
       }
 
-      router.push("/onboarding");
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err?.message || "Failed to create account.");
     } finally {
@@ -93,25 +103,28 @@ export default function RegisterPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes("placeholder");
 
       if (isPlaceholder) {
-        router.push("/onboarding");
+        useMyndStore.getState().setHasCompletedOnboarding(true);
+        window.location.href = "/dashboard";
         return;
       }
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/onboarding` : undefined,
+          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
         },
       });
       if (oauthError) {
         if (oauthError.message?.toLowerCase().includes("api key") || oauthError.message?.toLowerCase().includes("fetch")) {
-          router.push("/onboarding");
+          useMyndStore.getState().setHasCompletedOnboarding(true);
+          window.location.href = "/dashboard";
           return;
         }
         throw oauthError;
       }
     } catch (err: any) {
-      router.push("/onboarding");
+      useMyndStore.getState().setHasCompletedOnboarding(true);
+      window.location.href = "/dashboard";
     } finally {
       setSocialLoading(null);
     }

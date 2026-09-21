@@ -18,6 +18,7 @@ export default function SpaceDetailPage({
   const router = useRouter();
 
   const spaces = useMyndStore((state) => state.spaces);
+  const selectSpace = useMyndStore((state) => state.selectSpace);
   const activeSpaceTab = useMyndStore((state) => state.activeSpaceTab);
   const setSpaceTab = useMyndStore((state) => state.setSpaceTab);
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
@@ -50,6 +51,13 @@ export default function SpaceDetailPage({
       ) || spaces[0]
     );
   }, [spaces, spaceId]);
+
+  // Mark space as active & update recently used spaces
+  React.useEffect(() => {
+    if (space?.id) {
+      selectSpace(space.id);
+    }
+  }, [space?.id, selectSpace]);
 
   // Fetch real documents for this space from backend on mount
   React.useEffect(() => {

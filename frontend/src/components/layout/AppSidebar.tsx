@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -26,6 +26,7 @@ export default function AppSidebar() {
 
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
+  const recentSpaceIds = useMyndStore((state) => state.recentSpaceIds);
   const setRoute = useMyndStore((state) => state.setRoute);
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
@@ -80,6 +81,36 @@ export default function AppSidebar() {
 
   // Helper to check active route from the actual URL
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
+
+  // Only display the 2 most recently used spaces in the left sidebar
+  const sidebarSpaces = useMemo(() => {
+    if (!spaces || spaces.length === 0) return [];
+
+    const recentIds = recentSpaceIds || [];
+    const ordered: typeof spaces = [];
+
+    // 1. Add spaces found in recentIds (most recently used first)
+    for (const rId of recentIds) {
+      const found = spaces.find((s) => s.id === rId || s.slug === rId);
+      if (found && !ordered.some((s) => s.id === found.id)) {
+        ordered.push(found);
+      }
+      if (ordered.length >= 2) break;
+    }
+
+    // 2. If fewer than 2 recent spaces recorded, fill with remaining spaces
+    if (ordered.length < 2) {
+      for (const s of spaces) {
+        if (!ordered.some((x) => x.id === s.id)) {
+          ordered.push(s);
+        }
+        if (ordered.length >= 2) break;
+      }
+    }
+
+    // Strictly limit to maximum of 2 spaces
+    return ordered.slice(0, 2);
+  }, [spaces, recentSpaceIds]);
 
   return (
     <aside className="app-sidebar">
@@ -223,7 +254,7 @@ export default function AppSidebar() {
             </span>
           </div>
 
-          {spaces.length === 0 ? (
+          {sidebarSpaces.length === 0 ? (
             <div
               style={{
                 padding: "8px 12px",
@@ -235,7 +266,7 @@ export default function AppSidebar() {
               No spaces yet
             </div>
           ) : (
-            spaces.map((space, idx) => {
+            sidebarSpaces.map((space, idx) => {
               const isSpaceActive = pathname === `/spaces/${space.id}`;
               return (
                 <Link
@@ -261,6 +292,28 @@ export default function AppSidebar() {
                 </Link>
               );
             })
+          )}
+
+          {spaces.length > 2 && (
+            <Link
+              href="/spaces"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "4px 12px",
+                fontSize: "11px",
+                color: "var(--text-tertiary)",
+                textDecoration: "none",
+                borderRadius: "6px",
+                marginTop: "2px",
+                opacity: 0.8,
+              }}
+              title="View all spaces in Gallery"
+            >
+              <span>+{spaces.length - 2} more in Spaces</span>
+              <span style={{ fontSize: "11px" }}>&rarr;</span>
+            </Link>
           )}
 
           <a

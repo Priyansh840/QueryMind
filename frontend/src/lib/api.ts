@@ -51,7 +51,8 @@ api.interceptors.response.use(
       error.response?.status === 401 &&
       !error.config?.url?.includes("/auth/login") &&
       !error.config?.url?.includes("/auth/register") &&
-      !error.config?.url?.includes("/auth/sync")
+      !error.config?.url?.includes("/auth/sync") &&
+      !error.config?.url?.includes("/auth/me")
     ) {
       if (typeof window !== "undefined") {
         localStorage.removeItem(TOKEN_KEY);
@@ -400,20 +401,34 @@ export const queryMindApi = {
 
   // Conversations & SSE Streaming
   createConversation: async (spaceId: string, title?: string) => {
-    const res = await api.post("/conversations", { space_id: spaceId, title });
+    let resolvedSpaceId = spaceId;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(spaceId);
+    if (!isUUID) {
+      try {
+        const { useMyndStore } = await import("@/lib/mynd-store");
+        const spaces = useMyndStore.getState().spaces;
+        const found = spaces.find(
+          (s) => s.id === spaceId || s.slug === spaceId || s.name.toLowerCase() === spaceId.toLowerCase()
+        );
+        if (found && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(found.id)) {
+          resolvedSpaceId = found.id;
+        }
+      } catch {}
+    }
+    const res = await api.post("/conversations", { space_id: resolvedSpaceId, title });
     return res.data;
   },
-  
+
   getConversations: async (spaceId: string) => {
     const res = await api.get(`/conversations?space_id=${spaceId}`);
     return res.data;
   },
-  
+
   getConversation: async (conversationId: string) => {
     const res = await api.get(`/conversations/${conversationId}`);
     return res.data;
   },
-  
+
   getConversationMessages: async (conversationId: string) => {
     const res = await api.get(`/conversations/${conversationId}/messages`);
     return res.data;

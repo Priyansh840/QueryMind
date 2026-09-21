@@ -169,6 +169,7 @@ export interface MyndState {
 
   userProfile: UserProfile;
   spaces: Space[];
+  recentSpaceIds: string[];
   activityFeed: ActivityItem[];
   recentObjects: KnowledgeObject[];
   uploadedDocuments: KnowledgeObject[];
@@ -577,6 +578,7 @@ export const useMyndStore = create<MyndState>()(
 
       userProfile: initialProfile,
       spaces: [],
+      recentSpaceIds: [],
       activityFeed: [],
       recentObjects: [],
       uploadedDocuments: [],
@@ -585,11 +587,15 @@ export const useMyndStore = create<MyndState>()(
       setRoute: (route) => set({ activeRoute: route }),
       selectSpace: (spaceId, tab) => {
         const spaces = get().spaces;
-        const exists = spaces.find((s) => s.id === spaceId);
+        const exists = spaces.find((s) => s.id === spaceId || s.slug === spaceId);
+        const targetId = exists ? exists.id : spaces[0]?.id || "general";
+        const currentRecent = get().recentSpaceIds || [];
+        const nextRecent = [targetId, ...currentRecent.filter((id) => id !== targetId)].slice(0, 10);
         set({
-          activeSpaceId: exists ? spaceId : spaces[0]?.id || "general",
+          activeSpaceId: targetId,
           activeSpaceTab: tab || "overview",
           activeRoute: "space",
+          recentSpaceIds: nextRecent,
         });
       },
       setSpaceTab: (tab) => set({ activeSpaceTab: tab }),
@@ -894,6 +900,7 @@ export const useMyndStore = create<MyndState>()(
         };
         set((state) => ({
           spaces: [...state.spaces, newSpace],
+          recentSpaceIds: [newSpace.id, ...(state.recentSpaceIds || []).filter((id) => id !== newSpace.id)].slice(0, 10),
         }));
       },
 
@@ -914,6 +921,7 @@ export const useMyndStore = create<MyndState>()(
           return {
             spaces: remainingSpaces,
             activeSpaceId: nextActiveId,
+            recentSpaceIds: (state.recentSpaceIds || []).filter((id) => id !== spaceId),
             uploadedDocuments: remainingDocs,
             recentObjects: remainingRecent,
           };
@@ -961,6 +969,7 @@ export const useMyndStore = create<MyndState>()(
         set({
           spaces: newSpaces,
           activeSpaceId: newSpaces[0]?.id || "",
+          recentSpaceIds: newSpaces.slice(0, 2).map((s) => s.id),
           hasCompletedOnboarding: true,
         });
 
@@ -1041,7 +1050,17 @@ export const useMyndStore = create<MyndState>()(
 
           if (spacesData.status === "fulfilled" && Array.isArray(spacesData.value) && spacesData.value.length > 0) {
             const currentSpaces = get().spaces;
-            const apiSpaces: Space[] = spacesData.value.map((s) => {
+            const seenNames = new Set<string>();
+            const seenIds = new Set<string>();
+            const uniqueApiSpaces = spacesData.value.filter((s) => {
+              const lower = (s.name || "").trim().toLowerCase();
+              if (!lower || seenNames.has(lower) || seenIds.has(s.id)) return false;
+              seenNames.add(lower);
+              seenIds.add(s.id);
+              return true;
+            });
+
+            const apiSpaces: Space[] = uniqueApiSpaces.map((s) => {
               const existing = currentSpaces.find((x) => x.id === s.id || x.name.toLowerCase() === s.name.toLowerCase());
               return {
                 id: s.id,
@@ -1073,6 +1092,9 @@ export const useMyndStore = create<MyndState>()(
             if (!get().activeSpaceId || !apiSpaces.find((s) => s.id === get().activeSpaceId)) {
               updates.activeSpaceId = apiSpaces[0].id;
             }
+            if (!get().recentSpaceIds || get().recentSpaceIds.length === 0) {
+              updates.recentSpaceIds = apiSpaces.slice(0, 2).map((s) => s.id);
+            }
             updates.hasCompletedOnboarding = true;
           }
 
@@ -1093,6 +1115,19 @@ export const useMyndStore = create<MyndState>()(
             }));
             updates.recentObjects = objects;
             updates.uploadedDocuments = objects.filter((o) => o.type === "DOCUMENT");
+
+            if (objects.length > 0 && get().activityFeed.length === 0) {
+              updates.activityFeed = objects.slice(0, 8).map((obj) => ({
+                id: `act-${obj.id}`,
+                title: `${obj.type === "DOCUMENT" ? "Document added" : "Note saved"}: ${obj.title}`,
+                text: obj.summary || obj.title,
+                time: "Recently",
+                space: "General",
+                iconType: obj.type === "DOCUMENT" ? "file" : "sparkles",
+                color: "#6366F1",
+                bg: "var(--surface-hover)",
+              }));
+            }
           }
 
           set((state) => ({ ...state, ...updates }));

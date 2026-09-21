@@ -133,12 +133,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             style={
               isChat
                 ? {
-                    padding: 0,
-                    overflow: "hidden",
-                    height: "calc(100vh - var(--header-h))",
-                    display: "flex",
-                    flexDirection: "column",
-                  }
+                  padding: 0,
+                  overflow: "hidden",
+                  height: "calc(100vh - var(--header-h))",
+                  display: "flex",
+                  flexDirection: "column",
+                }
                 : undefined
             }
           >
@@ -147,20 +147,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               style={
                 isChat
                   ? {
-                      height: "100%",
-                      maxWidth: "100%",
-                      gap: 0,
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                    }
+                    height: "100%",
+                    maxWidth: "100%",
+                    gap: 0,
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                  }
                   : isFocusMode || isZenMode
-                  ? {
+                    ? {
                       maxWidth: "1200px",
                       margin: "0 auto",
                       width: "100%",
                     }
-                  : undefined
+                    : undefined
               }
             >
               {children}

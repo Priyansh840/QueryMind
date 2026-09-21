@@ -59,7 +59,7 @@ async def create_conversation(
     new_conv = Conversation(
         id=uuid.uuid4(),
         user_id=current_user.id,
-        space_id=request.space_id,
+        space_id=space.id,
         title=request.title or "New Conversation"
     )
     db.add(new_conv)

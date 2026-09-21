@@ -172,6 +172,15 @@ async def list_spaces(
     result = await db.execute(stmt)
     spaces = result.scalars().all()
 
+    # Deduplicate spaces by normalized name to prevent duplicate default spaces from race conditions
+    seen_names = set()
+    unique_spaces = []
+    for s in spaces:
+        norm_name = (s.name or "").strip().lower()
+        if norm_name not in seen_names:
+            seen_names.add(norm_name)
+            unique_spaces.append(s)
+
     return [
         SpaceResponse(
             id=str(s.id),
@@ -185,7 +194,7 @@ async def list_spaces(
             created_at=s.created_at,
             updated_at=s.updated_at,
         )
-        for s in spaces
+        for s in unique_spaces
     ]
 
 

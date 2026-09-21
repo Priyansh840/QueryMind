@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -24,14 +24,16 @@ class MessageResponse(MessageBase):
 
 class ConversationBase(BaseModel):
     title: Optional[str] = None
-    space_id: uuid.UUID
+    space_id: Union[uuid.UUID, str]
 
 class ConversationCreate(ConversationBase):
     pass
 
-class ConversationResponse(ConversationBase):
+class ConversationResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    title: Optional[str] = None
+    space_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
     
