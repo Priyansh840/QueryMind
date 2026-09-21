@@ -40,12 +40,13 @@ function getGreeting(name: string) {
 /* ─── types ───────────────────────────────────────────────────── */
 
 interface Message {
-  id: number;
+  id: string | number;
   role: "user" | "ai";
   content: string;
   timestamp: string;
   citations?: string[];
   objectiveId?: string;
+  decisionInsight?: DecisionAnalysis | null;
   isError?: boolean;
 }
 
@@ -307,7 +308,11 @@ export default function ConversationPage() {
           const data = JSON.parse(jsonStr);
           
           if (data.event === "workflow.started") {
-            // Handled by step.started
+            if (data.data?.objective_id) {
+              setMessages((prev) => prev.map(msg => 
+                msg.id === tempAiId ? { ...msg, objectiveId: data.data.objective_id } : msg
+              ));
+            }
           } else if (data.event === "workflow.step.started") {
             setWorkflowSteps((prev) => {
               const exists = prev.find(s => s.step === data.data.step && s.iteration === data.data.iteration);
@@ -331,7 +336,11 @@ export default function ConversationPage() {
                     ...r,
                     evidence: r.evidence.filter((e: any) => ["workspace", "document", "conversation"].includes(e.source_type))
                   }));
-                  setDecisionInsight({ ...output, recommendations: validRecs });
+                  const insight = { ...output, recommendations: validRecs };
+                  setDecisionInsight(insight);
+                  setMessages((prev) => prev.map(msg =>
+                    msg.id === tempAiId ? { ...msg, decisionInsight: insight } : msg
+                  ));
                 }
               } catch (err) {
                 console.error("Invalid decision insight payload", err);
@@ -349,7 +358,11 @@ export default function ConversationPage() {
             ));
           } else if (data.event === "message.completed") {
             setMessages((prev) => prev.map(msg => 
-              msg.id === tempAiId ? { ...msg, id: data.data.message_id, content: data.data.content } : msg
+              msg.id === tempAiId ? { 
+                ...msg, 
+                id: data.data.message_id || msg.id, 
+                content: data.data.content || msg.content 
+              } : msg
             ));
           } else if (data.event === "error") {
              throw new Error(data.data.detail);
@@ -748,23 +761,30 @@ export default function ConversationPage() {
                 maxWidth: msg.role === "user" ? "80%" : "100%",
                 flex: msg.role === "ai" ? 1 : undefined,
                 minWidth: 0,
-                padding: msg.role === "user" ? "14px 20px" : "0",
-                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "0",
+                padding: msg.role === "user" ? "14px 20px" : "18px 24px",
+                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "16px",
                 fontSize: "15px",
                 lineHeight: "1.68",
-                background: msg.role === "user" ? "var(--accent)" : "transparent",
+                background: msg.role === "user" ? "var(--accent)" : "var(--surface)",
+                border: msg.role === "user" ? "none" : "1px solid var(--border)",
                 color:
                   msg.role === "user"
-                    ? "#FFFFFF"
+                    ? "#000000"
                     : msg.isError
                     ? "#DC2626"
                     : "var(--text-primary)",
+                boxShadow: msg.role === "user" ? "var(--shadow-sm)" : "var(--shadow-xs)",
               }}
             >
               {msg.role === "user" ? (
                 <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
-              ) : (
+              ) : msg.content ? (
                 <MarkdownRenderer content={msg.content} />
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "14px", fontStyle: "italic" }}>
+                  <Sparkles style={{ width: "14px", height: "14px", animation: "pulse 1.5s infinite" }} />
+                  <span>Synthesizing response...</span>
+                </div>
               )}
 
               {/* Citations */}
@@ -840,17 +860,82 @@ export default function ConversationPage() {
                 </div>
               )}
 
-              <div
-                style={{
-                  fontSize: "11px",
-                  opacity: 0.5,
-                  marginTop: "8px",
-                  textAlign: msg.role === "user" ? "right" : "left",
-                }}
-              >
-                {msg.timestamp}
+              {/* Attached Decision Insight if available for this specific AI message */}
+              {msg.role === "ai" && msg.decisionInsight && (
+                <div style={{
+                  marginTop: "16px",
+                  background: "var(--surface-subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "14px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>
+                    <Activity style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                      Decision Insight
+                    </span>
+                  </div>
+
+                  {msg.decisionInsight.recommendations.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Recommended Next Steps</div>
+                      {msg.decisionInsight.recommendations.map((rec, idx) => (
+                        <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                              {idx + 1}. {rec.action}
+                            </div>
+                            <div style={{
+                              fontSize: "10px", fontWeight: 600, padding: "2px 8px", borderRadius: "10px",
+                              background: rec.confidence === "high" ? "#D1FAE5" : rec.confidence === "medium" ? "#FEF3C7" : "#FEE2E2",
+                              color: rec.confidence === "high" ? "#065F46" : rec.confidence === "medium" ? "#92400E" : "#991B1B",
+                              flexShrink: 0,
+                            }}>
+                              {rec.confidence.toUpperCase()}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                            <span style={{ fontWeight: 600 }}>Why:</span> {rec.reason}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {msg.decisionInsight.blockers.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Blockers</div>
+                      <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-primary)", lineHeight: 1.4 }}>
+                        {msg.decisionInsight.blockers.map((b, idx) => <li key={idx}>{b}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {msg.decisionInsight.uncertainties.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Uncertainties</div>
+                      <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                        {msg.decisionInsight.uncertainties.map((u, idx) => <li key={idx}>{u}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+                <div
+                  style={{
+                    fontSize: "11px",
+                    opacity: 0.5,
+                    marginTop: "8px",
+                    textAlign: msg.role === "user" ? "right" : "left",
+                  }}
+                >
+                  {msg.timestamp}
+                </div>
               </div>
-            </div>
 
             {/* User avatar */}
             {msg.role === "user" && (

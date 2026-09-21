@@ -36,7 +36,11 @@ export default function LoginPage() {
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const navigateAfterAuth = () => {
-    router.push("/onboarding");
+    if (hasCompletedOnboarding) {
+      router.push("/dashboard");
+    } else {
+      router.push("/onboarding");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,7 +126,7 @@ export default function LoginPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/onboarding` : undefined,
+          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
         },
       });
       if (oauthError) {
@@ -836,6 +840,62 @@ export default function LoginPage() {
               </>
             )}
           </button>
+
+          {/* Quick Switch Link */}
+          <div 
+            style={{
+              textAlign: "center",
+              marginTop: "14px",
+              fontSize: "12px",
+              color: "#94A3B8",
+            }}
+          >
+            {mode === "signin" ? (
+              <span>
+                Don&apos;t have a workspace yet?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "#FFFFFF",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                  }}
+                >
+                  Create an account
+                </button>
+              </span>
+            ) : (
+              <span>
+                Already have a workspace account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signin");
+                    setError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "#FFFFFF",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                  }}
+                >
+                  Sign in here
+                </button>
+              </span>
+            )}
+          </div>
         </form>
 
         {/* Footer Security Badge */}

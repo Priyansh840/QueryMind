@@ -183,31 +183,50 @@ export default function ChatPage() {
         if (spaces && spaces.length > 0) {
           targetSpaceId = spaces[0].id;
           useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+        } else {
+          // Provision default space if user has none
+          const newSpace = await queryMindApi.createSpace({
+            name: "General Workspace",
+            description: "Default workspace space",
+            color: "#6366f1",
+            icon: "folder",
+            slug: "general",
+          });
+          if (newSpace && newSpace.id) {
+            targetSpaceId = newSpace.id;
+            useMyndStore.getState().setActiveSpaceId(targetSpaceId);
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch spaces for conversation", err);
+        console.error("Failed to fetch or create space for conversation", err);
       }
     }
 
     if (!targetSpaceId) {
-      alert("Please select a space first.");
+      alert("No active workspace found. Please create or select a space from the sidebar first.");
       return;
     }
 
     setIsOrchestrating(true);
 
     try {
-      // Create new conversation
+      // Create new conversation on the backend
       const conv = await queryMindApi.createConversation(
         targetSpaceId,
         textToSend.substring(0, 40) + (textToSend.length > 40 ? "..." : "")
       );
       
-      // Navigate to the new conversation and pass the initial query
+      // Navigate to the real UUID conversation and pass the initial query
       router.push(`/chat/${conv.id}?q=${encodeURIComponent(textToSend)}`);
     } catch (err: any) {
-      console.error(err);
-      alert("Failed to create conversation: " + err.message);
+      console.error("Conversation creation error:", err);
+      const rawDetail = err?.response?.data?.detail;
+      const errMsg = typeof rawDetail === "string" 
+        ? rawDetail 
+        : rawDetail 
+          ? JSON.stringify(rawDetail) 
+          : err?.message || "Failed to create conversation";
+      alert(`Could not start conversation session: ${errMsg}`);
       setIsOrchestrating(false);
     }
   };

@@ -76,12 +76,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         setUser(session.user);
         syncAndHydrate(session);
       } else {
-        setIsLoading(false);
+        // DEV / GUEST BYPASS MODE: Auto-hydrate spaces from backend
+        try {
+          const userSpaces = await apiClient<Space[]>("/api/v1/spaces").catch(() => []);
+          setSpaces(userSpaces);
+          if (userSpaces.length > 0) {
+            const savedSpaceId = typeof window !== "undefined" ? localStorage.getItem("mynd_active_space_id") : null;
+            const matched = savedSpaceId ? userSpaces.find((s) => s.id === savedSpaceId) : null;
+            const defaultSpace = matched || userSpaces.find((s) => s.is_default) || userSpaces[0];
+            setCurrentSpace(defaultSpace);
+          }
+          setProfile({
+            id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01",
+            email: "dev@querymind.local",
+            display_name: "Workspace Lead",
+            avatar_url: null,
+          });
+          setUser({
+            id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01",
+            email: "dev@querymind.local",
+            app_metadata: {},
+            user_metadata: { full_name: "Workspace Lead" },
+            aud: "authenticated",
+            created_at: new Date().toISOString(),
+          } as User);
+        } catch (e) {
+          console.warn("Dev mode fallback notice:", e);
+        } finally {
+          setIsLoading(false);
+        }
       }
     });
 
