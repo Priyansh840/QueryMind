@@ -1,9 +1,8 @@
 import axios from "axios";
 import { supabase } from "./supabase";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL 
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` 
-  : "http://localhost:8000/api/v1";
+const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+const API_BASE = RAW_API_URL ? `${RAW_API_URL}/api/v1` : "/api/v1";
 
 const TOKEN_KEY = "querymind_token";
 const USER_KEY = "querymind_user";

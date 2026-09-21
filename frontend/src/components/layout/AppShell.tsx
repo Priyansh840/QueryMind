@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import AppSidebar from "./AppSidebar";
 import WorkspaceHeader from "./WorkspaceHeader";
-import ContextPanel from "./ContextPanel";
 import SpotlightModal from "../modals/SpotlightModal";
 import AskAiDrawer from "../modals/AskAiDrawer";
 import SettingsModal from "../modals/SettingsModal";
@@ -121,21 +120,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* 2. Main Body Grid */}
       <div
         className="app-body"
-        style={isFocusMode || isZenMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
+        style={{ gridTemplateColumns: "1fr" }}
       >
         <main
           className="app-workspace"
-          style={isChat ? { borderRight: "none" } : undefined}
+          style={{ borderRight: "none", height: isChat ? "100vh" : undefined }}
         >
-          <WorkspaceHeader />
+          {!isChat && <WorkspaceHeader />}
           <div
             className="workspace-scroll-container"
             style={
               isChat
                 ? {
                   padding: 0,
+                  margin: 0,
                   overflow: "hidden",
-                  height: "calc(100vh - var(--header-h))",
+                  height: "100vh",
+                  width: "100%",
                   display: "flex",
                   flexDirection: "column",
                 }
@@ -148,7 +149,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 isChat
                   ? {
                     height: "100%",
+                    width: "100%",
                     maxWidth: "100%",
+                    margin: 0,
+                    padding: 0,
                     gap: 0,
                     flex: 1,
                     display: "flex",
@@ -167,9 +171,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </main>
-
-        {/* 3. Right Context Panel (hidden on chat, focus mode & zen mode) */}
-        {!isFocusMode && !isZenMode && !isChat && <ContextPanel />}
       </div>
 
       {/* Modals & Drawers */}

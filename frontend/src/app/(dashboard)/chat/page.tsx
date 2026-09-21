@@ -65,26 +65,25 @@ const quickChips = [
   {
     icon: Code2,
     label: "Architecture Deep Dive",
+    description: "Analyze codebase architecture, module boundaries, and dependency patterns.",
     prompt: "Analyze the codebase architecture, module dependencies, and core patterns from my uploaded documents.",
   },
   {
     icon: BookOpen,
     label: "Knowledge Synthesis",
+    description: "Synthesize key concepts, architectural decisions, and retained learnings.",
     prompt: "Synthesize key concepts, architectural decisions, and retained learnings across all workspace documents.",
-  },
-  {
-    icon: PenLine,
-    label: "Executive Briefing",
-    prompt: "Prepare an executive briefing summarizing our active initiatives, current progress, and key blockers.",
   },
   {
     icon: Compass,
     label: "Decision Proposals",
+    description: "Formulate concrete recommendations with citations and trade-offs.",
     prompt: "Examine our current project goals and formulate recommended next actions with grounded evidence.",
   },
   {
     icon: Zap,
     label: "QueryMind Insights",
+    description: "Uncover unexpected connections and leverage opportunities across files.",
     prompt: "Analyze all uploaded documents and highlight unexpected patterns or high-leverage opportunities.",
   },
 ];
@@ -142,7 +141,7 @@ export default function ChatPage() {
           useMyndStore.getState().setActiveSpaceId(sp[0].id);
         }
       }).catch((err) => {
-        console.error("Failed to load initial space", err);
+        console.warn("Failed to load initial space", err);
       });
     }
   }, [activeSpaceId]);
@@ -274,7 +273,7 @@ export default function ChatPage() {
             }
           }
         } catch (err) {
-          console.error("Failed to resolve space UUID", err);
+          console.warn("Failed to resolve space UUID", err);
         }
       }
     }
@@ -292,10 +291,15 @@ export default function ChatPage() {
         textToSend.substring(0, 48) + (textToSend.length > 48 ? "..." : "")
       );
 
-      // Route directly to the conversation page and trigger the initial query
-      router.push(`/chat/${conv.id}?q=${encodeURIComponent(textToSend)}`);
+      // Store initial query in sessionStorage to avoid query-param reload races
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`querymind_initial_msg_${conv.id}`, textToSend);
+      }
+
+      // Route directly to conversation page with clean URL
+      router.push(`/chat/${conv.id}`);
     } catch (err: any) {
-      console.error("Conversation creation error:", err);
+      console.warn("Conversation creation error:", err);
       const rawDetail = err?.response?.data?.detail;
       const errMsg = typeof rawDetail === "string"
         ? rawDetail
@@ -322,16 +326,16 @@ export default function ChatPage() {
       {/* ─── Top Sub-Header Bar ───────────────────────────────── */}
       <header
         style={{
-          height: "48px",
+          height: "52px",
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 20px",
-          background: "rgba(18, 18, 20, 0.65)",
-          backdropFilter: "blur(12px)",
+          padding: "0 28px",
+          background: "var(--bg)",
           zIndex: 10,
           flexShrink: 0,
+          width: "100%",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -452,57 +456,52 @@ export default function ChatPage() {
         <div
           style={{
             width: "100%",
-            maxWidth: "760px",
+            maxWidth: "920px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             zIndex: 1,
           }}
         >
-          {/* Greeting Hero */}
-          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          {/* Greeting Hero - ChatGPT Style */}
+          <div style={{ textAlign: "center", marginBottom: "26px" }}>
             <h1
               style={{
-                fontSize: "clamp(26px, 4vw, 36px)",
+                fontSize: "28px",
                 fontWeight: 600,
                 color: "var(--text-primary)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.2,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-                marginBottom: "10px",
+                letterSpacing: "-0.025em",
+                lineHeight: 1.3,
+                marginBottom: "6px",
               }}
             >
-              <span>{greeting.emoji}</span>
-              <span>{greeting.text}</span>
+              Hey, {userProfile.name || "there"}. Ready to dive in?
             </h1>
             <p
               style={{
                 fontSize: "14px",
-                color: "var(--text-secondary)",
-                maxWidth: "520px",
+                color: "var(--text-tertiary)",
+                maxWidth: "460px",
                 margin: "0 auto",
-                lineHeight: 1.6,
+                lineHeight: 1.5,
               }}
             >
-              Synthesize insights across your workspace documents, explore evidence, and formulate actionable proposals.
+              Ask anything about your workspace documents or explore strategic insights.
             </p>
           </div>
 
-          {/* Central Composer Box */}
+          {/* Central Composer Box - ChatGPT Pill Style */}
           <div
             style={{
               width: "100%",
               background: "var(--surface)",
               border: "1px solid var(--border-strong)",
-              borderRadius: "20px",
-              padding: "16px 20px 14px",
+              borderRadius: "26px",
+              padding: "14px 18px 10px",
               display: "flex",
               flexDirection: "column",
-              gap: "12px",
-              boxShadow: "var(--shadow-md)",
+              gap: "8px",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.22)",
               transition: "border-color 150ms var(--ease), box-shadow 150ms var(--ease)",
             }}
           >
@@ -516,15 +515,15 @@ export default function ChatPage() {
                       display: "flex",
                       alignItems: "center",
                       gap: "8px",
-                      padding: "5px 12px",
-                      borderRadius: "10px",
+                      padding: "4px 10px",
+                      borderRadius: "8px",
                       background: att.status === "error" ? "rgba(239, 68, 68, 0.12)" : "var(--surface-subtle)",
                       border: `1px solid ${att.status === "error" ? "rgba(239, 68, 68, 0.3)" : "var(--border)"}`,
                       fontSize: "12px",
                       color: "var(--text-primary)",
                     }}
                   >
-                    <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                    <FileText style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
                     <span
                       style={{
                         fontWeight: 500,
@@ -544,7 +543,7 @@ export default function ChatPage() {
                       <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
                     )}
                     {att.status === "error" && (
-                      <span title={att.errorMessage || "Upload error"}>
+                      <span title={att.errorMessage || "Upload error"} style={{ display: "flex", alignItems: "center" }}>
                         <AlertCircle style={{ width: "13px", height: "13px", color: "#EF4444" }} />
                       </span>
                     )}
@@ -559,8 +558,6 @@ export default function ChatPage() {
                         border: "none",
                         padding: "2px",
                         cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
                         color: "var(--text-tertiary)",
                       }}
                     >
@@ -571,10 +568,9 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Input Textarea */}
             <textarea
               ref={textareaRef}
-              placeholder="Ask QueryMind anything about your workspace... (Enter to send, Shift+Enter for new line)"
+              placeholder="Ask anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -583,18 +579,19 @@ export default function ChatPage() {
                   handleSend();
                 }
               }}
+              disabled={isOrchestrating}
               rows={1}
               style={{
                 width: "100%",
-                border: "none",
                 background: "transparent",
+                border: "none",
                 outline: "none",
-                resize: "none",
-                fontSize: "15px",
-                lineHeight: "1.55",
                 color: "var(--text-primary)",
+                fontSize: "15px",
+                lineHeight: "1.5",
+                resize: "none",
                 fontFamily: "var(--sans)",
-                minHeight: "28px",
+                minHeight: "26px",
                 maxHeight: "160px",
               }}
             />
@@ -605,11 +602,10 @@ export default function ChatPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingTop: "6px",
-                borderTop: "1px solid var(--border)",
+                paddingTop: "4px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -627,14 +623,13 @@ export default function ChatPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
-                    padding: "6px 10px",
-                    borderRadius: "var(--r-md)",
+                    justifyContent: "center",
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "50%",
                     background: "var(--surface-subtle)",
                     border: "1px solid var(--border)",
                     color: "var(--text-secondary)",
-                    fontSize: "12px",
-                    fontWeight: 500,
                     cursor: "pointer",
                     transition: "all 150ms var(--ease)",
                   }}
@@ -647,28 +642,28 @@ export default function ChatPage() {
                     e.currentTarget.style.color = "var(--text-secondary)";
                   }}
                 >
-                  <Plus style={{ width: "14px", height: "14px" }} />
-                  <span>Attach File</span>
+                  <Plus style={{ width: "15px", height: "15px" }} />
                 </button>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {/* Think / Reasoning chip like ChatGPT */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "5px",
                     padding: "4px 10px",
-                    borderRadius: "var(--r-full)",
-                    fontSize: "11px",
-                    color: "var(--text-tertiary)",
+                    borderRadius: "16px",
+                    fontSize: "12px",
+                    color: "var(--text-secondary)",
                     background: "var(--surface-subtle)",
                     border: "1px solid var(--border)",
                     fontWeight: 500,
                   }}
                 >
-                  <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>QueryMind</span>
-                  <span style={{ opacity: 0.5 }}>Reasoning Engine</span>
+                  <Sparkles style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  <span>Think</span>
                 </div>
 
                 <button
@@ -677,9 +672,9 @@ export default function ChatPage() {
                   disabled={(!input.trim() && attachments.length === 0) || isOrchestrating}
                   title="Send message (Enter)"
                   style={{
-                    width: "34px",
-                    height: "34px",
-                    borderRadius: "10px",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -689,34 +684,34 @@ export default function ChatPage() {
                         : "var(--surface-subtle)",
                     color:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
-                        ? "var(--accent-contrast, #000)"
+                        ? "#FFFFFF"
                         : "var(--text-ghost)",
-                    border: "1px solid var(--border)",
+                    border: "none",
                     cursor:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
                         ? "pointer"
                         : "not-allowed",
-                    transition: "all 180ms var(--ease)",
+                    transition: "all 150ms var(--ease)",
                   }}
                 >
                   {isOrchestrating ? (
-                    <RefreshCw className="animate-spin" style={{ width: "15px", height: "15px" }} />
+                    <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px" }} />
                   ) : (
-                    <ArrowUp style={{ width: "16px", height: "16px", strokeWidth: 2.5 }} />
+                    <ArrowUp style={{ width: "15px", height: "15px", strokeWidth: 2.5 }} />
                   )}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Quick Prompt Chips */}
+          {/* Quick Prompt Suggestions - Compact Chips */}
           <div
             style={{
               display: "flex",
               flexWrap: "wrap",
               gap: "8px",
               justifyContent: "center",
-              marginTop: "24px",
+              marginTop: "20px",
               width: "100%",
             }}
           >
@@ -731,15 +726,15 @@ export default function ChatPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: "7px",
-                    padding: "8px 14px",
-                    borderRadius: "var(--r-full)",
+                    padding: "7px 13px",
+                    borderRadius: "20px",
                     fontSize: "12px",
                     fontWeight: 500,
                     color: "var(--text-secondary)",
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
                     cursor: "pointer",
-                    transition: "all 180ms var(--ease)",
+                    transition: "all 150ms var(--ease)",
                     boxShadow: "var(--shadow-xs)",
                   }}
                   onMouseOver={(e) => {
@@ -753,7 +748,7 @@ export default function ChatPage() {
                     e.currentTarget.style.background = "var(--surface)";
                   }}
                 >
-                  <Icon style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <Icon style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
                   <span>{chip.label}</span>
                 </button>
               );
@@ -763,12 +758,12 @@ export default function ChatPage() {
           <div
             style={{
               marginTop: "28px",
-              fontSize: "11px",
+              fontSize: "11.5px",
               color: "var(--text-ghost)",
               textAlign: "center",
             }}
           >
-            QueryMind grounds reasoning in your workspace evidence. Verify critical details.
+            QueryMind can make mistakes. Verify important info.
           </div>
         </div>
       </div>

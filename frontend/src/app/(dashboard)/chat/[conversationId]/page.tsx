@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Sparkles,
   User,
@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
+  RefreshCcw,
   X,
   FileText,
   AlertCircle,
@@ -22,12 +23,45 @@ import {
   ExternalLink,
   ShieldAlert,
   Lightbulb,
+  Code2,
+  BookOpen,
+  Compass,
+  Zap,
 } from "lucide-react";
 import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+
+/* ─── quick prompt definitions ───────────────────────────────── */
+
+const emptyStatePrompts = [
+  {
+    icon: Code2,
+    title: "Architecture Deep Dive",
+    description: "Analyze system boundaries, dependencies, and core patterns across documents.",
+    prompt: "Analyze the codebase architecture, module dependencies, and core patterns from my uploaded documents.",
+  },
+  {
+    icon: BookOpen,
+    title: "Knowledge Synthesis",
+    description: "Synthesize key insights and architectural decisions into a structured summary.",
+    prompt: "Synthesize key concepts, architectural decisions, and retained learnings across all workspace documents.",
+  },
+  {
+    icon: Compass,
+    title: "Decision Proposals",
+    description: "Formulate concrete recommendations with citations and grounded trade-offs.",
+    prompt: "Examine our current project goals and formulate recommended next actions with grounded evidence.",
+  },
+  {
+    icon: Zap,
+    title: "QueryMind Insights",
+    description: "Discover unexpected patterns, risks, and leverage opportunities.",
+    prompt: "Analyze all uploaded documents and highlight unexpected patterns or high-leverage opportunities.",
+  },
+];
 
 /* ─── types ───────────────────────────────────────────────────── */
 
@@ -116,6 +150,8 @@ export default function ConversationPage() {
   const [searchHistory, setSearchHistory] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+
+
   // File Attachments State
   const [attachments, setAttachments] = useState<{
     file: File;
@@ -129,6 +165,7 @@ export default function ConversationPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const queryExecutedRef = useRef(false);
   const isSendingRef = useRef(false);
@@ -167,21 +204,58 @@ export default function ConversationPage() {
             objectiveId: m.metadata_json?.objective_id,
             timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           }));
-          setMessages(mapped);
+          setMessages((prev) => {
+            // Check if there are active in-flight temporary messages (streaming AI response or pending user message)
+            const inFlight = prev.filter((p) => typeof p.id === "number");
+            if (inFlight.length > 0) {
+              const existingUserContents = new Set(
+                mapped.filter((m) => m.role === "user").map((m) => m.content.trim())
+              );
+              const result = [...mapped];
+              for (const temp of inFlight) {
+                // Prevent duplicate user message if DB already contains it
+                if (temp.role === "user" && existingUserContents.has(temp.content.trim())) {
+                  continue;
+                }
+                result.push(temp);
+              }
+              return result;
+            }
+            if (prev.length > mapped.length) {
+              return prev;
+            }
+            return mapped;
+          });
+        } else {
+          setMessages((prev) => (prev.length > 0 ? prev : []));
         }
       })
-      .catch((err) => console.error("Failed to load message history", err));
+      .catch((err) => {
+        console.warn("Could not load message history:", err?.response?.status || err?.message || err);
+        setMessages((prev) => (prev.length > 0 ? prev : []));
+      });
   }, [conversationId]);
 
-  // Handle initial query from ?q=... search param
+  // Handle initial query from sessionStorage (clean) or ?q= fallback (without router reload races)
   useEffect(() => {
-    const q = searchParams.get("q");
-    if (q && !queryExecutedRef.current) {
-      queryExecutedRef.current = true;
-      router.replace(`/chat/${conversationId}`);
-      handleSend(q);
+    if (!conversationId || queryExecutedRef.current) return;
+
+    let initialQuery: string | null = null;
+    if (typeof window !== "undefined") {
+      initialQuery = sessionStorage.getItem(`querymind_initial_msg_${conversationId}`);
+      if (initialQuery) {
+        sessionStorage.removeItem(`querymind_initial_msg_${conversationId}`);
+      }
     }
-  }, [searchParams, conversationId, router]);
+    if (!initialQuery) {
+      initialQuery = searchParams.get("q");
+    }
+
+    if (initialQuery && !queryExecutedRef.current) {
+      queryExecutedRef.current = true;
+      handleSend(initialQuery);
+    }
+  }, [searchParams, conversationId]);
 
   // Load history drawer conversations
   const loadConversations = async () => {
@@ -273,11 +347,30 @@ export default function ConversationPage() {
     setTimeout(() => setCopiedMessageId(null), 2000);
   };
 
+  /* ─── retry a failed message ──────────────────────────────── */
+  const retryMessage = useCallback((originalContent: string, errorMsgId: string | number) => {
+    // Remove the error AI message, then re-send
+    setMessages((prev) => prev.filter((m) => m.id !== errorMsgId));
+    handleSend(originalContent);
+  }, []);
+
   /* ─── send message & SSE stream ───────────────────────────── */
   const handleSend = async (queryText?: string) => {
     let textToSend = queryText !== undefined ? queryText : input;
     if ((!textToSend.trim() && attachments.length === 0) || isSendingRef.current) return;
     isSendingRef.current = true;
+
+    // Abort any previous in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // 120s timeout to prevent forever-hanging requests
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 120_000);
 
     if (!textToSend.trim() && attachments.length > 0) {
       textToSend = `Please analyze and summarize the attached document "${attachments[0].name}" and highlight key takeaways.`;
@@ -335,6 +428,7 @@ export default function ConversationPage() {
       const response = await fetch(`/api/v1/conversations/${conversationId}/messages`, {
         method: "POST",
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           role: "user",
           content: textToSend,
@@ -371,7 +465,13 @@ export default function ConversationPage() {
           if (!jsonStr) return;
           const data = JSON.parse(jsonStr);
 
-          if (data.event === "workflow.started") {
+          if (data.event === "message.created") {
+            if (data.data?.id) {
+              setMessages((prev) => prev.map(msg =>
+                msg.id === tempUserId ? { ...msg, id: data.data.id } : msg
+              ));
+            }
+          } else if (data.event === "workflow.started") {
             if (data.data?.objective_id) {
               setMessages((prev) => prev.map(msg =>
                 msg.id === tempAiId ? { ...msg, objectiveId: data.data.objective_id } : msg
@@ -407,7 +507,7 @@ export default function ConversationPage() {
                   ));
                 }
               } catch (err) {
-                console.error("Invalid decision insight payload", err);
+                console.warn("Invalid decision insight payload", err);
               }
             }
           } else if (data.event === "agent.status") {
@@ -437,7 +537,7 @@ export default function ConversationPage() {
             throw new Error(data.data.detail);
           }
         } catch (err) {
-          console.error("SSE parse error", err, line);
+          console.warn("SSE parse error", err, line);
         }
       };
 
@@ -457,8 +557,19 @@ export default function ConversationPage() {
       if (buffer.trim()) {
         handleSseLine(buffer.trim());
       }
+
+      // Fallback: if stream ended but AI bubble is still empty, show a soft warning
+      setMessages((prev) => prev.map((m) =>
+        m.id === tempAiId && !m.content
+          ? { ...m, content: "The AI finished processing but produced no visible output. Please try again or rephrase your question.", isError: true }
+          : m
+      ));
     } catch (err: any) {
-      console.error("Chat error:", err);
+      console.warn("Chat error:", err);
+      const isAbort = err.name === "AbortError";
+      const errorMsg = isAbort
+        ? "Request timed out — the server took too long to respond. Please try again."
+        : (err.message || "Failed to complete reasoning request");
       setMessages((prev) => {
         const hasTemp = prev.some((m) => m.id === tempAiId);
         if (hasTemp) {
@@ -466,7 +577,7 @@ export default function ConversationPage() {
             m.id === tempAiId
               ? {
                 ...m,
-                content: `⚠️ Error: ${err.message || "Failed to complete reasoning request"}.`,
+                content: `⚠️ ${errorMsg}`,
                 isError: true,
               }
               : m
@@ -477,13 +588,15 @@ export default function ConversationPage() {
           {
             id: Date.now() + 1,
             role: "ai",
-            content: `⚠️ Error: ${err.message || "Failed to complete reasoning request"}.`,
+            content: `⚠️ ${errorMsg}`,
             timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             isError: true,
           },
         ];
       });
     } finally {
+      clearTimeout(timeoutId);
+      abortControllerRef.current = null;
       isSendingRef.current = false;
       setIsOrchestrating(false);
     }
@@ -516,16 +629,16 @@ export default function ConversationPage() {
       {/* ─── Top Sub-Header Bar ───────────────────────────────── */}
       <header
         style={{
-          height: "48px",
+          height: "52px",
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 20px",
-          background: "rgba(18, 18, 20, 0.7)",
-          backdropFilter: "blur(12px)",
+          padding: "0 28px",
+          background: "var(--bg)",
           zIndex: 10,
           flexShrink: 0,
+          width: "100%",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
@@ -558,7 +671,7 @@ export default function ConversationPage() {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              maxWidth: "340px",
+              maxWidth: "480px",
             }}
           >
             {conversationTitle}
@@ -636,54 +749,94 @@ export default function ConversationPage() {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "24px 20px 32px",
+          padding: "24px 28px 32px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           minHeight: 0,
+          width: "100%",
         }}
       >
         <div
           style={{
             width: "100%",
-            maxWidth: "840px",
+            maxWidth: "920px",
             display: "flex",
             flexDirection: "column",
-            gap: "24px",
+            gap: "28px",
           }}
         >
           {messages.length === 0 && !isOrchestrating && (
             <div
               style={{
-                padding: "48px 24px",
-                textAlign: "center",
+                padding: "60px 20px 40px",
+                width: "100%",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: "12px",
+                textAlign: "center",
+                gap: "20px",
               }}
             >
+              <div>
+                <h3 style={{ fontSize: "26px", fontWeight: 600, color: "var(--text-primary)", letterSpacing: "-0.025em", marginBottom: "6px" }}>
+                  Hey, {userProfile.name || "there"}. Ready to dive in?
+                </h3>
+                <p style={{ fontSize: "14px", color: "var(--text-tertiary)", maxWidth: "460px", margin: "0 auto", lineHeight: 1.5 }}>
+                  Ask anything about your workspace documents or explore strategic insights.
+                </p>
+              </div>
+
+              {/* Compact Quick-Prompt Pills */}
               <div
                 style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "12px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
                   display: "flex",
-                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "8px",
                   justifyContent: "center",
-                  color: "var(--accent)",
+                  maxWidth: "680px",
+                  marginTop: "8px",
                 }}
               >
-                <Sparkles style={{ width: "20px", height: "20px" }} />
+                {emptyStatePrompts.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <button
+                      key={card.title}
+                      type="button"
+                      onClick={() => handleSend(card.prompt)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        padding: "7px 14px",
+                        borderRadius: "20px",
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        transition: "all 150ms var(--ease)",
+                        boxShadow: "var(--shadow-xs)",
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-strong)";
+                        e.currentTarget.style.color = "var(--text-primary)";
+                        e.currentTarget.style.background = "var(--surface-hover)";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border)";
+                        e.currentTarget.style.color = "var(--text-secondary)";
+                        e.currentTarget.style.background = "var(--surface)";
+                      }}
+                    >
+                      <Icon style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
+                      <span>{card.title}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-primary)" }}>
-                Start a conversation in {activeSpace?.name || "Workspace"}
-              </h3>
-              <p style={{ fontSize: "13px", color: "var(--text-secondary)", maxWidth: "420px" }}>
-                Ask questions regarding your documents, synthesize cross-file knowledge, or formulate strategic proposals.
-              </p>
             </div>
           )}
 
@@ -692,359 +845,384 @@ export default function ConversationPage() {
               key={msg.id}
               style={{
                 display: "flex",
-                gap: "14px",
-                alignItems: "flex-start",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
                 width: "100%",
+                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
               }}
             >
-              {/* AI Avatar */}
-              {msg.role === "ai" && (
+              {msg.role === "user" ? (
+                /* User Message - Clean Right-Aligned Pill */
                 <div
                   style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "10px",
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--accent)",
+                    maxWidth: "75%",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    marginTop: "2px",
-                    boxShadow: "var(--shadow-xs)",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "4px",
                   }}
                 >
-                  <Sparkles style={{ width: "16px", height: "16px" }} />
+                  <div
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: "22px 22px 4px 22px",
+                      fontSize: "15px",
+                      lineHeight: "1.5",
+                      background: "var(--surface-hover, #232a3b)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-primary)",
+                      boxShadow: "var(--shadow-xs)",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {msg.content}
+                  </div>
+                  <span style={{ fontSize: "10.5px", color: "var(--text-ghost)", paddingRight: "6px" }}>
+                    {msg.timestamp}
+                  </span>
                 </div>
-              )}
-
-              {/* Message Bubble Container */}
-              <div
-                style={{
-                  maxWidth: msg.role === "user" ? "75%" : "100%",
-                  flex: msg.role === "ai" ? 1 : undefined,
-                  minWidth: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                {/* Bubble Body */}
+              ) : (
+                /* Assistant Message - Clean Typography Directly on Canvas */
                 <div
                   style={{
-                    padding: msg.role === "user" ? "12px 18px" : "16px 20px",
-                    borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "16px",
-                    fontSize: "14.5px",
-                    lineHeight: "1.65",
-                    background: msg.role === "user" ? "var(--surface-hover)" : "var(--surface)",
-                    border: `1px solid ${msg.role === "user" ? "var(--border-strong)" : "var(--border)"}`,
-                    color: msg.isError ? "#EF4444" : "var(--text-primary)",
-                    boxShadow: "var(--shadow-xs)",
-                    position: "relative",
+                    width: "100%",
+                    display: "flex",
+                    gap: "14px",
+                    alignItems: "flex-start",
                   }}
                 >
-                  {msg.role === "user" ? (
-                    <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
-                  ) : (
-                    <div>
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--accent)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      marginTop: "2px",
+                    }}
+                  >
+                    <Sparkles style={{ width: "14px", height: "14px" }} />
+                  </div>
+
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        lineHeight: "1.7",
+                        color: msg.isError ? "#EF4444" : "var(--text-primary)",
+                        wordBreak: "break-word",
+                      }}
+                    >
                       {msg.content ? (
                         <MarkdownRenderer content={msg.content} />
                       ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "13px" }}>
-                          <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px" }} />
-                          <span>Synthesizing response...</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "13.5px" }}>
+                          <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                          <span>Thinking...</span>
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Grounded Citations */}
-                  {msg.citations && msg.citations.length > 0 && (
-                    <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          color: "var(--text-tertiary)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          marginBottom: "8px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "5px",
-                        }}
-                      >
-                        <FileText style={{ width: "12px", height: "12px" }} />
-                        <span>Evidence Sources</span>
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                        {msg.citations.map((c, idx) => (
-                          <span
-                            key={idx}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "5px",
-                              padding: "4px 10px",
-                              borderRadius: "var(--r-full)",
-                              fontSize: "11.5px",
-                              fontWeight: 500,
-                              background: "var(--surface-subtle)",
-                              border: "1px solid var(--border)",
-                              color: "var(--text-secondary)",
-                            }}
-                          >
-                            <span>📄</span>
-                            <span>{c}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Decision Insight Card */}
-                  {msg.role === "ai" && msg.decisionInsight && (
-                    <div
-                      style={{
-                        marginTop: "16px",
-                        background: "rgba(255, 255, 255, 0.02)",
-                        border: "1px solid var(--border-strong)",
-                        borderRadius: "14px",
-                        padding: "16px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "14px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          borderBottom: "1px solid var(--border)",
-                          paddingBottom: "10px",
-                        }}
-                      >
-                        <Lightbulb style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
-                        <span
+                    {/* Grounded Citations */}
+                    {msg.citations && msg.citations.length > 0 && (
+                      <div style={{ marginTop: "4px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
+                        <div
                           style={{
-                            fontSize: "12px",
+                            fontSize: "11px",
                             fontWeight: 700,
-                            color: "var(--text-primary)",
-                            letterSpacing: "0.04em",
+                            color: "var(--text-tertiary)",
                             textTransform: "uppercase",
-                          }}
-                        >
-                          Decision Recommendations
-                        </span>
-                      </div>
-
-                      {msg.decisionInsight.recommendations.length > 0 && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                          {msg.decisionInsight.recommendations.map((rec, idx) => (
-                            <div
-                              key={idx}
-                              style={{
-                                padding: "12px",
-                                borderRadius: "10px",
-                                background: "var(--surface)",
-                                border: "1px solid var(--border)",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "6px",
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                                  {idx + 1}. {rec.action}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "10px",
-                                    fontWeight: 700,
-                                    padding: "2px 8px",
-                                    borderRadius: "10px",
-                                    background:
-                                      rec.confidence === "high"
-                                        ? "rgba(16, 185, 129, 0.15)"
-                                        : rec.confidence === "medium"
-                                          ? "rgba(245, 158, 11, 0.15)"
-                                          : "rgba(239, 68, 68, 0.15)",
-                                    color:
-                                      rec.confidence === "high"
-                                        ? "#10B981"
-                                        : rec.confidence === "medium"
-                                          ? "#F59E0B"
-                                          : "#EF4444",
-                                    border: `1px solid ${
-                                      rec.confidence === "high"
-                                        ? "rgba(16, 185, 129, 0.3)"
-                                        : rec.confidence === "medium"
-                                          ? "rgba(245, 158, 11, 0.3)"
-                                          : "rgba(239, 68, 68, 0.3)"
-                                    }`,
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {rec.confidence.toUpperCase()} CONFIDENCE
-                                </div>
-                              </div>
-                              <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Why: </span>
-                                {rec.reason}
-                              </div>
-
-                              {rec.evidence && rec.evidence.length > 0 && (
-                                <div style={{ marginTop: "4px", paddingLeft: "10px", borderLeft: "2px solid var(--border)" }}>
-                                  <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Evidence Grounding</div>
-                                  {rec.evidence.map((ev, eIdx) => (
-                                    <div key={eIdx} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
-                                      • {ev.content}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Blockers */}
-                      {msg.decisionInsight.blockers.length > 0 && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "#EF4444", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
-                            <ShieldAlert style={{ width: "12px", height: "12px" }} />
-                            <span>Identified Blockers</span>
-                          </div>
-                          <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                            {msg.decisionInsight.blockers.map((b, idx) => (
-                              <li key={idx}>{b}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Uncertainties */}
-                      {msg.decisionInsight.uncertainties.length > 0 && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Uncertainties</div>
-                          <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                            {msg.decisionInsight.uncertainties.map((u, idx) => (
-                              <li key={idx}>{u}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Assistant Footer Toolbar */}
-                  {msg.role === "ai" && msg.content && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginTop: "12px",
-                        paddingTop: "8px",
-                        borderTop: "1px solid var(--border)",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(msg.content, msg.id)}
-                          style={{
+                            letterSpacing: "0.05em",
+                            marginBottom: "8px",
                             display: "flex",
                             alignItems: "center",
                             gap: "5px",
-                            padding: "3px 8px",
-                            borderRadius: "var(--r-sm)",
-                            background: "transparent",
-                            border: "1px solid var(--border)",
-                            color: "var(--text-tertiary)",
-                            fontSize: "11px",
-                            cursor: "pointer",
-                            transition: "all 120ms var(--ease)",
                           }}
-                          onMouseOver={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                          onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
                         >
-                          {copiedMessageId === msg.id ? (
-                            <>
-                              <Check style={{ width: "12px", height: "12px", color: "#10B981" }} />
-                              <span style={{ color: "#10B981" }}>Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy style={{ width: "12px", height: "12px" }} />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
+                          <FileText style={{ width: "12px", height: "12px" }} />
+                          <span>Evidence Sources</span>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                          {msg.citations.map((c, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "3px 10px",
+                                borderRadius: "14px",
+                                fontSize: "11.5px",
+                                fontWeight: 500,
+                                background: "var(--surface-subtle)",
+                                border: "1px solid var(--border)",
+                                color: "var(--text-secondary)",
+                              }}
+                            >
+                              <span>📄</span>
+                              <span>{c}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                        {msg.objectiveId && (
+                    {/* Decision Insight Card */}
+                    {msg.decisionInsight && (
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "14px",
+                          padding: "16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "14px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            borderBottom: "1px solid var(--border)",
+                            paddingBottom: "10px",
+                          }}
+                        >
+                          <Lightbulb style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              color: "var(--text-primary)",
+                              letterSpacing: "0.04em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Decision Recommendations
+                          </span>
+                        </div>
+
+                        {msg.decisionInsight.recommendations.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                            {msg.decisionInsight.recommendations.map((rec, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: "12px",
+                                  borderRadius: "10px",
+                                  background: "var(--surface-subtle)",
+                                  border: "1px solid var(--border)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "6px",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                                    {idx + 1}. {rec.action}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "10px",
+                                      fontWeight: 700,
+                                      padding: "2px 8px",
+                                      borderRadius: "10px",
+                                      background:
+                                        rec.confidence === "high"
+                                          ? "rgba(16, 185, 129, 0.15)"
+                                          : rec.confidence === "medium"
+                                            ? "rgba(245, 158, 11, 0.15)"
+                                            : "rgba(239, 68, 68, 0.15)",
+                                      color:
+                                        rec.confidence === "high"
+                                          ? "#10B981"
+                                          : rec.confidence === "medium"
+                                            ? "#F59E0B"
+                                            : "#EF4444",
+                                      border: `1px solid ${
+                                        rec.confidence === "high"
+                                          ? "rgba(16, 185, 129, 0.3)"
+                                          : rec.confidence === "medium"
+                                            ? "rgba(245, 158, 11, 0.3)"
+                                            : "rgba(239, 68, 68, 0.3)"
+                                      }`,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {rec.confidence.toUpperCase()} CONFIDENCE
+                                  </div>
+                                </div>
+                                <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                                  <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Why: </span>
+                                  {rec.reason}
+                                </div>
+
+                                {rec.evidence && rec.evidence.length > 0 && (
+                                  <div style={{ marginTop: "4px", paddingLeft: "10px", borderLeft: "2px solid var(--border)" }}>
+                                    <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Evidence Grounding</div>
+                                    {rec.evidence.map((ev, eIdx) => (
+                                      <div key={eIdx} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                        • {ev.content}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Blockers */}
+                        {msg.decisionInsight.blockers.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "#EF4444", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                              <ShieldAlert style={{ width: "12px", height: "12px" }} />
+                              <span>Identified Blockers</span>
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                              {msg.decisionInsight.blockers.map((b, idx) => (
+                                <li key={idx}>{b}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Uncertainties */}
+                        {msg.decisionInsight.uncertainties.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Uncertainties</div>
+                            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                              {msg.decisionInsight.uncertainties.map((u, idx) => (
+                                <li key={idx}>{u}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Assistant Footer Toolbar */}
+                    {msg.content && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginTop: "6px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <button
                             type="button"
-                            onClick={() => openTraceModal(msg)}
+                            onClick={() => copyToClipboard(msg.content, msg.id)}
                             style={{
                               display: "flex",
                               alignItems: "center",
                               gap: "5px",
-                              padding: "3px 8px",
+                              padding: "4px 8px",
                               borderRadius: "var(--r-sm)",
                               background: "transparent",
-                              border: "1px solid var(--border)",
+                              border: "none",
                               color: "var(--text-tertiary)",
-                              fontSize: "11px",
+                              fontSize: "12px",
                               cursor: "pointer",
                               transition: "all 120ms var(--ease)",
                             }}
                             onMouseOver={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
                             onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
                           >
-                            <Activity style={{ width: "12px", height: "12px" }} />
-                            <span>View Trace</span>
+                            {copiedMessageId === msg.id ? (
+                              <>
+                                <Check style={{ width: "13px", height: "13px", color: "#10B981" }} />
+                                <span style={{ color: "#10B981" }}>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy style={{ width: "13px", height: "13px" }} />
+                                <span>Copy</span>
+                              </>
+                            )}
                           </button>
-                        )}
+
+                          {msg.objectiveId && (
+                            <button
+                              type="button"
+                              onClick={() => openTraceModal(msg)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "4px 8px",
+                                borderRadius: "var(--r-sm)",
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--text-tertiary)",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                                transition: "all 120ms var(--ease)",
+                              }}
+                              onMouseOver={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                              onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+                            >
+                              <Activity style={{ width: "13px", height: "13px" }} />
+                              <span>View Trace</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
+                          {msg.timestamp}
+                        </span>
                       </div>
+                    )}
 
-                      <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
-                        {msg.timestamp}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {msg.role === "user" && (
-                  <div style={{ textAlign: "right", fontSize: "11px", color: "var(--text-ghost)", paddingRight: "4px" }}>
-                    {msg.timestamp}
+                    {/* Retry button for error messages */}
+                    {msg.isError && (
+                      <div style={{ marginTop: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const msgIdx = messages.findIndex((m) => m.id === msg.id);
+                            const prevUserMsg = msgIdx > 0 ? messages.slice(0, msgIdx).reverse().find((m) => m.role === "user") : null;
+                            if (prevUserMsg) {
+                              retryMessage(prevUserMsg.content, msg.id);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 14px",
+                            borderRadius: "var(--r-md)",
+                            background: "rgba(239, 68, 68, 0.1)",
+                            border: "1px solid rgba(239, 68, 68, 0.25)",
+                            color: "#F87171",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            transition: "all 150ms var(--ease)",
+                          }}
+                        >
+                          <RefreshCcw style={{ width: "13px", height: "13px" }} />
+                          <span>Retry</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* User Avatar */}
-              {msg.role === "user" && (
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "10px",
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-secondary)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    marginTop: "2px",
-                    fontWeight: 600,
-                    fontSize: "12px",
-                  }}
-                >
-                  <User style={{ width: "15px", height: "15px" }} />
                 </div>
               )}
             </div>
@@ -1176,35 +1354,37 @@ export default function ConversationPage() {
       {/* ─── Bottom Fixed Composer Bar ────────────────────────── */}
       <div
         style={{
-          borderTop: "1px solid var(--border)",
-          background: "rgba(14, 15, 20, 0.8)",
-          backdropFilter: "blur(14px)",
-          padding: "14px 20px 16px",
+          background: "transparent",
+          padding: "0 28px 20px",
           display: "flex",
           justifyContent: "center",
           flexShrink: 0,
+          width: "100%",
+          position: "relative",
+          zIndex: 10,
         }}
       >
         <div
           style={{
             width: "100%",
-            maxWidth: "840px",
+            maxWidth: "920px",
             display: "flex",
             flexDirection: "column",
-            gap: "10px",
+            gap: "8px",
           }}
         >
-          {/* Composer Card */}
+          {/* Pill Composer Card - ChatGPT Classic Style */}
           <div
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border-strong)",
-              borderRadius: "18px",
-              padding: "12px 16px",
+              borderRadius: "26px",
+              padding: "12px 18px 10px",
               display: "flex",
               flexDirection: "column",
-              gap: "8px",
-              boxShadow: "var(--shadow-sm)",
+              gap: "6px",
+              boxShadow: "0 8px 30px rgba(0, 0, 0, 0.25)",
+              transition: "border-color 150ms var(--ease), box-shadow 150ms var(--ease)",
             }}
           >
             {/* Attachment preview pills */}
@@ -1236,7 +1416,7 @@ export default function ConversationPage() {
                       <CheckCircle2 style={{ width: "12px", height: "12px", color: "#10B981" }} />
                     )}
                     {att.status === "error" && (
-                      <span title={att.errorMessage || "Upload error"}>
+                      <span title={att.errorMessage || "Upload error"} style={{ display: "flex", alignItems: "center" }}>
                         <AlertCircle style={{ width: "12px", height: "12px", color: "#EF4444" }} />
                       </span>
                     )}
@@ -1260,7 +1440,7 @@ export default function ConversationPage() {
 
             <textarea
               ref={textareaRef}
-              placeholder="Ask a follow-up or query workspace documents... (Enter to send, Shift+Enter for new line)"
+              placeholder="Ask anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1277,7 +1457,7 @@ export default function ConversationPage() {
                 background: "transparent",
                 outline: "none",
                 resize: "none",
-                fontSize: "14.5px",
+                fontSize: "15px",
                 lineHeight: "1.5",
                 color: "var(--text-primary)",
                 fontFamily: "var(--sans)",
@@ -1292,8 +1472,7 @@ export default function ConversationPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingTop: "6px",
-                borderTop: "1px solid var(--border)",
+                paddingTop: "2px",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1315,26 +1494,48 @@ export default function ConversationPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "5px",
-                    padding: "5px 10px",
-                    borderRadius: "var(--r-md)",
+                    justifyContent: "center",
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "50%",
                     background: "var(--surface-subtle)",
                     border: "1px solid var(--border)",
                     color: "var(--text-secondary)",
-                    fontSize: "11.5px",
-                    fontWeight: 500,
                     cursor: isOrchestrating ? "not-allowed" : "pointer",
+                    transition: "all 150ms var(--ease)",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
                   }}
                 >
-                  <Plus style={{ width: "13px", height: "13px" }} />
-                  <span>Attach File</span>
+                  <Plus style={{ width: "15px", height: "15px" }} />
                 </button>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                  Grounded in {activeSpace?.name || "Workspace"}
-                </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {/* Think / Reasoning chip */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "4px 10px",
+                    borderRadius: "16px",
+                    fontSize: "12px",
+                    color: "var(--text-secondary)",
+                    background: "var(--surface-subtle)",
+                    border: "1px solid var(--border)",
+                    fontWeight: 500,
+                  }}
+                >
+                  <Sparkles style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  <span>Think</span>
+                </div>
 
                 <button
                   type="button"
@@ -1344,7 +1545,7 @@ export default function ConversationPage() {
                   style={{
                     width: "32px",
                     height: "32px",
-                    borderRadius: "8px",
+                    borderRadius: "50%",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1354,9 +1555,9 @@ export default function ConversationPage() {
                         : "var(--surface-subtle)",
                     color:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
-                        ? "var(--accent-contrast, #000)"
+                        ? "#FFFFFF"
                         : "var(--text-ghost)",
-                    border: "1px solid var(--border)",
+                    border: "none",
                     cursor:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
                         ? "pointer"
@@ -1374,8 +1575,8 @@ export default function ConversationPage() {
             </div>
           </div>
 
-          <div style={{ textAlign: "center", fontSize: "10.5px", color: "var(--text-ghost)" }}>
-            QueryMind grounds reasoning in your workspace evidence. Verify critical details.
+          <div style={{ textAlign: "center", fontSize: "11px", color: "var(--text-ghost)" }}>
+            QueryMind can make mistakes. Verify important info.
           </div>
         </div>
       </div>
