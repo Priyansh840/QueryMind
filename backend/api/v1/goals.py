@@ -47,6 +47,24 @@ class GoalResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class RecommendTasksRequest(BaseModel):
+    goal_description: str = Field(..., min_length=2)
+    space_id: Optional[str] = None
+    category: Optional[str] = "career"
+
+
+class RecommendedTaskItem(BaseModel):
+    title: str
+    priority: str = Field("medium", description="high, medium, or low")
+    reasoning: Optional[str] = None
+
+
+class RecommendTasksResponse(BaseModel):
+    goal: str
+    suggested_tasks: List[RecommendedTaskItem]
+    context_used: Optional[str] = None
+
 # -------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------
@@ -381,3 +399,161 @@ async def delete_goal(
     await db.commit()
 
     return {"status": "success", "message": f"Goal {goal_id} deleted successfully"}
+
+
+@router.post("/recommend-tasks", response_model=RecommendTasksResponse)
+async def recommend_goal_tasks(
+    request: RecommendTasksRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Uses LLM + RAG vector search to analyze the goal statement, retrieve relevant space documents/knowledge,
+    and generate a breakdown of high-impact tasks prioritized by importance (high, medium, low).
+    """
+    import json
+    from llm.provider import llm_service
+    from rag.retriever import retrieve_context
+
+    import asyncio
+    context_snippets = []
+    # If space_id provided, search space knowledge chunks with a protective timeout
+    if request.space_id:
+        try:
+            results = await asyncio.wait_for(
+                retrieve_context(
+                    query=request.goal_description,
+                    user_id=str(current_user.id),
+                    space_id=str(request.space_id),
+                    top_k=4,
+                ),
+                timeout=3.5,
+            )
+            for r in results:
+                if "text" in r:
+                    context_snippets.append(r["text"][:300])
+        except Exception as e:
+            logger.warning(f"Failed or timed out retrieving RAG context for goal recommendation: {e}")
+
+    rag_context = "\n---\n".join(context_snippets) if context_snippets else "No specific space documents matched."
+
+    system_prompt = (
+        "You are an executive AI strategic planner for QueryMind. Your job is to break down a high-level goal "
+        "into a structured set of 3 to 6 concrete, actionable tasks/milestones required to achieve the goal.\n"
+        "Each task MUST have:\n"
+        "- title: Clear, concise action title.\n"
+        "- priority: 'high', 'medium', or 'low' indicating how critical it is to the core objective.\n"
+        "- reasoning: 1 brief sentence explaining why this task is crucial.\n\n"
+        "Return ONLY a valid JSON object matching this exact schema:\n"
+        "{\n"
+        '  "tasks": [\n'
+        '    {"title": "...", "priority": "high"|"medium"|"low", "reasoning": "..."}\n'
+        "  ]\n"
+        "}\n"
+        "Do not include any Markdown formatting around the JSON."
+    )
+
+    user_prompt = (
+        f"Goal: {request.goal_description}\n"
+        f"Category: {request.category or 'General'}\n\n"
+        f"Relevant Knowledge Base Context:\n{rag_context}\n\n"
+        "Generate the breakdown of recommended tasks."
+    )
+
+    suggested_tasks: List[RecommendedTaskItem] = []
+
+    # Strategy 1: Dynamic LLM Generation with fastest available candidates
+    import re
+    import google.generativeai as genai
+    from core.config import settings
+    
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    gemini_candidates = [
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-3.6-flash",
+    ]
+
+    full_prompt = (
+        f"{system_prompt}\n\n"
+        f"Goal: {request.goal_description}\n"
+        f"Category: {request.category or 'General'}\n"
+        f"Relevant Context:\n{rag_context}\n\n"
+        "Generate the breakdown of recommended tasks in the specified JSON format."
+    )
+
+    for model_name in gemini_candidates:
+        try:
+            logger.info(f"Attempting task recommendation using Gemini model: {model_name}")
+            gen_model = genai.GenerativeModel(model_name=model_name)
+            # Run synchronous generate_content in thread pool with 12s timeout
+            response = await asyncio.wait_for(
+                asyncio.to_thread(gen_model.generate_content, full_prompt),
+                timeout=12.0,
+            )
+            direct_text = response.text.strip()
+            
+            # Extract JSON block
+            match = re.search(r"\{[\s\S]*\}", direct_text)
+            if match:
+                direct_text = match.group(0)
+
+            parsed = json.loads(direct_text)
+            task_list = parsed.get("tasks", [])
+            for t in task_list:
+                prio = str(t.get("priority", "medium")).lower()
+                if prio not in ("high", "medium", "low"):
+                    prio = "medium"
+                suggested_tasks.append(
+                    RecommendedTaskItem(
+                        title=t.get("title", "Action Item"),
+                        priority=prio,
+                        reasoning=t.get("reasoning"),
+                    )
+                )
+            if suggested_tasks:
+                logger.info(f"Successfully generated {len(suggested_tasks)} dynamic tasks with {model_name}")
+                break
+        except Exception as cand_err:
+            logger.warning(f"Candidate {model_name} failed or timed out: {cand_err}")
+            continue
+
+    # Fallback to Ollama or Raise if all LLMs failed (no hardcoded templates)
+    if not suggested_tasks:
+        logger.warning("Gemini models failed. Attempting local Ollama / LLM service fallback...")
+        try:
+            from llm.provider import llm_service
+            raw_llm_out = await asyncio.wait_for(
+                llm_service.generate(prompt=full_prompt),
+                timeout=10.0,
+            )
+            match = re.search(r"\{[\s\S]*\}", raw_llm_out)
+            if match:
+                parsed = json.loads(match.group(0))
+                for t in parsed.get("tasks", []):
+                    prio = str(t.get("priority", "medium")).lower()
+                    if prio not in ("high", "medium", "low"):
+                        prio = "medium"
+                    suggested_tasks.append(
+                        RecommendedTaskItem(
+                            title=t.get("title", "Action Item"),
+                            priority=prio,
+                            reasoning=t.get("reasoning"),
+                        )
+                    )
+        except Exception as ollama_err:
+            logger.error(f"Fallback LLM service failed: {ollama_err}")
+
+    if not suggested_tasks:
+        raise HTTPException(
+            status_code=503,
+            detail="AI model is currently busy or rate limited. Please try clicking 'AI Auto-Breakdown Tasks' again in a moment.",
+        )
+
+    return RecommendTasksResponse(
+        goal=request.goal_description,
+        suggested_tasks=suggested_tasks,
+        context_used=f"{len(context_snippets)} relevant source documents consulted" if context_snippets else None,
+    )

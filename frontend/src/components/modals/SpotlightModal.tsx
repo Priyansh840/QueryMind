@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function SpotlightModal() {
+  const router = useRouter();
   const isSpotlightOpen = useMyndStore((state) => state.isSpotlightOpen);
   const closeSpotlight = useMyndStore((state) => state.closeSpotlight);
   const spaces = useMyndStore((state) => state.spaces);
@@ -35,9 +37,12 @@ export default function SpotlightModal() {
   const q = query.toLowerCase().trim();
 
   const commands = [
-    { id: "cmd-home", title: "Go to Home", type: "Navigation", action: () => setRoute("home") },
-    { id: "cmd-workspace", title: "View Workspace (All Spaces)", type: "Navigation", action: () => setRoute("workspace") },
-    { id: "cmd-intelligence", title: "View Intelligence & Activity", type: "Navigation", action: () => setRoute("intelligence") },
+    { id: "cmd-home", title: "Go to Home", type: "Navigation", action: () => { setRoute("home"); router.push("/dashboard"); } },
+    { id: "cmd-goals", title: "Go to Strategic Goals & Objectives", type: "Navigation", action: () => { setRoute("goals"); router.push("/goals"); } },
+    { id: "cmd-workspace", title: "View Workspace (All Spaces)", type: "Navigation", action: () => { setRoute("workspace"); router.push("/workspace"); } },
+    { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
+    { id: "cmd-chat", title: "Open AI Intelligence Chat", type: "Navigation", action: () => { setRoute("chat"); router.push("/chat"); } },
+    { id: "cmd-intelligence", title: "View Intelligence & Activity", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
     { id: "cmd-search", title: "Semantic Search", type: "Search", action: () => setRoute("search") },
     { id: "cmd-theme", title: "Toggle Theme (Light / Dark / Zen)", type: "Action", action: () => toggleTheme() },
     { id: "cmd-focus", title: "Toggle Focus Mode", type: "Action", action: () => toggleFocusMode() },

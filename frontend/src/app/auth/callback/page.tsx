@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import api, { setAuthToken, setStoredUser } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import { Loader2 } from "lucide-react";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [statusText, setStatusText] = useState("Completing authentication...");
@@ -162,5 +162,30 @@ export default function AuthCallbackPage() {
         {statusText}
       </p>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            backgroundColor: "#000000",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Loader2
+            style={{ width: "28px", height: "28px", color: "#FFFFFF" }}
+            className="animate-spin"
+          />
+        </div>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

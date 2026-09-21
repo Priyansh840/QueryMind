@@ -700,9 +700,30 @@ export default function SpaceDetailPage({
                   {space.goal?.title || `Master ${space.name} Domain`}
                 </h3>
               </div>
-              <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)" }}>
-                {space.goal?.progress || 0}%
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <Link
+                  href="/goals"
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "var(--text-secondary)",
+                    textDecoration: "none",
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface-hover)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <span>All Goals</span>
+                  <span>➔</span>
+                </Link>
+                <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)" }}>
+                  {space.goal?.progress || 0}%
+                </span>
+              </div>
             </div>
 
             {/* Progress Bar */}

@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Sun,
   Sparkles,
+  Target,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -115,34 +116,59 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <button
-          onClick={toggleFocusMode}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "9999px",
-            background: isFocusMode ? "#FFFFFF" : "var(--surface)",
-            border: isFocusMode ? "1px solid #FFFFFF" : "1px solid var(--border)",
-            fontSize: "13px",
-            fontWeight: 600,
-            color: isFocusMode ? "#000000" : "var(--text-primary)",
-            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <span
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Link
+            href="/goals"
             style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: isFocusMode ? "#000000" : "#737373",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 16px",
+              borderRadius: "9999px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              cursor: "pointer",
+              textDecoration: "none",
+              transition: "all 0.15s ease",
             }}
-          />
-          <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
-        </button>
+          >
+            <Target style={{ width: "14px", height: "14px" }} />
+            <span>Goals</span>
+          </Link>
+
+          <button
+            onClick={toggleFocusMode}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 16px",
+              borderRadius: "9999px",
+              background: isFocusMode ? "#FFFFFF" : "var(--surface)",
+              border: isFocusMode ? "1px solid #FFFFFF" : "1px solid var(--border)",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: isFocusMode ? "#000000" : "var(--text-primary)",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: isFocusMode ? "#000000" : "#737373",
+              }}
+            />
+            <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. Continue where you left off */}

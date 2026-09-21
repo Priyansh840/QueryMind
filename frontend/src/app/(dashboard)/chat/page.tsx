@@ -544,7 +544,9 @@ export default function ChatPage() {
                       <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
                     )}
                     {att.status === "error" && (
-                      <AlertCircle style={{ width: "13px", height: "13px", color: "#EF4444" }} title={att.errorMessage} />
+                      <span title={att.errorMessage || "Upload error"}>
+                        <AlertCircle style={{ width: "13px", height: "13px", color: "#EF4444" }} />
+                      </span>
                     )}
                     <button
                       type="button"

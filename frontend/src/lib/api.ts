@@ -1,7 +1,9 @@
 import axios from "axios";
 import { supabase } from "./supabase";
 
-const API_BASE = "/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL 
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` 
+  : "http://localhost:8000/api/v1";
 
 const TOKEN_KEY = "querymind_token";
 const USER_KEY = "querymind_user";
@@ -350,6 +352,18 @@ export const queryMindApi = {
     const res = await api.delete<{ status: string; message: string }>(`/goals/${goalId}`);
     return res.data;
   },
+  recommendGoalTasks: async (data: {
+    goal_description: string;
+    space_id?: string;
+    category?: string;
+  }): Promise<{
+    goal: string;
+    suggested_tasks: Array<{ title: string; priority: "high" | "medium" | "low"; reasoning?: string }>;
+    context_used?: string;
+  }> => {
+    const res = await api.post("/goals/recommend-tasks", data);
+    return res.data;
+  },
 
   // Memories Management
   getMemories: async (memoryType?: string): Promise<MemoryData[]> => {
@@ -419,8 +433,8 @@ export const queryMindApi = {
     return res.data;
   },
 
-  getConversations: async (spaceId: string) => {
-    const res = await api.get(`/conversations?space_id=${spaceId}`);
+  getConversations: async (spaceId?: string) => {
+    const res = await api.get(`/conversations${spaceId ? `?space_id=${spaceId}` : ""}`);
     return res.data;
   },
 

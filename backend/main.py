@@ -19,6 +19,13 @@ async def lifespan(app: FastAPI):
     if "pytest" in sys.modules or os.environ.get("TESTING") == "1":
         yield
         return
+    # Warm up embedding model at startup so first RAG query doesn't freeze the event loop
+    try:
+        from ingestion.embeddings import embedding_service
+        _ = embedding_service
+    except Exception as e:
+        pass
+
     worker = get_workflow_worker()
     worker.start()
     yield

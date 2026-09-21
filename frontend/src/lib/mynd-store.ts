@@ -148,7 +148,7 @@ export interface MyndState {
   defaultSpaceId: string;
   language: string;
 
-  activeRoute: "home" | "workspace" | "space" | "search" | "intelligence" | "vault" | "chat";
+  activeRoute: "home" | "workspace" | "space" | "search" | "intelligence" | "vault" | "chat" | "goals";
   activeSpaceId: string;
   activeSpaceTab: "overview" | "objects" | "graph" | "insights" | "notes" | "journals" | "habits" | "goals" | "timeline";
   activeSpaceSection: string;
