@@ -31,6 +31,7 @@ import {
 import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import AgentWorkflowStepper, { WorkflowStepData } from "@/components/chat/AgentWorkflowStepper";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -84,13 +85,18 @@ interface Message {
   citations?: (string | CitationItem)[];
   objectiveId?: string;
   decisionInsight?: DecisionAnalysis | null;
+  workflowSteps?: WorkflowStepData[];
   isError?: boolean;
 }
 
 function getCitationLabel(c: any): string {
   if (typeof c === "string") return c;
   if (c && typeof c === "object") {
+    if (c.title && typeof c.title === "string" && c.title.includes("(p")) return c.title;
     const docTitle = c.document_title || c.title || (c.source_type ? `${c.source_type} source` : "Document");
+    if (Array.isArray(c.pages) && c.pages.length > 0) {
+      return c.pages.length === 1 ? `${docTitle} (p. ${c.pages[0]})` : `${docTitle} (pp. ${c.pages.join(", ")})`;
+    }
     const pageStr = c.page_number ? ` (p. ${c.page_number})` : "";
     return `${docTitle}${pageStr}`;
   }
@@ -102,6 +108,106 @@ function getCitationSnippet(c: any): string | undefined {
     return c.snippet;
   }
   return undefined;
+}
+
+function deduplicateCitations(citations?: (string | CitationItem)[]): (string | CitationItem)[] {
+  if (!citations || citations.length === 0) return [];
+  
+  const grouped = new Map<string, {
+    title: string;
+    pages: Set<number>;
+    snippets: string[];
+    source_type?: string;
+    document_id?: string;
+    firstItem: any;
+  }>();
+
+  for (const c of citations) {
+    if (!c) continue;
+
+    if (typeof c === "string") {
+      const trimmed = c.trim();
+      if (!trimmed) continue;
+      const match = trimmed.match(/^(.*?)(?:\s*\((?:p|pp)\.?\s*([0-9,\s]+)\))?$/i);
+      const title = (match && match[1] ? match[1].trim() : trimmed) || trimmed;
+      const key = title.toLowerCase();
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          title,
+          pages: new Set(),
+          snippets: [],
+          firstItem: c,
+        });
+      }
+      const entry = grouped.get(key)!;
+      if (match && match[2]) {
+        match[2].split(",").forEach(p => {
+          const num = parseInt(p.trim(), 10);
+          if (!isNaN(num)) entry.pages.add(num);
+        });
+      }
+      continue;
+    }
+
+    if (typeof c === "object") {
+      const rawTitle = c.document_title || c.title || (c.source_type ? `${c.source_type} source` : "Document");
+      const title = String(rawTitle).trim();
+      const key = (c.document_id || title).toLowerCase();
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          title,
+          pages: new Set(),
+          snippets: [],
+          source_type: c.source_type,
+          document_id: c.document_id,
+          firstItem: c,
+        });
+      }
+
+      const entry = grouped.get(key)!;
+      if (typeof c.page_number === "number" && !isNaN(c.page_number)) {
+        entry.pages.add(c.page_number);
+      }
+      if (Array.isArray(c.pages)) {
+        c.pages.forEach((p: any) => {
+          const num = typeof p === "number" ? p : parseInt(p, 10);
+          if (!isNaN(num)) entry.pages.add(num);
+        });
+      }
+      if (c.snippet && typeof c.snippet === "string") {
+        const snip = c.snippet.trim();
+        if (snip && !entry.snippets.includes(snip)) {
+          entry.snippets.push(snip);
+        }
+      }
+    }
+  }
+
+  const results: CitationItem[] = [];
+  for (const entry of grouped.values()) {
+    const sortedPages = Array.from(entry.pages).sort((a, b) => a - b);
+    let pageStr = "";
+    if (sortedPages.length === 1) {
+      pageStr = ` (p. ${sortedPages[0]})`;
+    } else if (sortedPages.length > 1) {
+      pageStr = ` (pp. ${sortedPages.join(", ")})`;
+    }
+
+    results.push({
+      ...(typeof entry.firstItem === "object" ? entry.firstItem : {}),
+      document_title: entry.title,
+      title: `${entry.title}${pageStr}`,
+      page_number: sortedPages.length === 1 ? sortedPages[0] : undefined,
+      pages: sortedPages,
+      snippet: entry.snippets.join("\n\n---\n\n") || (typeof entry.firstItem === "object" ? entry.firstItem.snippet : undefined),
+      source_type: entry.source_type || "document",
+      document_id: entry.document_id,
+    });
+  }
+
+  return results;
 }
 
 interface DecisionEvidence {
@@ -228,8 +334,9 @@ export default function ConversationPage() {
             id: m.id,
             role: m.role === "assistant" ? "ai" : m.role,
             content: m.content,
-            citations: m.citations,
+            citations: m.citations ? deduplicateCitations(m.citations) : undefined,
             objectiveId: m.metadata_json?.objective_id,
+            workflowSteps: m.metadata_json?.workflow_steps || undefined,
             timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           }));
           setMessages((prev) => {
@@ -508,15 +615,24 @@ export default function ConversationPage() {
           } else if (data.event === "workflow.step.started") {
             setWorkflowSteps((prev) => {
               const exists = prev.find(s => s.step === data.data.step && s.iteration === data.data.iteration);
-              if (exists) return prev;
-              return [...prev, { ...data.data, status: "running" }];
+              const next = exists ? prev : [...prev, { ...data.data, status: "running" }];
+              setMessages((mPrev) => mPrev.map(msg =>
+                msg.id === tempAiId ? { ...msg, workflowSteps: next } : msg
+              ));
+              return next;
             });
           } else if (data.event === "workflow.step.completed") {
-            setWorkflowSteps((prev) => prev.map(s =>
-              (s.step === data.data.step && (s.iteration === data.data.iteration || !data.data.iteration))
-                ? { ...s, status: "completed", ...data.data }
-                : s
-            ));
+            setWorkflowSteps((prev) => {
+              const next = prev.map(s =>
+                (s.step === data.data.step && (s.iteration === data.data.iteration || !data.data.iteration))
+                  ? { ...s, status: "completed", ...data.data }
+                  : s
+              );
+              setMessages((mPrev) => mPrev.map(msg =>
+                msg.id === tempAiId ? { ...msg, workflowSteps: next } : msg
+              ));
+              return next;
+            });
 
             if (data.data.step === "decision_analyzer" && data.data.output) {
               try {
@@ -549,7 +665,7 @@ export default function ConversationPage() {
               msg.id === tempAiId
                 ? {
                   ...msg,
-                  citations: [...(msg.citations || []), `${data.data.document_title || "Document"} (p. ${data.data.page_number || 1})`]
+                  citations: deduplicateCitations([...(msg.citations || []), data.data])
                 }
                 : msg
             ));
@@ -945,6 +1061,15 @@ export default function ConversationPage() {
                       gap: "10px",
                     }}
                   >
+                    {/* Multi-Agent Reasoning Stepper (Live and Historical) */}
+                    {(((msg.workflowSteps && msg.workflowSteps.length > 0) || (workflowSteps.length > 0 && isOrchestrating && msg.id === messages[messages.length - 1]?.id)) && (
+                      <AgentWorkflowStepper
+                        steps={(msg.workflowSteps && msg.workflowSteps.length > 0) ? msg.workflowSteps : workflowSteps}
+                        agentStatus={isOrchestrating ? agentStatus : null}
+                        isStreaming={isOrchestrating && msg.id === messages[messages.length - 1]?.id}
+                      />
+                    ))}
+
                     <div
                       style={{
                         fontSize: "15px",
@@ -958,59 +1083,63 @@ export default function ConversationPage() {
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "13.5px" }}>
                           <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
-                          <span>Thinking...</span>
+                          <span>{agentStatus || "Synthesizing response..."}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Grounded Citations */}
-                    {msg.citations && msg.citations.length > 0 && (
-                      <div style={{ marginTop: "4px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            color: "var(--text-tertiary)",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            marginBottom: "8px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "5px",
-                          }}
-                        >
-                          <FileText style={{ width: "12px", height: "12px" }} />
-                          <span>Evidence Sources</span>
+                    {(() => {
+                      const uniqueCitations = deduplicateCitations(msg.citations);
+                      if (uniqueCitations.length === 0) return null;
+                      return (
+                        <div style={{ marginTop: "4px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "var(--text-tertiary)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              marginBottom: "8px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                            }}
+                          >
+                            <FileText style={{ width: "12px", height: "12px" }} />
+                            <span>Evidence Sources</span>
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {uniqueCitations.map((c, idx) => {
+                              const label = getCitationLabel(c);
+                              const snippet = getCitationSnippet(c);
+                              return (
+                                <span
+                                  key={idx}
+                                  title={snippet || label}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "5px",
+                                    padding: "3px 10px",
+                                    borderRadius: "14px",
+                                    fontSize: "11.5px",
+                                    fontWeight: 500,
+                                    background: "var(--surface-subtle)",
+                                    border: "1px solid var(--border)",
+                                    color: "var(--text-secondary)",
+                                  }}
+                                >
+                                  <span>📄</span>
+                                  <span>{label}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                          {msg.citations.map((c, idx) => {
-                            const label = getCitationLabel(c);
-                            const snippet = getCitationSnippet(c);
-                            return (
-                              <span
-                                key={idx}
-                                title={snippet || label}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "5px",
-                                  padding: "3px 10px",
-                                  borderRadius: "14px",
-                                  fontSize: "11.5px",
-                                  fontWeight: 500,
-                                  background: "var(--surface-subtle)",
-                                  border: "1px solid var(--border)",
-                                  color: "var(--text-secondary)",
-                                }}
-                              >
-                                <span>📄</span>
-                                <span>{label}</span>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Decision Insight Card */}
                     {msg.decisionInsight && (
@@ -1265,125 +1394,6 @@ export default function ConversationPage() {
               )}
             </div>
           ))}
-
-          {/* Live Multi-Agent Workflow Stepper */}
-          {isOrchestrating && (
-            <div
-              style={{
-                display: "flex",
-                gap: "14px",
-                alignItems: "flex-start",
-                width: "100%",
-              }}
-            >
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "10px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--accent)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  boxShadow: "var(--shadow-xs)",
-                }}
-              >
-                <Sparkles style={{ width: "16px", height: "16px" }} />
-              </div>
-
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: "16px 20px",
-                  borderRadius: "16px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  boxShadow: "var(--shadow-xs)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    color: "var(--text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#10B981",
-                      boxShadow: "0 0 8px #10B981",
-                      display: "inline-block",
-                    }}
-                  />
-                  <span>Reasoning In Progress</span>
-                  {agentStatus && (
-                    <span style={{ color: "var(--text-secondary)", textTransform: "none", fontWeight: 400 }}>
-                      — {agentStatus}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {workflowSteps.map((step, idx) => {
-                    const isDone = step.status === "completed";
-                    const isActive = step.status === "running";
-
-                    let label = "Processing...";
-                    if (step.step === "context_gatherer") label = "Gathering workspace knowledge & grounding";
-                    if (step.step === "planner") label = "Analyzing query & formulation";
-                    if (step.step === "researcher") label = "Researching workspace documents & evidence";
-                    if (step.step === "synthesizer") label = "Synthesizing answer & citations";
-                    if (step.step === "decision_analyzer") label = "Formulating grounded recommendations";
-
-                    return (
-                      <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                          {isDone ? (
-                            <CheckCircle2 style={{ width: "14px", height: "14px", color: "#10B981", flexShrink: 0 }} />
-                          ) : isActive ? (
-                            <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)", flexShrink: 0 }} />
-                          ) : (
-                            <Clock style={{ width: "14px", height: "14px", color: "var(--text-ghost)", flexShrink: 0 }} />
-                          )}
-                          <span
-                            style={{
-                              color: isDone ? "var(--text-primary)" : isActive ? "var(--accent)" : "var(--text-secondary)",
-                              fontWeight: isActive ? 600 : 400,
-                            }}
-                          >
-                            {idx + 1}. {label}
-                          </span>
-                        </div>
-
-                        {step.step === "researcher" && step.tasks && (
-                          <div style={{ marginLeft: "22px", display: "flex", flexDirection: "column", gap: "2px" }}>
-                            {step.tasks.map((t: any) => (
-                              <div key={t.id} style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                                ↳ {t.query}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
 
           <div ref={messagesEndRef} />
         </div>

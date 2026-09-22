@@ -172,7 +172,7 @@ export default function AskAiDrawer() {
 
             {m.citations && m.citations.length > 0 && (
               <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px solid var(--border)", fontSize: "10px", color: "var(--text-tertiary)" }}>
-                Sources: {m.citations.map((c: any) => (typeof c === "string" ? c : c?.document_title || c?.title)).filter(Boolean).slice(0, 2).join(", ")}
+                Sources: {Array.from(new Set(m.citations.map((c: any) => (typeof c === "string" ? c : c?.document_title || c?.title)).filter(Boolean))).slice(0, 3).join(", ")}
               </div>
             )}
 

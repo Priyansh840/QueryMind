@@ -169,30 +169,40 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         else:
             final_text = str(response.content).strip()
         
-        # Extract unique citations with rich metadata
+        # Extract unique citations with rich metadata (deduplicated by source & page)
         citations = []
-        seen_keys = set()
+        citations_by_key = {}
         for res in results:
             if res.get("status") == "completed":
                 for e in res.get("evidence", []):
                     title = e.get("document_title") or "Unknown"
                     chunk_id = e.get("chunk_id") or e.get("source_chunk_id")
                     k_id = e.get("knowledge_id")
-                    key = f"{title}_{chunk_id}_{k_id or ''}"
-                    if key not in seen_keys:
-                        seen_keys.add(key)
+                    doc_id = e.get("document_id")
+                    source_type = e.get("source_type", "document")
+                    page_num = e.get("page_number")
+                    snippet = e.get("content", "")[:200] if e.get("content") else None
+
+                    # Unique key per evidence source and page
+                    key = (doc_id or title.strip().lower(), page_num, source_type, k_id or "")
+                    if key not in citations_by_key:
                         cit_dict = {
                             "document_title": title,
                             "chunk_id": chunk_id,
-                            "page_number": e.get("page_number"),
-                            "snippet": e.get("content", "")[:200] if e.get("content") else None,
-                            "source_type": e.get("source_type", "document"),
+                            "page_number": page_num,
+                            "snippet": snippet,
+                            "source_type": source_type,
                         }
-                        if e.get("document_id"):
-                            cit_dict["document_id"] = e.get("document_id")
+                        if doc_id:
+                            cit_dict["document_id"] = doc_id
                         if e.get("knowledge_type"):
                             cit_dict["knowledge_type"] = e.get("knowledge_type")
+                        citations_by_key[key] = cit_dict
                         citations.append(cit_dict)
+                    else:
+                        existing = citations_by_key[key]
+                        if not existing.get("snippet") and snippet:
+                            existing["snippet"] = snippet
         
         state["final_synthesis"] = final_text
         state["citations"] = citations

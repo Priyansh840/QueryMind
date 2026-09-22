@@ -228,6 +228,7 @@ async def send_message(
             final_text = ""
             citations = []
             action_proposals_collected = []
+            workflow_steps_collected = []
             tokens_streamed = 0
             
             # Using stream_mode=["updates", "messages"]
@@ -250,6 +251,7 @@ async def send_message(
                         
                         if node_name == "context_gatherer":
                             summary = node_state.get("workspace_summary", {})
+                            workflow_steps_collected.append({"step": "context_gatherer", "status": "completed", "output": summary})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'context_gatherer', 'output': summary}})}\n\n"
                             
                             # Now start planner
@@ -259,6 +261,7 @@ async def send_message(
                         elif node_name == "planner":
                             # Planner finished
                             out = node_state.get("planner_output", {})
+                            workflow_steps_collected.append({"step": "planner", "status": "completed", "output": out})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'planner', 'output': out}})}\n\n"
                             
                             if out.get("needs_research", False):
@@ -275,7 +278,7 @@ async def send_message(
                         elif node_name == "researcher":
                             iter_num = node_state.get("workflow_iteration", 1)
                             res = [r for r in node_state.get("research_results", []) if r.get("iteration") == iter_num]
-                            
+                            workflow_steps_collected.append({"step": "researcher", "status": "completed", "iteration": iter_num, "results": res})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'researcher', 'iteration': iter_num, 'results': res}})}\n\n"
                             yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'critic', 'iteration': iter_num}})}\n\n"
                             yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'critic', 'status': 'Evaluating evidence...'}})}\n\n"
@@ -283,6 +286,7 @@ async def send_message(
                         elif node_name == "critic":
                             iter_num = node_state.get("workflow_iteration", 1)
                             c_out = node_state.get("critic_output", {})
+                            workflow_steps_collected.append({"step": "critic", "status": "completed", "iteration": iter_num, "output": c_out})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'critic', 'iteration': iter_num, 'output': c_out}})}\n\n"
                             
                             if c_out.get("decision") == "research_more" and node_state.get("workflow_status") != "terminated_budget":
@@ -308,7 +312,7 @@ async def send_message(
                                     "recommendations": [],
                                     "uncertainties": ["Decision analysis result was malformed and safely dropped."]
                                 }
-                                
+                            workflow_steps_collected.append({"step": "decision_analyzer", "status": "completed", "output": sanitized_payload})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'decision_analyzer', 'output': sanitized_payload}})}\n\n"
                             
                         elif node_name == "action_proposer":
@@ -322,6 +326,7 @@ async def send_message(
                                 except Exception as p_err:
                                     logger.warning(f"Discarding invalid proposal for SSE/persistence: {p_err}")
                             action_proposals_collected = safe_proposals
+                            workflow_steps_collected.append({"step": "action_proposer", "status": "completed", "output": {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'action_proposer', 'output': {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}}})}\n\n"
                             yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
                             yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing final response...'}})}\n\n"
@@ -331,17 +336,26 @@ async def send_message(
                             citations = node_state.get("citations", [])
                             if final_text and tokens_streamed == 0:
                                 yield f"data: {json.dumps({'event': 'token', 'data': {'text': final_text}})}\n\n"
+                            workflow_steps_collected.append({"step": "synthesizer", "status": "completed"})
                             yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'synthesizer'}})}\n\n"
                             
-            # Yield citations at the end
+            # Yield unique citations at the end
+            yielded_citations = set()
             for c in citations:
-                yield f"data: {json.dumps({'event': 'citation', 'data': c})}\n\n"
+                c_key = (
+                    (c.get("document_title") or c.get("title") or "").strip().lower(),
+                    c.get("page_number")
+                )
+                if c_key not in yielded_citations:
+                    yielded_citations.add(c_key)
+                    yield f"data: {json.dumps({'event': 'citation', 'data': c})}\n\n"
             
             # Save Assistant Message with historical JSONB snapshot
             asst_msg_id = uuid.uuid4()
             metadata_dict = {
                 "objective_id": str(objective_id),
-                "action_proposals": action_proposals_collected
+                "action_proposals": action_proposals_collected,
+                "workflow_steps": workflow_steps_collected
             }
             asst_msg = Message(
                 id=asst_msg_id,
