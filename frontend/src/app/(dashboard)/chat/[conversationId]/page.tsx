@@ -65,15 +65,43 @@ const emptyStatePrompts = [
 
 /* ─── types ───────────────────────────────────────────────────── */
 
+export interface CitationItem {
+  document_title?: string;
+  page_number?: number;
+  snippet?: string;
+  chunk_id?: string;
+  document_id?: string;
+  source_type?: string;
+  title?: string;
+  [key: string]: any;
+}
+
 interface Message {
   id: string | number;
   role: "user" | "ai";
   content: string;
   timestamp: string;
-  citations?: string[];
+  citations?: (string | CitationItem)[];
   objectiveId?: string;
   decisionInsight?: DecisionAnalysis | null;
   isError?: boolean;
+}
+
+function getCitationLabel(c: any): string {
+  if (typeof c === "string") return c;
+  if (c && typeof c === "object") {
+    const docTitle = c.document_title || c.title || (c.source_type ? `${c.source_type} source` : "Document");
+    const pageStr = c.page_number ? ` (p. ${c.page_number})` : "";
+    return `${docTitle}${pageStr}`;
+  }
+  return String(c || "");
+}
+
+function getCitationSnippet(c: any): string | undefined {
+  if (c && typeof c === "object" && typeof c.snippet === "string") {
+    return c.snippet;
+  }
+  return undefined;
 }
 
 interface DecisionEvidence {
@@ -955,26 +983,31 @@ export default function ConversationPage() {
                           <span>Evidence Sources</span>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                          {msg.citations.map((c, idx) => (
-                            <span
-                              key={idx}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "5px",
-                                padding: "3px 10px",
-                                borderRadius: "14px",
-                                fontSize: "11.5px",
-                                fontWeight: 500,
-                                background: "var(--surface-subtle)",
-                                border: "1px solid var(--border)",
-                                color: "var(--text-secondary)",
-                              }}
-                            >
-                              <span>📄</span>
-                              <span>{c}</span>
-                            </span>
-                          ))}
+                          {msg.citations.map((c, idx) => {
+                            const label = getCitationLabel(c);
+                            const snippet = getCitationSnippet(c);
+                            return (
+                              <span
+                                key={idx}
+                                title={snippet || label}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "5px",
+                                  padding: "3px 10px",
+                                  borderRadius: "14px",
+                                  fontSize: "11.5px",
+                                  fontWeight: 500,
+                                  background: "var(--surface-subtle)",
+                                  border: "1px solid var(--border)",
+                                  color: "var(--text-secondary)",
+                                }}
+                              >
+                                <span>📄</span>
+                                <span>{label}</span>
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1074,11 +1107,16 @@ export default function ConversationPage() {
                                 {rec.evidence && rec.evidence.length > 0 && (
                                   <div style={{ marginTop: "4px", paddingLeft: "10px", borderLeft: "2px solid var(--border)" }}>
                                     <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Evidence Grounding</div>
-                                    {rec.evidence.map((ev, eIdx) => (
-                                      <div key={eIdx} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
-                                        • {ev.content}
-                                      </div>
-                                    ))}
+                                    {rec.evidence.map((ev: any, eIdx: number) => {
+                                      const text = typeof ev === "string"
+                                        ? ev
+                                        : ev?.content || ev?.snippet || ev?.document_title || (typeof ev === "object" ? JSON.stringify(ev) : String(ev || ""));
+                                      return (
+                                        <div key={eIdx} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                          • {text}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>

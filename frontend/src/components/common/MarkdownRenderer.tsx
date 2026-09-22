@@ -9,6 +9,7 @@ interface MarkdownRendererProps {
 }
 
 export default function MarkdownRenderer({ content, className = "" }: MarkdownRendererProps) {
+  const safeContent = typeof content === "string" ? content : (content ? JSON.stringify(content, null, 2) : "");
   return (
     <div className={`markdown-body ${className}`}>
       <ReactMarkdown
@@ -87,7 +88,7 @@ export default function MarkdownRenderer({ content, className = "" }: MarkdownRe
           ),
         }}
       >
-        {content}
+        {safeContent}
       </ReactMarkdown>
     </div>
   );

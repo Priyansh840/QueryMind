@@ -27,6 +27,7 @@ export interface KnowledgeObject {
   progress?: number;
   spaceId?: string;
   fileSize?: string;
+  size?: string;
   chunks?: number;
   vectorsStored?: number;
 }
@@ -233,6 +234,7 @@ export interface MyndState {
   }) => KnowledgeObject;
   addCapturedItem: (text: string, spaceId?: string) => void;
   deleteDocument: (id: string) => void;
+  removeDocument: (id: string) => void;
   addSpace: (space: {
     name: string;
     desc?: string;
@@ -868,6 +870,10 @@ export const useMyndStore = create<MyndState>()(
             spaces: updatedSpaces,
           };
         });
+      },
+
+      removeDocument: (id) => {
+        get().deleteDocument(id);
       },
 
       addSpace: (space) => {
