@@ -52,7 +52,27 @@ async def action_proposer_node(state: AgentState, config: RunnableConfig) -> Age
     decision_output = state.get("decision_output") or {}
     recommendations = decision_output.get("recommendations", [])
 
-    # If there are no recommendations, return an empty proposal list immediately
+    # Check for direct user imperative command
+    raw_query = state.get("raw_query", "").strip()
+    raw_query_clean = raw_query.lower()
+    
+    # If there are no recommendations from decision analysis, but the user explicitly ordered an action:
+    if not recommendations:
+        for kw in ("create a goal", "create goal", "make a goal", "make goal", "add a goal", "add goal", "new goal"):
+            if kw in raw_query_clean:
+                # Extract goal description
+                parts = raw_query.split("goal", 1)
+                goal_desc = parts[1].strip(" :-\"'to").strip() if len(parts) > 1 else raw_query
+                if not goal_desc:
+                    goal_desc = raw_query
+                recommendations = [{
+                    "action": f"Create new goal: {goal_desc}",
+                    "reason": f"Direct user command: {raw_query}",
+                    "confidence": "high",
+                    "evidence": []
+                }]
+                break
+
     if not recommendations:
         state["action_proposals"] = []
         return state

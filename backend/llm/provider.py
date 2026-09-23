@@ -9,10 +9,10 @@ from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage, AI
 from langchain_core.outputs import ChatResult, ChatGeneration
 from langchain_google_genai import ChatGoogleGenerativeAI
 try:
-    from langchain_community.chat_models import ChatOllama
+    from langchain_ollama import ChatOllama
 except ImportError:
     try:
-        from langchain_ollama import ChatOllama
+        from langchain_community.chat_models import ChatOllama
     except ImportError:
         ChatOllama = None
 from core.config import settings

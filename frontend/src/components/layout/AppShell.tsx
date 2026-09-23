@@ -6,7 +6,7 @@ import AppSidebar from "./AppSidebar";
 import WorkspaceHeader from "./WorkspaceHeader";
 import ContextPanel from "./ContextPanel";
 import SpotlightModal from "../modals/SpotlightModal";
-import AskAiDrawer from "../modals/AskAiDrawer";
+import GlobalCopilotModal from "../copilot/GlobalCopilotModal";
 import SettingsModal from "../modals/SettingsModal";
 import EditProfileModal from "../modals/EditProfileModal";
 import ObjectDetailModal from "../modals/ObjectDetailModal";
@@ -21,6 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isFocusMode = useMyndStore((state) => state.isFocusMode);
   const isZenMode = useMyndStore((state) => state.isZenMode);
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
+  const openAskAi = useMyndStore((state) => state.openAskAi);
   const closeSpotlight = useMyndStore((state) => state.closeSpotlight);
   const closeSettings = useMyndStore((state) => state.closeSettings);
   const closeAskAi = useMyndStore((state) => state.closeAskAi);
@@ -70,10 +71,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Cmd/Ctrl + K -> Universal Spotlight
+      // Cmd/Ctrl + K -> Universal AI Copilot
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
-        openSpotlight();
+        openAskAi();
         return;
       }
 
@@ -179,7 +180,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Modals & Drawers */}
       <SpotlightModal />
-      <AskAiDrawer />
+      <GlobalCopilotModal />
       <SettingsModal />
       <EditProfileModal />
       <ObjectDetailModal />

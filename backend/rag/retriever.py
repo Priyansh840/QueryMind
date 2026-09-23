@@ -55,23 +55,21 @@ async def retrieve_context(
         api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
     )
 
-    # 1. Strict Space Isolation Filter (Collaborative Space Boundary)
-    if len(target_spaces) == 1:
-        space_match = models.MatchValue(value=target_spaces[0])
-    else:
-        space_match = models.MatchAny(any=target_spaces)
-
-    filter_conditions = [
-        models.FieldCondition(
-            key="space_id",
-            match=space_match
+    # 1. Space Filter (if specified, filter by spaces; if empty/universal, search entire user knowledge)
+    filter_conditions = []
+    if target_spaces:
+        if len(target_spaces) == 1:
+            space_match = models.MatchValue(value=target_spaces[0])
+        else:
+            space_match = models.MatchAny(any=target_spaces)
+        filter_conditions.append(
+            models.FieldCondition(
+                key="space_id",
+                match=space_match
+            )
         )
-    ]
-    if user_id:
-        # Optional user constraint if personal scoping is requested
-        pass
 
-    tenant_filter = models.Filter(must=filter_conditions)
+    tenant_filter = models.Filter(must=filter_conditions) if filter_conditions else None
 
     collection_name = settings.QDRANT_COLLECTION_DOCUMENTS
     raw_results = []

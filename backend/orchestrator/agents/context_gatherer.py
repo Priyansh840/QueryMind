@@ -156,6 +156,21 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             "domain_guidance": domain_guidance,
         }
 
+        # 1b. Fetch all spaces the user has access to for cross-workspace awareness
+        all_spaces_stmt = (
+            select(Space)
+            .distinct()
+            .outerjoin(SpaceMember, Space.id == SpaceMember.space_id)
+            .where((Space.user_id == user_uuid) | (SpaceMember.user_id == user_uuid))
+            .order_by(Space.created_at.desc())
+            .limit(10)
+        )
+        all_spaces_res = await db.execute(all_spaces_stmt)
+        user_all_spaces = [
+            {"id": str(s.id), "name": s.name, "icon": s.icon, "description": s.description}
+            for s in all_spaces_res.scalars().all()
+        ]
+
         # 2. Fetch Active Projects for this Space (Limit 10)
         proj_stmt = select(Project).where(
             Project.space_id == space_uuid,
@@ -169,25 +184,30 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
             for p in projects
         ]
 
-        # 3. Fetch Active Goals (Scoped to this space or this space's projects, Limit 10)
+        # 3. Fetch Active Goals (Current space + Cross-workspace active goals)
         goal_stmt = (
-            select(Goal)
+            select(Goal, Space.name.label("space_name"))
             .outerjoin(Project, Goal.project_id == Project.id)
+            .outerjoin(Space, Goal.space_id == Space.id)
             .where(
                 Goal.user_id == user_uuid,
                 Goal.status == "active",
-                (Goal.space_id == space_uuid) | ((Goal.space_id.is_(None)) & ((Project.space_id == space_uuid) | (Goal.project_id.is_(None))))
             )
             .order_by(Goal.created_at.desc())
-            .limit(10)
+            .limit(15)
         )
         goal_result = await db.execute(goal_stmt)
-        goals = goal_result.scalars().all()
-        
-        goals_data = [
-            {"id": str(g.id), "description": g.description, "status": g.status}
-            for g in goals
-        ]
+        goals_data = []
+        for g, sp_name in goal_result.all():
+            is_current = (g.space_id == space_uuid)
+            goals_data.append({
+                "id": str(g.id),
+                "description": g.description,
+                "status": g.status,
+                "space_id": str(g.space_id) if g.space_id else None,
+                "space_name": sp_name or "General",
+                "is_current_space": is_current,
+            })
 
         # 4. Phase 2D: Fetch Strictly Bounded Historical Outcomes (Completed/Archived Goals max 5, Projects max 5)
         comp_goal_stmt = (
@@ -330,6 +350,7 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
 
         state["workspace_context"] = {
             "space": space_data,
+            "all_spaces": user_all_spaces,
             "goals": goals_data,
             "projects": projects_data,
             "recent_completed_goals": comp_goals_data,

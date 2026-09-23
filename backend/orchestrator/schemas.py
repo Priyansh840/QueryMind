@@ -107,10 +107,23 @@ class ActionProposal(BaseModel):
     action_type: ActionType = Field(description="Strict allowlisted action type")
     target_id: Optional[str] = Field(default=None, description="Target entity UUID if updating an existing record")
     space_id: Optional[str] = Field(default=None, description="Target space UUID if space-scoped")
-    parameters: dict = Field(description="Strictly typed parameter dictionary matching action_type")
+    parameters: Any = Field(description="Strictly typed parameter dictionary matching action_type")
     reason: str = Field(description="Why this action is proposed to advance workspace goals")
     source_recommendation: Optional[str] = Field(default=None, description="Action or reference from the Recommendation that triggered this proposal")
     confidence: Literal["high", "medium", "low"] = Field(default="medium", description="Confidence level in this proposed action")
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_parameters_json(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            params = data.get("parameters")
+            if isinstance(params, str):
+                import json
+                try:
+                    data["parameters"] = json.loads(params)
+                except Exception:
+                    pass
+        return data
 
     def validate_parameters(self) -> BaseModel:
         """

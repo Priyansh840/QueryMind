@@ -246,6 +246,14 @@ export default function GoalsPage() {
 
   useEffect(() => {
     fetchGoals();
+
+    const handleRefresh = () => fetchGoals();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("mynd:goals-refresh", handleRefresh);
+    return () => {
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("mynd:goals-refresh", handleRefresh);
+    };
   }, [spaces]);
 
   // Persist extra metadata to localStorage

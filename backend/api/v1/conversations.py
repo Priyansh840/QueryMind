@@ -358,11 +358,27 @@ async def send_message(
             action_keywords = ("make", "create", "add", "set", "save", "remember", "start", "build", "schedule")
             is_direct_command = (
                 any(user_content_clean.startswith(kw) for kw in action_keywords)
-                or any(f"{kw} a " in user_content_clean or f"{kw} new " in user_content_clean for kw in ("make", "create", "add"))
+                or any(f"{kw} a " in user_content_clean or f"{kw} new " in user_content_clean or f"{kw} goal" in user_content_clean for kw in ("make", "create", "add"))
+                or "create a goal" in user_content_clean
+                or "make a goal" in user_content_clean
+                or "add a goal" in user_content_clean
+                or "new goal" in user_content_clean
             )
 
             asst_msg_id = uuid.uuid4()
             persisted_proposals_data = []
+
+            # 1. Create and add Assistant Message first so foreign key constraints on action_proposals.message_id succeed
+            asst_msg = Message(
+                id=asst_msg_id,
+                conversation_id=conversation.id,
+                role="assistant",
+                content=final_text,
+                citations=citations,
+                metadata_json={},
+            )
+            db.add(asst_msg)
+            await db.flush()
 
             # Persist authoritative ActionProposal database rows & execute if direct command
             for p_dict in action_proposals_collected:
@@ -443,21 +459,12 @@ async def send_message(
                 p_dict["id"] = str(prop_row.id)
                 persisted_proposals_data.append(p_dict)
 
-            # Save Assistant Message with historical JSONB snapshot
-            metadata_dict = {
+            # Update Assistant Message metadata with historical JSONB snapshot
+            asst_msg.metadata_json = {
                 "objective_id": str(objective_id),
                 "action_proposals": persisted_proposals_data,
                 "workflow_steps": workflow_steps_collected,
             }
-            asst_msg = Message(
-                id=asst_msg_id,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=final_text,
-                citations=citations,
-                metadata_json=metadata_dict,
-            )
-            db.add(asst_msg)
 
             # Atomically commit Message + ActionProposal rows + Executed entities
             await db.commit()
