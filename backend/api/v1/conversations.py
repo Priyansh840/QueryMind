@@ -234,113 +234,145 @@ async def send_message(
             workflow_steps_collected = []
             tokens_streamed = 0
             
-            # Using stream_mode=["updates", "messages"]
-            async for event_type, event_data in graph.astream(inputs, config=config, stream_mode=["updates", "messages"]):
-                if event_type == "messages":
-                    chunk, metadata = event_data
-                    # Only stream tokens from the synthesizer node to avoid leaking intermediate agent JSON
-                    if metadata.get("langgraph_node") == "synthesizer" and chunk.content:
-                        if isinstance(chunk.content, str):
-                            token_text = chunk.content
-                        elif isinstance(chunk.content, list):
-                            token_text = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in chunk.content])
-                        else:
-                            token_text = str(chunk.content)
-                        tokens_streamed += len(token_text)
-                        yield f"data: {json.dumps({'event': 'token', 'data': {'text': token_text}})}\n\n"
-                        
-                elif event_type == "updates":
-                    for node_name, node_state in event_data.items():
-                        
-                        if node_name == "context_gatherer":
-                            summary = node_state.get("workspace_summary", {})
-                            workflow_steps_collected.append({"step": "context_gatherer", "status": "completed", "output": summary})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'context_gatherer', 'output': summary}})}\n\n"
-                            
-                            # Now start planner
-                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
-                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
+            # Using stream_mode=["updates", "messages"] with keep-alive heartbeat
+            event_queue = asyncio.Queue()
+            stream_finished = asyncio.Event()
 
-                        elif node_name == "planner":
-                            # Planner finished
-                            out = node_state.get("planner_output", {})
-                            workflow_steps_collected.append({"step": "planner", "status": "completed", "output": out})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'planner', 'output': out}})}\n\n"
-                            
-                            if out.get("needs_research", False):
-                                iter_num = node_state.get("workflow_iteration", 1)
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': iter_num, 'tasks': node_state.get('research_tasks', [])}})}\n\n"
+            async def consume_graph_stream():
+                try:
+                    async for item in graph.astream(inputs, config=config, stream_mode=["updates", "messages"]):
+                        await event_queue.put(("event", item))
+                except Exception as stream_err:
+                    logger.error(f"Error in graph.astream: {stream_err}")
+                    await event_queue.put(("error", stream_err))
+                finally:
+                    stream_finished.set()
+                    await event_queue.put(("done", None))
+
+            consumer_task = asyncio.create_task(consume_graph_stream())
+
+            try:
+                while True:
+                    try:
+                        item_type, item_data = await asyncio.wait_for(event_queue.get(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        # Emit keep-alive comment so proxy / browser connection never times out
+                        yield ": keepalive\n\n"
+                        continue
+
+                    if item_type == "error":
+                        raise item_data
+                    elif item_type == "done":
+                        break
+                    elif item_type == "event":
+                        event_type, event_data = item_data
+
+                        if event_type == "messages":
+                            chunk, metadata = event_data
+                            # Only stream tokens from the synthesizer node to avoid leaking intermediate agent JSON
+                            if metadata.get("langgraph_node") == "synthesizer" and chunk.content:
+                                if isinstance(chunk.content, str):
+                                    token_text = chunk.content
+                                elif isinstance(chunk.content, list):
+                                    token_text = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in chunk.content])
+                                else:
+                                    token_text = str(chunk.content)
+                                tokens_streamed += len(token_text)
+                                yield f"data: {json.dumps({'event': 'token', 'data': {'text': token_text}})}\n\n"
                                 
-                                task_count = len(node_state.get("research_tasks", []))
-                                status_msg = f"Executing {task_count} research tasks..."
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': status_msg}})}\n\n"
-                            else:
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing context...'}})}\n\n"
+                        elif event_type == "updates":
+                            for node_name, node_state in event_data.items():
                                 
-                        elif node_name == "researcher":
-                            iter_num = node_state.get("workflow_iteration", 1)
-                            res = [r for r in node_state.get("research_results", []) if r.get("iteration") == iter_num]
-                            workflow_steps_collected.append({"step": "researcher", "status": "completed", "iteration": iter_num, "results": res})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'researcher', 'iteration': iter_num, 'results': res}})}\n\n"
-                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'critic', 'iteration': iter_num}})}\n\n"
-                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'critic', 'status': 'Evaluating evidence...'}})}\n\n"
-                            
-                        elif node_name == "critic":
-                            iter_num = node_state.get("workflow_iteration", 1)
-                            c_out = node_state.get("critic_output", {})
-                            workflow_steps_collected.append({"step": "critic", "status": "completed", "iteration": iter_num, "output": c_out})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'critic', 'iteration': iter_num, 'output': c_out}})}\n\n"
-                            
-                            if c_out.get("decision") == "research_more" and node_state.get("workflow_status") != "terminated_budget":
-                                next_iter = node_state.get("workflow_iteration", 1) # Note: graph router increments it, but updates has current state? The router executes AFTER. Wait, router doesn't mutate state, it just returns next node. Oh, router does state["workflow_iteration"] = iter_count + 1! It mutated the reference!
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': next_iter}})}\n\n"
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': 'Retrieving additional evidence...'}})}\n\n"
-                            else:
-                                yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
-                                yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing evidence...'}})}\n\n"
-                                
-                        elif node_name == "decision_analyzer":
-                            d_out = node_state.get("decision_output", {})
-                            
-                            # Safely validate and sanitize the output for the frontend
-                            try:
-                                sanitized_da = DecisionAnalysis.model_validate(d_out)
-                                # Explicitly dump to get only the defined fields, dropping extra data
-                                sanitized_payload = sanitized_da.model_dump()
-                            except Exception as e:
-                                logger.error(f"Failed to sanitize decision output for SSE: {e}")
-                                sanitized_payload = {
-                                    "blockers": [],
-                                    "recommendations": [],
-                                    "uncertainties": ["Decision analysis result was malformed and safely dropped."]
-                                }
-                            workflow_steps_collected.append({"step": "decision_analyzer", "status": "completed", "output": sanitized_payload})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'decision_analyzer', 'output': sanitized_payload}})}\n\n"
-                            
-                        elif node_name == "action_proposer":
-                            raw_proposals = node_state.get("action_proposals", [])
-                            # Safely ensure all proposals match ActionProposal schema
-                            safe_proposals = []
-                            for p in raw_proposals:
-                                try:
-                                    validated_p = ActionProposal.model_validate(p)
-                                    safe_proposals.append(validated_p.model_dump())
-                                except Exception as p_err:
-                                    logger.warning(f"Discarding invalid proposal for SSE/persistence: {p_err}")
-                            action_proposals_collected = safe_proposals
-                            workflow_steps_collected.append({"step": "action_proposer", "status": "completed", "output": {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'action_proposer', 'output': {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}}})}\n\n"
-                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
-                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing final response...'}})}\n\n"
-                                
-                        elif node_name == "synthesizer":
-                            final_text = node_state.get("final_synthesis", "")
-                            citations = node_state.get("citations", [])
-                            if final_text and tokens_streamed == 0:
-                                yield f"data: {json.dumps({'event': 'token', 'data': {'text': final_text}})}\n\n"
-                            workflow_steps_collected.append({"step": "synthesizer", "status": "completed"})
-                            yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'synthesizer'}})}\n\n"
+                                if node_name == "context_gatherer":
+                                    summary = node_state.get("workspace_summary", {})
+                                    workflow_steps_collected.append({"step": "context_gatherer", "status": "completed", "output": summary})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'context_gatherer', 'output': summary}})}\n\n"
+                                    
+                                    # Now start planner
+                                    yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
+                                    yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
+
+                                elif node_name == "planner":
+                                    # Planner finished
+                                    out = node_state.get("planner_output", {})
+                                    workflow_steps_collected.append({"step": "planner", "status": "completed", "output": out})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'planner', 'output': out}})}\n\n"
+                                    
+                                    if out.get("needs_research", False):
+                                        iter_num = node_state.get("workflow_iteration", 1)
+                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': iter_num, 'tasks': node_state.get('research_tasks', [])}})}\n\n"
+                                        
+                                        task_count = len(node_state.get("research_tasks", []))
+                                        status_msg = f"Executing {task_count} research tasks..."
+                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': status_msg}})}\n\n"
+                                    else:
+                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing context...'}})}\n\n"
+                                        
+                                elif node_name == "researcher":
+                                    iter_num = node_state.get("workflow_iteration", 1)
+                                    res = [r for r in node_state.get("research_results", []) if r.get("iteration") == iter_num]
+                                    workflow_steps_collected.append({"step": "researcher", "status": "completed", "iteration": iter_num, "results": res})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'researcher', 'iteration': iter_num, 'results': res}})}\n\n"
+                                    yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'critic', 'iteration': iter_num}})}\n\n"
+                                    yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'critic', 'status': 'Evaluating evidence...'}})}\n\n"
+                                    
+                                elif node_name == "critic":
+                                    iter_num = node_state.get("workflow_iteration", 1)
+                                    c_out = node_state.get("critic_output", {})
+                                    workflow_steps_collected.append({"step": "critic", "status": "completed", "iteration": iter_num, "output": c_out})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'critic', 'iteration': iter_num, 'output': c_out}})}\n\n"
+                                    
+                                    if c_out.get("decision") == "research_more" and node_state.get("workflow_status") != "terminated_budget":
+                                        next_iter = node_state.get("workflow_iteration", 1)
+                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': next_iter}})}\n\n"
+                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': 'Retrieving additional evidence...'}})}\n\n"
+                                    else:
+                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing evidence...'}})}\n\n"
+                                        
+                                elif node_name == "decision_analyzer":
+                                    d_out = node_state.get("decision_output", {})
+                                    
+                                    # Safely validate and sanitize the output for the frontend
+                                    try:
+                                        sanitized_da = DecisionAnalysis.model_validate(d_out)
+                                        sanitized_payload = sanitized_da.model_dump()
+                                    except Exception as e:
+                                        logger.error(f"Failed to sanitize decision output for SSE: {e}")
+                                        sanitized_payload = {
+                                            "blockers": [],
+                                            "recommendations": [],
+                                            "uncertainties": ["Decision analysis result was malformed and safely dropped."]
+                                        }
+                                    workflow_steps_collected.append({"step": "decision_analyzer", "status": "completed", "output": sanitized_payload})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'decision_analyzer', 'output': sanitized_payload}})}\n\n"
+                                    
+                                elif node_name == "action_proposer":
+                                    raw_proposals = node_state.get("action_proposals", [])
+                                    safe_proposals = []
+                                    for p in raw_proposals:
+                                        try:
+                                            validated_p = ActionProposal.model_validate(p)
+                                            safe_proposals.append(validated_p.model_dump())
+                                        except Exception as p_err:
+                                            logger.warning(f"Discarding invalid proposal for SSE/persistence: {p_err}")
+                                    action_proposals_collected = safe_proposals
+                                    workflow_steps_collected.append({"step": "action_proposer", "status": "completed", "output": {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'action_proposer', 'output': {'proposals_count': len(safe_proposals), 'action_types': [p['action_type'] for p in safe_proposals]}}})}\n\n"
+                                    yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
+                                    yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Thinking...'}})}\n\n"
+                                        
+                                elif node_name == "synthesizer":
+                                    final_text = node_state.get("final_synthesis", "")
+                                    citations = node_state.get("citations", [])
+                                    if final_text and tokens_streamed == 0:
+                                        yield f"data: {json.dumps({'event': 'token', 'data': {'text': final_text}})}\n\n"
+                                    workflow_steps_collected.append({"step": "synthesizer", "status": "completed"})
+                                    yield f"data: {json.dumps({'event': 'workflow.step.completed', 'data': {'step': 'synthesizer'}})}\n\n"
+            finally:
+                if not consumer_task.done():
+                    consumer_task.cancel()
                             
             # Yield unique citations at the end
             yielded_citations = set()

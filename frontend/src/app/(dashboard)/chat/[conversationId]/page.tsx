@@ -1258,12 +1258,12 @@ export default function ConversationPage() {
                     >
                       {msg.content ? (
                         <MarkdownRenderer content={msg.content} />
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "13.5px" }}>
-                          <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
-                          <span>{agentStatus || "Synthesizing response..."}</span>
+                      ) : !(((msg.workflowSteps && msg.workflowSteps.length > 0) || (workflowSteps.length > 0 && isOrchestrating && msg.id === messages[messages.length - 1]?.id))) ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-tertiary)", fontSize: "13px", padding: "2px 0" }}>
+                          <Sparkles style={{ width: "13px", height: "13px", color: "var(--text-secondary)", animation: "spin 3s linear infinite" }} />
+                          <span>Thinking...</span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Grounded Citations */}

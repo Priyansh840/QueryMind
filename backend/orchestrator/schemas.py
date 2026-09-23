@@ -1,5 +1,5 @@
 from typing import List, Literal, Optional, Dict, Any
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 class TaskDefinition(BaseModel):
     id: str = Field(description="Unique task ID, typically task_<number>")
@@ -39,22 +39,11 @@ class DecisionAnalysis(BaseModel):
 # ==============================================================================
 
 class CreateGoalParams(BaseModel):
-    description: Optional[str] = Field(None, min_length=1, description="Description of the goal to create")
-    title: Optional[str] = Field(None, min_length=1, description="Title of the goal to create")
+    description: str = Field(..., min_length=1, description="Description of the goal to create")
     space_id: Optional[str] = Field(None, description="Optional target space UUID")
     project_id: Optional[str] = Field(None, description="Optional UUID of the project this goal belongs to")
     target_date: Optional[str] = Field(None, description="Optional target completion date or deadline")
     priority: Optional[str] = Field("medium", description="Priority rating: high, medium, low")
-
-    @model_validator(mode="before")
-    @classmethod
-    def resolve_goal_title(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            desc = data.get("description") or data.get("title")
-            if not desc:
-                raise ValueError("Goal must have either a description or title.")
-            data["description"] = desc
-        return data
 
 
 class UpdateGoalStatusParams(BaseModel):

@@ -1,22 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  CheckCircle2,
-  RefreshCw,
-  Clock,
   ChevronDown,
   ChevronUp,
-  Zap,
+  Sparkles,
   Search,
   Compass,
   Lightbulb,
-  Sparkles,
   ShieldCheck,
   Layers,
   Workflow,
-  ArrowRight,
-  FileText,
+  Check,
 } from "lucide-react";
 
 export interface WorkflowStepData {
@@ -35,56 +30,48 @@ interface AgentWorkflowStepperProps {
   isStreaming?: boolean;
 }
 
-const AGENT_CONFIG: Record<
+const HUMAN_STEP_CONFIG: Record<
   string,
   {
-    name: string;
+    label: string;
+    detail: string;
     icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-    shortDesc: string;
-    accentColor: string;
   }
 > = {
   context_gatherer: {
-    name: "Context Gatherer",
+    label: "Gathered workspace context",
+    detail: "Reviewed space settings, profile, and recent goals",
     icon: Layers,
-    shortDesc: "Scanning workspace knowledge, memory & documents",
-    accentColor: "#3B82F6", // blue
   },
   planner: {
-    name: "Planner",
+    label: "Formulated response plan",
+    detail: "Determined query strategy and objectives",
     icon: Compass,
-    shortDesc: "Formulating inquiry plan & execution strategy",
-    accentColor: "#8B5CF6", // purple
   },
   researcher: {
-    name: "Researcher",
+    label: "Searched documents & notes",
+    detail: "Queried uploaded files and knowledge vault",
     icon: Search,
-    shortDesc: "Retrieving semantic evidence & document chunks",
-    accentColor: "#06B6D4", // cyan
   },
   critic: {
-    name: "Evidence Critic",
+    label: "Evaluated findings",
+    detail: "Verified source evidence and factual grounding",
     icon: ShieldCheck,
-    shortDesc: "Verifying relevance, accuracy & grounding",
-    accentColor: "#F59E0B", // amber
   },
   decision_analyzer: {
-    name: "Decision Analyzer",
+    label: "Analyzed insights & trade-offs",
+    detail: "Assessed recommendations and constraints",
     icon: Lightbulb,
-    shortDesc: "Synthesizing trade-offs, recommendations & blockers",
-    accentColor: "#EC4899", // pink
   },
   action_proposer: {
-    name: "Action Proposer",
+    label: "Constructed actions",
+    detail: "Prepared workspace execution proposals",
     icon: Workflow,
-    shortDesc: "Constructing executable action proposals",
-    accentColor: "#10B981", // emerald
   },
   synthesizer: {
-    name: "Synthesizer",
+    label: "Formulated response",
+    detail: "Composed grounded response with citations",
     icon: Sparkles,
-    shortDesc: "Generating grounded response with citations",
-    accentColor: "#A855F7", // violet
   },
 };
 
@@ -93,8 +80,21 @@ export default function AgentWorkflowStepper({
   agentStatus,
   isStreaming = false,
 }: AgentWorkflowStepperProps) {
-  // If streaming, default open; if finished, default collapsed
-  const [isExpanded, setIsExpanded] = useState(isStreaming);
+  // Always default to collapsed like ChatGPT — users can click to inspect thoughts
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(() =>
+    Math.max(1, Math.min(steps?.length || 1, 5))
+  );
+
+  // Live timer while streaming
+  useEffect(() => {
+    if (!isStreaming) return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.max(1, Math.round((Date.now() - start) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isStreaming]);
 
   if (!steps || steps.length === 0) {
     if (!isStreaming) return null;
@@ -104,279 +104,243 @@ export default function AgentWorkflowStepper({
           display: "inline-flex",
           alignItems: "center",
           gap: "8px",
-          padding: "6px 12px",
-          borderRadius: "16px",
-          background: "var(--surface-subtle)",
+          padding: "5px 12px",
+          borderRadius: "18px",
+          background: "rgba(255, 255, 255, 0.04)",
           border: "1px solid var(--border)",
-          fontSize: "12px",
+          fontSize: "12.5px",
           color: "var(--text-secondary)",
-          marginBottom: "10px",
+          marginBottom: "8px",
         }}
       >
-        <RefreshCw className="animate-spin" style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
-        <span>Initializing multi-agent orchestrator...</span>
+        <Sparkles
+          style={{
+            width: "13px",
+            height: "13px",
+            color: "var(--text-secondary)",
+            animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+          }}
+        />
+        <span>Thinking...</span>
       </div>
     );
   }
 
-  const completedCount = steps.filter((s) => s.status === "completed").length;
-  const activeStep = steps.find((s) => s.status === "running");
+  // Determine friendly display label
+  const cleanStatus = (agentStatus || "").toLowerCase();
+  let liveLabel = "Thinking...";
+  if (cleanStatus.includes("search") || cleanStatus.includes("retriev") || cleanStatus.includes("research")) {
+    liveLabel = "Searching workspace documents...";
+  } else if (cleanStatus.includes("context") || cleanStatus.includes("gather")) {
+    liveLabel = "Reviewing workspace context...";
+  } else if (cleanStatus.includes("plan")) {
+    liveLabel = "Formulating plan...";
+  } else if (cleanStatus.includes("analyz") || cleanStatus.includes("evaluat")) {
+    liveLabel = "Analyzing insights...";
+  } else if (cleanStatus.includes("synthesiz") || cleanStatus.includes("final") || cleanStatus.includes("think")) {
+    liveLabel = "Thinking...";
+  } else if (agentStatus) {
+    liveLabel = agentStatus;
+  }
+
+  const finishedLabel =
+    elapsedSeconds > 1
+      ? `Thought for ${elapsedSeconds} seconds`
+      : "Thought for a moment";
 
   return (
     <div
       style={{
-        marginBottom: "12px",
-        borderRadius: "14px",
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        overflow: "hidden",
-        boxShadow: "var(--shadow-xs)",
-        transition: "all 0.2s ease",
+        marginBottom: "6px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
       }}
     >
-      {/* ── Header / Collapsible Trigger ── */}
+      {/* ─── Sleek ChatGPT-style Thinking Pill / Header ─── */}
       <button
         type="button"
         onClick={() => setIsExpanded((prev) => !prev)}
         style={{
-          width: "100%",
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 14px",
-          background: isStreaming ? "rgba(255, 255, 255, 0.02)" : "transparent",
-          border: "none",
+          gap: "7px",
+          padding: isStreaming ? "5px 12px" : "4px 8px",
+          borderRadius: isStreaming ? "18px" : "8px",
+          background: isStreaming
+            ? "rgba(255, 255, 255, 0.04)"
+            : isExpanded
+              ? "rgba(255, 255, 255, 0.03)"
+              : "transparent",
+          border: isStreaming ? "1px solid var(--border)" : "1px solid transparent",
+          fontSize: "12.5px",
+          fontWeight: 500,
+          color: isStreaming ? "var(--text-secondary)" : "var(--text-tertiary)",
           cursor: "pointer",
-          textAlign: "left",
-          gap: "10px",
+          transition: "all 150ms ease",
+          userSelect: "none",
+        }}
+        onMouseEnter={(e) => {
+          if (!isStreaming) {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isStreaming) {
+            e.currentTarget.style.color = "var(--text-tertiary)";
+            e.currentTarget.style.background = isExpanded ? "rgba(255, 255, 255, 0.03)" : "transparent";
+          }
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-          {isStreaming ? (
-            <span
+        {isStreaming ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "14px",
+              height: "14px",
+            }}
+          >
+            <Sparkles
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                background: "rgba(16, 185, 129, 0.15)",
-                border: "1px solid #10B981",
-                position: "relative",
-              }}
-            >
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: "#10B981",
-                }}
-              />
-            </span>
-          ) : (
-            <Zap style={{ width: "14px", height: "14px", color: "#10B981" }} />
-          )}
-
-          <div style={{ display: "flex", alignItems: "baseline", gap: "6px", overflow: "hidden" }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-              {isStreaming ? "Multi-Agent Reasoning" : "Reasoning Process"}
-            </span>
-            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-              • {completedCount}/{steps.length} steps {isStreaming ? "in progress" : "completed"}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-          {isStreaming && agentStatus && (
-            <span
-              style={{
-                fontSize: "11px",
+                width: "13px",
+                height: "13px",
                 color: "var(--text-secondary)",
-                maxWidth: "240px",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                animation: "spin 3s linear infinite",
               }}
-            >
-              {agentStatus}
-            </span>
-          )}
-          {isExpanded ? (
-            <ChevronUp style={{ width: "14px", height: "14px", color: "var(--text-tertiary)" }} />
-          ) : (
-            <ChevronDown style={{ width: "14px", height: "14px", color: "var(--text-tertiary)" }} />
-          )}
-        </div>
+            />
+          </span>
+        ) : (
+          <Sparkles style={{ width: "12px", height: "12px", opacity: 0.7 }} />
+        )}
+
+        <span>{isStreaming ? `${liveLabel} (${elapsedSeconds}s)` : finishedLabel}</span>
+
+        {isExpanded ? (
+          <ChevronUp style={{ width: "13px", height: "13px", opacity: 0.6 }} />
+        ) : (
+          <ChevronDown style={{ width: "13px", height: "13px", opacity: 0.6 }} />
+        )}
       </button>
 
-      {/* ── Expanded Stepper Details ── */}
+      {/* ─── Expandable Thought Process Drawer ─── */}
       {isExpanded && (
         <div
           style={{
-            padding: "10px 14px 14px",
-            borderTop: "1px solid var(--border-subtle, var(--border))",
+            marginTop: "6px",
+            marginLeft: "6px",
+            paddingLeft: "14px",
+            borderLeft: "2px solid var(--border)",
             display: "flex",
             flexDirection: "column",
             gap: "10px",
-            background: "var(--surface-subtle)",
+            paddingTop: "4px",
+            paddingBottom: "8px",
+            maxWidth: "680px",
+            animation: "fadeIn 150ms ease",
           }}
         >
-          {/* Horizontal Mini Pipeline Badges */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              flexWrap: "wrap",
-              paddingBottom: "8px",
-              borderBottom: "1px solid var(--border)",
-            }}
-          >
-            {steps.map((step, idx) => {
-              const conf = AGENT_CONFIG[step.step] || {
-                name: step.step,
-                icon: Workflow,
-                accentColor: "var(--accent)",
-              };
-              const Icon = conf.icon;
-              const isDone = step.status === "completed";
-              const isRunning = step.status === "running";
+          {steps.map((step, idx) => {
+            const conf = HUMAN_STEP_CONFIG[step.step] || {
+              label: step.step.replace(/_/g, " "),
+              detail: "Processed step",
+              icon: Sparkles,
+            };
+            const Icon = conf.icon;
+            const isDone = step.status === "completed";
+            const isRunning = step.status === "running";
 
-              return (
-                <React.Fragment key={idx}>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "5px",
-                      padding: "3px 8px",
-                      borderRadius: "12px",
-                      fontSize: "10.5px",
-                      fontWeight: isRunning ? 600 : 500,
-                      background: isRunning
-                        ? "rgba(255, 255, 255, 0.08)"
-                        : isDone
-                          ? "rgba(16, 185, 129, 0.1)"
-                          : "rgba(255, 255, 255, 0.02)",
-                      border: isRunning
-                        ? `1px solid ${conf.accentColor}`
-                        : isDone
-                          ? "1px solid rgba(16, 185, 129, 0.3)"
-                          : "1px solid var(--border)",
-                      color: isRunning
-                        ? conf.accentColor
-                        : isDone
-                          ? "#10B981"
-                          : "var(--text-tertiary)",
-                    }}
-                  >
-                    <Icon style={{ width: "11px", height: "11px" }} />
-                    <span>{conf.name}</span>
-                    {isDone && <CheckCircle2 style={{ width: "10px", height: "10px", color: "#10B981" }} />}
-                    {isRunning && (
-                      <RefreshCw
-                        className="animate-spin"
-                        style={{ width: "10px", height: "10px", color: conf.accentColor }}
-                      />
-                    )}
-                  </div>
-                  {idx < steps.length - 1 && (
-                    <ArrowRight style={{ width: "10px", height: "10px", color: "var(--text-ghost, #555)" }} />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-
-          {/* Detailed Step Breakdown */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {steps.map((step, idx) => {
-              const conf = AGENT_CONFIG[step.step] || {
-                name: step.step,
-                icon: Workflow,
-                shortDesc: "Processing step",
-                accentColor: "var(--accent)",
-              };
-              const Icon = conf.icon;
-              const isDone = step.status === "completed";
-              const isRunning = step.status === "running";
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    padding: "6px 8px",
-                    borderRadius: "8px",
-                    background: isRunning ? "rgba(255, 255, 255, 0.03)" : "transparent",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
-                    {isDone ? (
-                      <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981", flexShrink: 0 }} />
-                    ) : isRunning ? (
-                      <RefreshCw
-                        className="animate-spin"
-                        style={{ width: "13px", height: "13px", color: conf.accentColor, flexShrink: 0 }}
-                      />
-                    ) : (
-                      <Clock style={{ width: "13px", height: "13px", color: "var(--text-ghost)", flexShrink: 0 }} />
-                    )}
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "2px",
+                  fontSize: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                  {isDone ? (
                     <span
                       style={{
-                        fontWeight: isRunning ? 600 : 500,
-                        color: isRunning ? conf.accentColor : isDone ? "var(--text-primary)" : "var(--text-secondary)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "14px",
+                        height: "14px",
+                        borderRadius: "50%",
+                        background: "rgba(16, 185, 129, 0.15)",
+                        color: "#10B981",
+                        fontSize: "9px",
                       }}
                     >
-                      {conf.name}
+                      <Check style={{ width: "9px", height: "9px" }} />
                     </span>
-                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                      — {conf.shortDesc}
-                    </span>
-                  </div>
-
-                  {/* Researcher tasks details */}
-                  {step.step === "researcher" && step.tasks && step.tasks.length > 0 && (
-                    <div
+                  ) : isRunning ? (
+                    <span
                       style={{
-                        marginLeft: "21px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "2px",
-                        fontSize: "11px",
-                        color: "var(--text-tertiary)",
+                        width: "7px",
+                        height: "7px",
+                        borderRadius: "50%",
+                        background: "#3B82F6",
+                        boxShadow: "0 0 6px #3B82F6",
                       }}
-                    >
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        width: "5px",
+                        height: "5px",
+                        borderRadius: "50%",
+                        background: "var(--text-ghost)",
+                      }}
+                    />
+                  )}
+
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      color: isRunning ? "var(--text-primary)" : "var(--text-secondary)",
+                    }}
+                  >
+                    {conf.label}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    paddingLeft: "21px",
+                    color: "var(--text-tertiary)",
+                    fontSize: "11.5px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {conf.detail}
+
+                  {/* Show search task queries if researcher ran */}
+                  {step.step === "researcher" && step.tasks && step.tasks.length > 0 && (
+                    <div style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
                       {step.tasks.map((t, tIdx) => (
-                        <div key={t.id || tIdx} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span>↳</span>
-                          <span style={{ fontStyle: "italic" }}>&ldquo;{t.query}&rdquo;</span>
+                        <div key={t.id || tIdx} style={{ fontStyle: "italic", opacity: 0.85 }}>
+                          &ldquo;{t.query}&rdquo;
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Decision Analyzer / Action Proposer results */}
-                  {step.step === "action_proposer" && step.output && (
-                    <div
-                      style={{
-                        marginLeft: "21px",
-                        fontSize: "11px",
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      ↳ Formulated {step.output.proposals_count || 0} actionable proposal(s)
+                  {/* Show action proposal count if action proposer ran */}
+                  {step.step === "action_proposer" && step.output?.proposals_count > 0 && (
+                    <div style={{ marginTop: "3px", color: "#10B981", fontWeight: 500 }}>
+                      ✓ Generated {step.output.proposals_count} workspace action proposal
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
