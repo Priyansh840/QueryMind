@@ -12,6 +12,8 @@ export default function WorkspaceHeader() {
   const openSettings = useMyndStore((state) => state.openSettings);
   const isFocusMode = useMyndStore((state) => state.isFocusMode);
   const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
+  const isContextPanelCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
+  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
   const userProfile = useMyndStore((state) => state.userProfile);
 
   return (
@@ -92,6 +94,26 @@ export default function WorkspaceHeader() {
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
         </button>
+
+        {/* Toggle Right Sidebar Button */}
+        {!isChat && (
+          <button
+            className="workspace-notification-btn"
+            title={isContextPanelCollapsed ? "Open Right Sidebar (Copilot / Essentials)" : "Collapse Right Sidebar"}
+            onClick={toggleContextPanel}
+            style={{
+              background: !isContextPanelCollapsed ? "var(--surface)" : undefined,
+              borderColor: !isContextPanelCollapsed ? "var(--border-strong)" : undefined,
+              color: !isContextPanelCollapsed ? "var(--text-primary)" : "var(--text-secondary)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M15 3v18" />
+              <path d="m10 9-3 3 3 3" />
+            </svg>
+          </button>
+        )}
 
         <div
           className="text-avatar"

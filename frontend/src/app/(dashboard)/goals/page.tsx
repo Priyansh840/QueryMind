@@ -21,6 +21,11 @@ import {
   X,
   Edit3,
   Check,
+  MessageSquare,
+  Send,
+  Bot,
+  FileText,
+  FolderKanban,
 } from "lucide-react";
 import { queryMindApi, GoalData } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -41,26 +46,78 @@ interface EnrichedGoal extends GoalData {
   // Backwards compatibility for previously saved records
   milestones?: GoalTask[];
   space_name?: string;
+  space_ids?: string[];
 }
 
+// Normalize task title to identify identical/similar tasks across different goals
+export const normalizeTaskTitle = (title: string): string => {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ");
+};
+
 // Priority weight calculation:
-// High = 3 points, Medium = 2 points, Low = 1 point
+// Base: High = 3 points, Medium = 2 points, Low = 1 point
 export const TASK_WEIGHTS: Record<"high" | "medium" | "low", number> = {
   high: 3,
   medium: 2,
   low: 1,
 };
 
-export const computeGoalProgress = (tasks: GoalTask[] = []): number => {
+// Calculate effective task priority based on base priority + shared cross-goal synergy:
+// If a task appears across multiple active goals (count >= 2), its priority escalates:
+// - Low -> Medium (or High if count >= 3)
+// - Medium -> High (or Critical/High if count >= 3)
+// - High -> High (Max multiplier)
+export const getEffectiveTaskPriority = (
+  basePriority: "high" | "medium" | "low" = "medium",
+  sharedGoalCount: number = 1
+): { effectivePriority: "high" | "medium" | "low"; isBoosted: boolean; weightMultiplier: number } => {
+  if (sharedGoalCount <= 1) {
+    return {
+      effectivePriority: basePriority,
+      isBoosted: false,
+      weightMultiplier: TASK_WEIGHTS[basePriority] || 2,
+    };
+  }
+
+  // Escalation rule when shared across 2 or more goals
+  let effectivePriority: "high" | "medium" | "low" = "high";
+  if (sharedGoalCount === 2 && basePriority === "low") {
+    effectivePriority = "medium";
+  } else {
+    effectivePriority = "high";
+  }
+
+  // Boost weight: bonus +1 or +2 weight points for strategic cross-goal leverage
+  const baseWeight = TASK_WEIGHTS[basePriority] || 2;
+  const boostedWeight = Math.min(baseWeight + (sharedGoalCount - 1), 5);
+
+  return {
+    effectivePriority,
+    isBoosted: true,
+    weightMultiplier: boostedWeight,
+  };
+};
+
+export const computeGoalProgress = (
+  tasks: GoalTask[] = [],
+  frequencyMap?: Map<string, { count: number }>
+): number => {
   if (!tasks || tasks.length === 0) return 0;
   let totalWeight = 0;
   let earnedWeight = 0;
 
   for (const t of tasks) {
-    const w = TASK_WEIGHTS[t.priority || "medium"] || 2;
-    totalWeight += w;
+    const norm = normalizeTaskTitle(t.title);
+    const sharedCount = frequencyMap?.get(norm)?.count || 1;
+    const { weightMultiplier } = getEffectiveTaskPriority(t.priority || "medium", sharedCount);
+
+    totalWeight += weightMultiplier;
     if (t.completed) {
-      earnedWeight += w;
+      earnedWeight += weightMultiplier;
     }
   }
 
@@ -89,6 +146,7 @@ export default function GoalsPage() {
   const [targetDate, setTargetDate] = useState("");
   const [priority, setPriority] = useState<"high" | "medium" | "low">("high");
   const [selectedSpaceId, setSelectedSpaceId] = useState("");
+  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([]);
   const [taskInput, setTaskInput] = useState("");
   const [taskPriorityInput, setTaskPriorityInput] = useState<"high" | "medium" | "low">("medium");
   const [stagedTasks, setStagedTasks] = useState<Array<{ title: string; priority: "high" | "medium" | "low"; reasoning?: string }>>([]);
@@ -103,15 +161,43 @@ export default function GoalsPage() {
   const [modalTaskPriority, setModalTaskPriority] = useState<"high" | "medium" | "low">("medium");
   const [isModalAiRecommending, setIsModalAiRecommending] = useState(false);
 
+  // Modal Tab & Goal Chat State
+  const [activeModalTab, setActiveModalTab] = useState<"tasks" | "chat">("tasks");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string; citations?: Array<{ document_title?: string; page_number?: number; snippet: string; score?: number }>; timestamp?: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [chatSpacesSearched, setChatSpacesSearched] = useState<string[]>([]);
+
   const spaces = useMyndStore((state) => state.spaces);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+  const setActiveGoal = useMyndStore((state) => state.setActiveGoal);
+
+  // Sync selectedGoal with activeGoal in store
+  const handleSelectGoal = (goal: EnrichedGoal | null) => {
+    setSelectedGoal(goal);
+    setActiveGoal(goal);
+  };
+
+  // Keep activeGoal in store synced whenever selectedGoal changes
+  useEffect(() => {
+    setActiveGoal(selectedGoal);
+  }, [selectedGoal, setActiveGoal]);
+
+  // Clear activeGoal when unmounting
+  useEffect(() => {
+    return () => {
+      setActiveGoal(null);
+    };
+  }, [setActiveGoal]);
 
   // Set default space
   useEffect(() => {
     if (activeSpaceId) {
       setSelectedSpaceId(activeSpaceId);
+      setSelectedSpaceIds((prev) => (prev.length === 0 ? [activeSpaceId] : prev));
     } else if (spaces.length > 0) {
       setSelectedSpaceId(spaces[0].id);
+      setSelectedSpaceIds((prev) => (prev.length === 0 ? [spaces[0].id] : prev));
     }
   }, [activeSpaceId, spaces]);
 
@@ -126,6 +212,7 @@ export default function GoalsPage() {
 
         const enriched: EnrichedGoal[] = data.map((g) => {
           const meta = storedMeta[g.id] || {};
+          const goalSpaceIds: string[] = meta.space_ids || (g.project_id ? [g.project_id] : []);
           const space = spaces.find((s) => s.id === (g.project_id || meta.space_name));
           // Migrate old milestones to tasks if needed
           const tasks: GoalTask[] = (meta.tasks || meta.milestones || []).map((t) => ({
@@ -145,6 +232,7 @@ export default function GoalsPage() {
             tasks,
             milestones: tasks,
             space_name: space?.name || meta.space_name || "General Workspace",
+            space_ids: goalSpaceIds,
           };
         });
         setGoals(enriched);
@@ -172,6 +260,7 @@ export default function GoalsPage() {
         tasks: g.tasks || g.milestones,
         milestones: g.tasks || g.milestones,
         space_name: g.space_name,
+        space_ids: g.space_ids,
       };
     });
     if (typeof window !== "undefined") {
@@ -201,6 +290,7 @@ export default function GoalsPage() {
       const res = await queryMindApi.recommendGoalTasks({
         goal_description: goalDescription.trim(),
         space_id: selectedSpaceId || undefined,
+        space_ids: selectedSpaceIds.length > 0 ? selectedSpaceIds : (selectedSpaceId ? [selectedSpaceId] : undefined),
         category,
       });
 
@@ -226,6 +316,7 @@ export default function GoalsPage() {
       const res = await queryMindApi.recommendGoalTasks({
         goal_description: goal.description,
         space_id: goal.project_id || undefined,
+        space_ids: goal.space_ids && goal.space_ids.length > 0 ? goal.space_ids : (goal.project_id ? [goal.project_id] : undefined),
         category: goal.category,
       });
 
@@ -304,6 +395,7 @@ export default function GoalsPage() {
         project_id: selectedSpaceId || undefined,
       });
 
+      const effectiveSpaceIds = selectedSpaceIds.length > 0 ? selectedSpaceIds : (selectedSpaceId ? [selectedSpaceId] : []);
       const newEnriched: EnrichedGoal = {
         ...created,
         category,
@@ -313,6 +405,7 @@ export default function GoalsPage() {
         tasks: initialTasks,
         milestones: initialTasks,
         space_name: assignedSpace?.name || "General Workspace",
+        space_ids: effectiveSpaceIds,
       };
 
       const nextGoals = [newEnriched, ...goals];
@@ -326,6 +419,7 @@ export default function GoalsPage() {
       setIsFormOpen(false);
     } catch {
       // Local fallback
+      const effectiveSpaceIds = selectedSpaceIds.length > 0 ? selectedSpaceIds : (selectedSpaceId ? [selectedSpaceId] : []);
       const localGoal: EnrichedGoal = {
         id: `goal-${Date.now()}`,
         user_id: "local",
@@ -339,6 +433,7 @@ export default function GoalsPage() {
         tasks: initialTasks,
         milestones: initialTasks,
         space_name: assignedSpace?.name || "General Workspace",
+        space_ids: effectiveSpaceIds,
       };
 
       const nextGoals = [localGoal, ...goals];
@@ -479,6 +574,89 @@ export default function GoalsPage() {
     }
   };
 
+  const handleToggleGoalSpace = (goalId: string, spaceId: string) => {
+    const nextGoals = goals.map((g) => {
+      if (g.id === goalId) {
+        const current = g.space_ids || (g.project_id ? [g.project_id] : []);
+        const exists = current.includes(spaceId);
+        const updated = exists ? current.filter((id) => id !== spaceId) : [...current, spaceId];
+        return {
+          ...g,
+          space_ids: updated,
+        };
+      }
+      return g;
+    });
+    setGoals(nextGoals);
+    saveGoalsMeta(nextGoals);
+    if (selectedGoal?.id === goalId) {
+      setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
+    }
+  };
+
+  const handleSendGoalChat = async (goal: EnrichedGoal) => {
+    if (!chatInput.trim() || isSendingChat) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setIsSendingChat(true);
+
+    const newMsgItem = {
+      role: "user" as const,
+      content: userMsg,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setChatMessages((prev) => [...prev, newMsgItem]);
+
+    try {
+      const historyPayload = chatMessages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const effectiveSpaceIds = goal.space_ids && goal.space_ids.length > 0 
+        ? goal.space_ids 
+        : (goal.project_id ? [goal.project_id] : []);
+
+      const res = await queryMindApi.sendGoalChatMessage(goal.id, {
+        message: userMsg,
+        history: historyPayload,
+        goal_description: goal.description,
+        progress: goal.progress || 0,
+        tasks: goal.tasks || goal.milestones || [],
+        target_date: goal.target_date,
+        space_ids: effectiveSpaceIds,
+      });
+
+      if (res && res.response) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.response,
+            citations: res.citations || [],
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+        if (res.spaces_searched) {
+          setChatSpacesSearched(res.spaces_searched);
+        }
+      }
+    } catch (err: any) {
+      console.error("Goal chat error:", err);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I ran into a temporary error reaching the intelligence service. Please check your model or try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
   // Stats calculation
   const totalGoals = goals.length;
   const completedGoals = goals.filter((g) => g.status === "completed").length;
@@ -491,6 +669,672 @@ export default function GoalsPage() {
     return goals.filter((g) => g.category === selectedFilter);
   }, [goals, selectedFilter]);
 
+  // Map each normalized task title to the goals that reference it (Cross-Goal Synergy)
+  const taskGoalFrequencyMap = useMemo(() => {
+    const map = new Map<string, { count: number; goalTitles: string[]; goalIds: string[] }>();
+    goals.forEach((g) => {
+      const tasks = g.tasks || g.milestones || [];
+      const seenInGoal = new Set<string>();
+      tasks.forEach((t) => {
+        const norm = normalizeTaskTitle(t.title);
+        if (!norm || seenInGoal.has(norm)) return;
+        seenInGoal.add(norm);
+
+        const current = map.get(norm) || { count: 0, goalTitles: [], goalIds: [] };
+        current.count += 1;
+        current.goalTitles.push(g.description);
+        current.goalIds.push(g.id);
+        map.set(norm, current);
+      });
+    });
+    return map;
+  }, [goals]);
+
+  // ───────────────────────────────────────────────────────────
+  // A. GOAL-SPECIFIC SCREEN (In-place workspace screen replacement)
+  // When a goal is selected, this screen replaces the "All Goals" list.
+  // The right sidebar (ContextPanel) automatically hosts the Goal Copilot Chat.
+  // ───────────────────────────────────────────────────────────
+  if (selectedGoal) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px", maxWidth: "1000px", margin: "0 auto", width: "100%" }}>
+        {/* Top Header / Navigation Bar */}
+        <div
+          style={{
+            padding: "16px 20px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-xl)",
+            background: "var(--surface)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "16px",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedGoal(null);
+                setChatMessages([]);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "var(--r-md)",
+                border: "1px solid var(--border)",
+                background: "var(--surface-subtle)",
+                color: "var(--text-secondary)",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 150ms var(--ease)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text-primary)";
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-secondary)";
+                e.currentTarget.style.borderColor = "var(--border)";
+              }}
+            >
+              ← Back to Goals
+            </button>
+
+            <div style={{ width: "1px", height: "20px", background: "var(--border)" }} />
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "3px 8px",
+                borderRadius: "6px",
+                background: "var(--accent-soft)",
+                color: "var(--accent)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                flexShrink: 0,
+              }}
+            >
+              {selectedGoal.category || "Objective"}
+            </span>
+
+            {selectedGoal.priority && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  padding: "3px 8px",
+                  borderRadius: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  flexShrink: 0,
+                  background:
+                    selectedGoal.priority === "high"
+                      ? "rgba(239, 68, 68, 0.15)"
+                      : selectedGoal.priority === "medium"
+                      ? "rgba(245, 158, 11, 0.15)"
+                      : "rgba(16, 185, 129, 0.15)",
+                  color:
+                    selectedGoal.priority === "high"
+                      ? "#EF4444"
+                      : selectedGoal.priority === "medium"
+                      ? "#F59E0B"
+                      : "#10B981",
+                }}
+              >
+                {selectedGoal.priority} Priority
+              </span>
+            )}
+
+            <h2
+              style={{
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                margin: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "400px",
+              }}
+              title={selectedGoal.description}
+            >
+              {selectedGoal.description}
+            </h2>
+          </div>
+
+          {/* Right Header Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => handleToggleGoal(selectedGoal)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "7px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                background: "var(--surface-subtle)",
+                color: "var(--text-primary)",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 150ms var(--ease)",
+              }}
+            >
+              {selectedGoal.status === "completed" ? (
+                <>
+                  <Circle style={{ width: "13px", height: "13px" }} />
+                  <span>In-Progress</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 style={{ width: "13px", height: "13px", color: "var(--color-success)" }} />
+                  <span>Mark Completed</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleDeleteGoal(selectedGoal.id)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "7px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "rgba(239, 68, 68, 0.08)",
+                color: "#EF4444",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 style={{ width: "13px", height: "13px" }} />
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Goal Content: Progress, Metadata, Spaces & Actionable Tasks */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* Progress Summary Card */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "14px",
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <TrendingUp style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Weighted Goal Completion
+                </span>
+              </div>
+              <span style={{ fontSize: "24px", fontWeight: 800, color: selectedGoal.status === "completed" ? "#10B981" : "var(--text-primary)" }}>
+                {selectedGoal.progress || 0}%
+              </span>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: "10px",
+                background: "var(--surface-subtle)",
+                borderRadius: "9999px",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${selectedGoal.progress || 0}%`,
+                  height: "100%",
+                  background: selectedGoal.status === "completed" ? "#10B981" : "var(--accent)",
+                  borderRadius: "9999px",
+                  transition: "width 300ms var(--ease)",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--text-tertiary)" }}>
+              <span>
+                {(selectedGoal.tasks || selectedGoal.milestones || []).filter((t) => t.completed).length} of{" "}
+                {(selectedGoal.tasks || selectedGoal.milestones || []).length} tasks finished
+              </span>
+              <span>
+                {selectedGoal.status === "completed" ? "Goal Accomplished" : "Active Strategic Outcome"}
+              </span>
+            </div>
+          </div>
+
+          {/* Goal Metadata Card */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "14px",
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Layers style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                Goal Metadata & Alignment
+              </span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <div>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
+                  Primary Space
+                </span>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
+                  {spaces.find((s) => s.id === selectedGoal.project_id)?.name || "Universal / None"}
+                </p>
+              </div>
+
+              <div>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
+                  Target Completion
+                </span>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
+                  {selectedGoal.target_date
+                    ? new Date(selectedGoal.target_date).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "No deadline specified"}
+                </p>
+              </div>
+
+              <div>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
+                  Date Created
+                </span>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
+                  {selectedGoal.created_at
+                    ? new Date(selectedGoal.created_at).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "Recently"}
+                </p>
+              </div>
+            </div>
+
+            {/* Associated Knowledge Spaces Multi-Select Chips */}
+            <div style={{ marginTop: "8px", paddingTop: "14px", borderTop: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                  Associated Knowledge Spaces (Scoped Copilot Context):
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                  Toggle spaces to expand or narrow RAG scope
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {spaces.map((sp) => {
+                  const currentSpaces = selectedGoal.space_ids || (selectedGoal.project_id ? [selectedGoal.project_id] : []);
+                  const isAttached = currentSpaces.includes(sp.id);
+                  return (
+                    <button
+                      key={sp.id}
+                      type="button"
+                      onClick={() => handleToggleGoalSpace(selectedGoal.id, sp.id)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "5px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        border: isAttached ? "1px solid var(--accent)" : "1px solid var(--border)",
+                        background: isAttached ? "var(--accent-soft)" : "var(--surface-subtle)",
+                        color: isAttached ? "var(--accent)" : "var(--text-secondary)",
+                        transition: "all 150ms ease",
+                      }}
+                    >
+                      <FolderKanban style={{ width: "12px", height: "12px" }} />
+                      <span>{sp.name}</span>
+                      {isAttached && <CheckCircle2 style={{ width: "12px", height: "12px", marginLeft: "2px" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Actionable Tasks Checklist */}
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "14px",
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <CheckCircle2 style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Actionable Tasks & Milestones
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    background: "var(--surface-subtle)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {(selectedGoal.tasks || selectedGoal.milestones || []).length}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleModalAutoRecommendTasks(selectedGoal)}
+                disabled={isModalAiRecommending}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--accent)",
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: isModalAiRecommending ? "not-allowed" : "pointer",
+                  opacity: isModalAiRecommending ? 0.6 : 1,
+                  transition: "all 150ms ease",
+                }}
+              >
+                <Sparkles style={{ width: "13px", height: "13px" }} />
+                <span>{isModalAiRecommending ? "Generating Tasks..." : "AI Auto-Suggest Tasks"}</span>
+              </button>
+            </div>
+
+            {/* Cross-Goal Synergy Information Pill */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                background: "rgba(139, 92, 246, 0.08)",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+                fontSize: "12px",
+                color: "#C4B5FD",
+              }}
+            >
+              <Zap style={{ width: "14px", height: "14px", color: "#A78BFA", flexShrink: 0 }} />
+              <span>
+                <strong>Cross-Goal Priority Booster Active:</strong> Tasks shared across 2 or more strategic goals automatically escalate to High Priority with enhanced completion weight.
+              </span>
+            </div>
+
+            {/* Task List Items */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {(selectedGoal.tasks || selectedGoal.milestones || []).length === 0 ? (
+                <div style={{ padding: "24px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "13px" }}>
+                  No tasks configured yet. Add high-impact tasks below or click &ldquo;AI Auto-Suggest Tasks&rdquo; to draft them instantly.
+                </div>
+              ) : (
+                (selectedGoal.tasks || selectedGoal.milestones || []).map((t) => (
+                  <div
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      background: t.completed ? "var(--surface-subtle)" : "var(--surface)",
+                      border: "1px solid var(--border)",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    <div
+                      onClick={() => handleToggleTask(selectedGoal.id, t.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        flex: 1,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          color: t.completed ? "#10B981" : "var(--text-tertiary)",
+                        }}
+                      >
+                        {t.completed ? (
+                          <CheckCircle2 style={{ width: "18px", height: "18px" }} />
+                        ) : (
+                          <Circle style={{ width: "18px", height: "18px" }} />
+                        )}
+                      </button>
+
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: t.completed ? "var(--text-tertiary)" : "var(--text-primary)",
+                          textDecoration: t.completed ? "line-through" : "none",
+                        }}
+                      >
+                        {t.title}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {(() => {
+                        const norm = normalizeTaskTitle(t.title);
+                        const matchData = taskGoalFrequencyMap.get(norm);
+                        const sharedCount = matchData ? matchData.count : 1;
+                        const { effectivePriority, isBoosted, weightMultiplier } = getEffectiveTaskPriority(
+                          t.priority || "medium",
+                          sharedCount
+                        );
+
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            {/* Shared Across Multiple Goals Synergy Tag */}
+                            {isBoosted && (
+                              <span
+                                title={`Shared across ${sharedCount} goals: ${matchData?.goalTitles.join(" • ")}`}
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  padding: "2px 7px",
+                                  borderRadius: "4px",
+                                  background: "rgba(139, 92, 246, 0.15)",
+                                  color: "#A78BFA",
+                                  border: "1px solid rgba(139, 92, 246, 0.3)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  letterSpacing: "0.02em",
+                                }}
+                              >
+                                <Zap style={{ width: "10px", height: "10px", color: "#A78BFA" }} />
+                                <span>{sharedCount} Goals ({weightMultiplier}x Boost)</span>
+                              </span>
+                            )}
+
+                            {/* Priority Badge */}
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: "4px",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                                background:
+                                  effectivePriority === "high"
+                                    ? "rgba(239, 68, 68, 0.15)"
+                                    : effectivePriority === "medium"
+                                    ? "rgba(245, 158, 11, 0.15)"
+                                    : "rgba(16, 185, 129, 0.15)",
+                                color:
+                                  effectivePriority === "high"
+                                    ? "#EF4444"
+                                    : effectivePriority === "medium"
+                                    ? "#F59E0B"
+                                    : "#10B981",
+                                border: isBoosted
+                                  ? "1px solid rgba(239, 68, 68, 0.4)"
+                                  : "1px solid transparent",
+                              }}
+                            >
+                              {effectivePriority === "high"
+                                ? `High (${weightMultiplier}x)`
+                                : effectivePriority === "medium"
+                                ? `Med (${weightMultiplier}x)`
+                                : `Low (${weightMultiplier}x)`}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveModalTask(selectedGoal.id, t.id);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "4px",
+                          cursor: "pointer",
+                          color: "var(--text-ghost)",
+                          borderRadius: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#EF4444")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
+                      >
+                        <Trash2 style={{ width: "14px", height: "14px" }} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Task Input Row */}
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+              <input
+                type="text"
+                placeholder="Enter next strategic task..."
+                value={modalTaskInput}
+                onChange={(e) => setModalTaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddModalTask(selectedGoal.id);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-subtle)",
+                  color: "var(--text-primary)",
+                  fontSize: "13px",
+                  outline: "none",
+                }}
+              />
+
+              <select
+                value={modalTaskPriority}
+                onChange={(e) => setModalTaskPriority(e.target.value as any)}
+                style={{
+                  padding: "0 12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-primary)",
+                  fontSize: "12px",
+                  outline: "none",
+                }}
+              >
+                <option value="high">High (3x)</option>
+                <option value="medium">Medium (2x)</option>
+                <option value="low">Low (1x)</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => handleAddModalTask(selectedGoal.id)}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--accent-contrast)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                + Add Task
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // B. ALL GOALS SCREEN (Default view)
+  // ───────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px", maxWidth: "980px", margin: "0 auto" }}>
       {/* 1. Header Banner */}
@@ -609,22 +1453,57 @@ export default function GoalsPage() {
               </select>
             </div>
 
-            {/* Space Alignment */}
+            {/* Space Alignment & Multi-Space Association */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Aligned Space
-              </label>
-              <select
-                value={selectedSpaceId}
-                onChange={(e) => setSelectedSpaceId(e.target.value)}
-                style={{ width: "100%", height: "40px", padding: "0 10px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}
-              >
-                {spaces.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Associated Knowledge Spaces
+                </label>
+                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                  {selectedSpaceIds.length} space{selectedSpaceIds.length === 1 ? "" : "s"} linked
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "6px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", minHeight: "42px", alignItems: "center" }}>
+                {spaces.map((s) => {
+                  const isSelected = selectedSpaceIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSpaceIds((prev) => {
+                          const exists = prev.includes(s.id);
+                          const next = exists ? prev.filter((id) => id !== s.id) : [...prev, s.id];
+                          if (next.length > 0) {
+                            setSelectedSpaceId(next[0]);
+                          } else {
+                            setSelectedSpaceId("");
+                          }
+                          return next;
+                        });
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: isSelected ? 600 : 500,
+                        background: isSelected ? "var(--accent)" : "var(--surface)",
+                        color: isSelected ? "var(--accent-contrast)" : "var(--text-secondary)",
+                        border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                        cursor: "pointer",
+                        transition: "all 120ms ease",
+                      }}
+                    >
+                      <Layers style={{ width: "12px", height: "12px" }} />
+                      <span>{s.name}</span>
+                      {isSelected && <Check style={{ width: "12px", height: "12px" }} />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Target Date */}
@@ -1074,531 +1953,6 @@ export default function GoalsPage() {
           </button>
         </div>
       )}
-
-      {/* 6. Goal Detail Modal */}
-      {selectedGoal && (
-        <div
-          className="settings-overlay open"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedGoal(null);
-          }}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
-        >
-          <div
-            className="settings-box"
-            style={{
-              maxWidth: "680px",
-              width: "92%",
-              maxHeight: "85vh",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "18px",
-              border: "1px solid var(--border)",
-              background: "var(--surface)",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.4)",
-              overflow: "hidden",
-            }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: "20px 24px",
-                borderBottom: "1px solid var(--border)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "16px",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      padding: "2px 8px",
-                      borderRadius: "6px",
-                      background: "var(--accent-soft)",
-                      color: "var(--accent)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    {selectedGoal.category || "Objective"}
-                  </span>
-
-                  {selectedGoal.priority && (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "9999px",
-                        textTransform: "uppercase",
-                        background:
-                          selectedGoal.priority === "high"
-                            ? "rgba(239, 68, 68, 0.15)"
-                            : selectedGoal.priority === "medium"
-                            ? "rgba(245, 158, 11, 0.15)"
-                            : "rgba(16, 185, 129, 0.15)",
-                        color:
-                          selectedGoal.priority === "high"
-                            ? "#EF4444"
-                            : selectedGoal.priority === "medium"
-                            ? "#F59E0B"
-                            : "#10B981",
-                      }}
-                    >
-                      {selectedGoal.priority} Priority
-                    </span>
-                  )}
-
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      padding: "2px 8px",
-                      borderRadius: "9999px",
-                      background: selectedGoal.status === "completed" ? "rgba(16, 185, 129, 0.15)" : "var(--surface-hover)",
-                      color: selectedGoal.status === "completed" ? "#10B981" : "var(--text-secondary)",
-                    }}
-                  >
-                    {selectedGoal.status === "completed" ? "Completed" : "In Progress"}
-                  </span>
-                </div>
-
-                <h2
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    color: "var(--text-primary)",
-                    margin: 0,
-                    lineHeight: "1.35",
-                  }}
-                >
-                  {selectedGoal.description}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedGoal(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: "6px",
-                  cursor: "pointer",
-                  color: "var(--text-secondary)",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-              >
-                <X style={{ width: "20px", height: "20px" }} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div
-              style={{
-                padding: "24px",
-                overflowY: "auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: "24px",
-                flex: 1,
-              }}
-            >
-              {/* Progress Summary Card */}
-              <div
-                style={{
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "12px",
-                  padding: "16px 20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <TrendingUp style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                      Weighted Goal Completion
-                    </span>
-                  </div>
-                  <span style={{ fontSize: "20px", fontWeight: 800, color: selectedGoal.status === "completed" ? "#10B981" : "var(--text-primary)" }}>
-                    {selectedGoal.progress || 0}%
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    width: "100%",
-                    height: "8px",
-                    background: "var(--surface)",
-                    borderRadius: "9999px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${selectedGoal.progress || 0}%`,
-                      height: "100%",
-                      background: selectedGoal.status === "completed" ? "#10B981" : "var(--accent)",
-                      borderRadius: "9999px",
-                      transition: "width 300ms var(--ease)",
-                    }}
-                  />
-                </div>
-
-                <div style={{ fontSize: "11px", color: "var(--text-tertiary)", display: "flex", justifyContent: "space-between" }}>
-                  <span>Tasks contribute dynamically based on their importance</span>
-                  <span>High (3x) • Medium (2x) • Low (1x)</span>
-                </div>
-              </div>
-
-              {/* Goal Metadata Information */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                  gap: "14px",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
-                    Aligned Space
-                  </span>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {selectedGoal.space_name || "General Workspace"}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
-                    Target Completion Date
-                  </span>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {selectedGoal.target_date
-                      ? new Date(selectedGoal.target_date).toLocaleDateString(undefined, {
-                          month: "long",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "No target date set"}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>
-                    Date Created
-                  </span>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {selectedGoal.created_at
-                      ? new Date(selectedGoal.created_at).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "Recently"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Tasks Breakdown Section */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                  <div>
-                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                      Related Tasks & Milestones ({((selectedGoal.tasks || selectedGoal.milestones || []).filter((t) => t.completed).length)}/{(selectedGoal.tasks || selectedGoal.milestones || []).length})
-                    </h4>
-                    <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-                      Check off tasks to boost percentage based on importance
-                    </span>
-                  </div>
-
-                  {/* Modal AI Auto-Suggest Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleModalAutoRecommendTasks(selectedGoal)}
-                    disabled={isModalAiRecommending}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      background: "var(--accent-soft)",
-                      border: "1px solid rgba(99, 102, 241, 0.4)",
-                      color: "var(--accent)",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      cursor: isModalAiRecommending ? "not-allowed" : "pointer",
-                      opacity: isModalAiRecommending ? 0.6 : 1,
-                    }}
-                  >
-                    <Sparkles style={{ width: "13px", height: "13px" }} />
-                    <span>{isModalAiRecommending ? "AI Analyzing Knowledge..." : "AI Auto-Suggest Tasks"}</span>
-                  </button>
-                </div>
-
-                {/* Task Items List */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {(selectedGoal.tasks || selectedGoal.milestones || []).map((t) => {
-                    const taskPrio = t.priority || "medium";
-                    const weightVal = taskPrio === "high" ? 3 : taskPrio === "medium" ? 2 : 1;
-                    return (
-                      <div
-                        key={t.id}
-                        onClick={() => handleToggleTask(selectedGoal.id, t.id)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "10px 14px",
-                          borderRadius: "10px",
-                          background: t.completed ? "var(--surface-subtle)" : "var(--surface)",
-                          border: "1px solid var(--border)",
-                          cursor: "pointer",
-                          transition: "all 150ms ease",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--border-strong)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
-                          <div
-                            style={{
-                              width: "18px",
-                              height: "18px",
-                              borderRadius: "5px",
-                              border: t.completed ? "2px solid #10B981" : "2px solid var(--border-strong)",
-                              background: t.completed ? "#10B981" : "transparent",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#FFFFFF",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {t.completed && "✓"}
-                          </div>
-                          <span
-                            style={{
-                              fontSize: "13px",
-                              color: t.completed ? "var(--text-tertiary)" : "var(--text-primary)",
-                              textDecoration: t.completed ? "line-through" : "none",
-                              flex: 1,
-                            }}
-                          >
-                            {t.title}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: 700,
-                              padding: "2px 7px",
-                              borderRadius: "4px",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                              background:
-                                taskPrio === "high"
-                                  ? "rgba(239, 68, 68, 0.15)"
-                                  : taskPrio === "medium"
-                                  ? "rgba(245, 158, 11, 0.15)"
-                                  : "rgba(16, 185, 129, 0.15)",
-                              color:
-                                taskPrio === "high"
-                                  ? "#EF4444"
-                                  : taskPrio === "medium"
-                                  ? "#F59E0B"
-                                  : "#10B981",
-                            }}
-                          >
-                            {taskPrio} ({weightVal}x)
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveModalTask(selectedGoal.id, t.id);
-                          }}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            padding: "4px 4px 4px 10px",
-                            color: "var(--text-ghost)",
-                            cursor: "pointer",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-error)")}
-                          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
-                        >
-                          <Trash2 style={{ width: "14px", height: "14px" }} />
-                        </button>
-                      </div>
-                    );
-                  })}
-
-                  {/* Add New Task In Modal */}
-                  <div style={{ display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
-                    <input
-                      type="text"
-                      placeholder="Add related task or milestone..."
-                      value={modalTaskInput}
-                      onChange={(e) => setModalTaskInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddModalTask(selectedGoal.id);
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        minWidth: "220px",
-                        padding: "9px 14px",
-                        borderRadius: "8px",
-                        border: "1px dashed var(--border-strong)",
-                        background: "transparent",
-                        color: "var(--text-primary)",
-                        fontSize: "13px",
-                        outline: "none",
-                      }}
-                    />
-
-                    <select
-                      value={modalTaskPriority}
-                      onChange={(e) => setModalTaskPriority(e.target.value as any)}
-                      style={{
-                        padding: "0 10px",
-                        borderRadius: "8px",
-                        border: "1px solid var(--border)",
-                        background: "var(--surface-subtle)",
-                        color: "var(--text-primary)",
-                        fontSize: "12px",
-                        outline: "none",
-                      }}
-                    >
-                      <option value="high">High (3x)</option>
-                      <option value="medium">Medium (2x)</option>
-                      <option value="low">Low (1x)</option>
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAddModalTask(selectedGoal.id)}
-                      style={{
-                        padding: "9px 16px",
-                        borderRadius: "8px",
-                        border: "none",
-                        background: "var(--accent)",
-                        color: "var(--accent-contrast)",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      + Add Task
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: "16px 24px",
-                borderTop: "1px solid var(--border)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "var(--surface-subtle)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  handleDeleteGoal(selectedGoal.id);
-                }}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(239, 68, 68, 0.3)",
-                  background: "rgba(239, 68, 68, 0.08)",
-                  color: "#EF4444",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Trash2 style={{ width: "14px", height: "14px" }} />
-                <span>Delete Goal</span>
-              </button>
-
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  type="button"
-                  onClick={() => handleToggleGoal(selectedGoal)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "8px 16px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    background: "var(--surface)",
-                    color: "var(--text-primary)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {selectedGoal.status === "completed" ? (
-                    <>
-                      <Circle style={{ width: "14px", height: "14px" }} />
-                      <span>Mark In-Progress</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 style={{ width: "14px", height: "14px", color: "var(--color-success)" }} />
-                      <span>Mark Completed</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedGoal(null)}
-                  style={{
-                    padding: "8px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "var(--accent)",
-                    color: "var(--accent-contrast)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-

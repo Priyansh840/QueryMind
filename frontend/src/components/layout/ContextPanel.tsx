@@ -26,6 +26,8 @@ import {
   ChevronLeft,
   Code2,
   CheckSquare,
+  Bot,
+  Send,
 } from "lucide-react";
 
 function formatRelativeTime(dateStr?: string) {
@@ -52,14 +54,14 @@ export default function ContextPanel() {
   const router = useRouter();
   const selectedObject = useMyndStore((state) => state.selectedObject);
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
+  const activeGoal = useMyndStore((state) => state.activeGoal);
+  const setActiveGoal = useMyndStore((state) => state.setActiveGoal);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const addDocument = useMyndStore((state) => state.addDocument);
   const removeDocument = useMyndStore((state) => state.removeDocument);
 
-  // Default collapsed per user preference
-  const [isCollapsed, setIsCollapsed] = useState(true);
   const [activeTab, setActiveTab] = useState<"chats" | "docs" | "goals">("chats");
 
   // Real data states
@@ -79,6 +81,95 @@ export default function ContextPanel() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Goal Copilot Advisor Chat state
+  const [goalChatMessages, setGoalChatMessages] = useState<
+    Array<{
+      role: "user" | "assistant";
+      content: string;
+      citations?: Array<{ document_title?: string; page_number?: number; snippet: string; score?: number }>;
+      timestamp?: string;
+    }>
+  >([]);
+  const [goalChatInput, setGoalChatInput] = useState("");
+  const [isSendingGoalChat, setIsSendingGoalChat] = useState(false);
+  const [goalChatSpacesSearched, setGoalChatSpacesSearched] = useState<string[]>([]);
+
+  // Reset goal chat messages and auto-expand sidebar when activeGoal changes
+  useEffect(() => {
+    setGoalChatMessages([]);
+    setGoalChatInput("");
+    setGoalChatSpacesSearched([]);
+    if (activeGoal) {
+      setIsCollapsed(false);
+    }
+  }, [activeGoal]);
+
+  const handleSendGoalChat = async (goal: any) => {
+    if (!goalChatInput.trim() || isSendingGoalChat) return;
+    const userMsg = goalChatInput.trim();
+    setGoalChatInput("");
+    setIsSendingGoalChat(true);
+
+    const newMsgItem = {
+      role: "user" as const,
+      content: userMsg,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setGoalChatMessages((prev) => [...prev, newMsgItem]);
+
+    try {
+      const historyPayload = goalChatMessages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const effectiveSpaceIds =
+        goal.space_ids && goal.space_ids.length > 0
+          ? goal.space_ids
+          : goal.project_id
+          ? [goal.project_id]
+          : [];
+
+      const res = await queryMindApi.sendGoalChatMessage(goal.id, {
+        message: userMsg,
+        history: historyPayload,
+        goal_description: goal.description,
+        progress: goal.progress || 0,
+        tasks: goal.tasks || goal.milestones || [],
+        target_date: goal.target_date,
+        space_ids: effectiveSpaceIds,
+      });
+
+      if (res && res.response) {
+        setGoalChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.response,
+            citations: res.citations || [],
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+        if (res.spaces_searched) {
+          setGoalChatSpacesSearched(res.spaces_searched);
+        }
+      }
+    } catch (err: any) {
+      console.error("Goal chat error:", err);
+      setGoalChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I ran into a temporary error reaching the intelligence service. Please check your model or try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
+      setIsSendingGoalChat(false);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Current Space
@@ -95,15 +186,9 @@ export default function ContextPanel() {
 
   const spaceName = currentSpace?.name || "Workspace";
 
-  // Load preferences from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("querymind_sidebar_collapsed");
-      if (saved !== null) {
-        setIsCollapsed(saved === "true");
-      }
-    }
-  }, []);
+  const isCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
+  const setIsCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
+  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
 
   const handleToggleCollapse = (collapsed: boolean) => {
     setIsCollapsed(collapsed);
@@ -476,7 +561,358 @@ export default function ContextPanel() {
   }
 
   /* ─────────────────────────────────────────────────────────── */
-  /* 2. EXPANDED VIEW: DOCUMENT INSPECTOR MODE (if item selected)*/
+  /* 2. EXPANDED VIEW: GOAL COPILOT ADVISOR (when a goal is active) */
+  /* ─────────────────────────────────────────────────────────── */
+  if (activeGoal) {
+    const goalSpaceIds = activeGoal.space_ids || (activeGoal.project_id ? [activeGoal.project_id] : []);
+    const relevantSpaces = spaces.filter((s) => goalSpaceIds.includes(s.id));
+
+    return (
+      <aside
+        className="app-context-panel"
+        style={{
+          width: "var(--context-w, 380px)",
+          height: "100vh",
+          background: "var(--bg)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          zIndex: 10,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header Toolbar */}
+        <div
+          style={{
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+            <div
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "8px",
+                background: "var(--accent-soft)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--accent)",
+                flexShrink: 0,
+              }}
+            >
+              <Bot style={{ width: "16px", height: "16px" }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Goal Copilot</span>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    padding: "1px 5px",
+                    borderRadius: "4px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    color: "#10B981",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Isolated RAG
+                </span>
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "200px" }}>
+                {activeGoal.description}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <button
+              type="button"
+              onClick={() => handleToggleCollapse(true)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                borderRadius: "4px",
+              }}
+              title="Collapse Panel"
+            >
+              <PanelRightClose style={{ width: "16px", height: "16px" }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Scoped Spaces Indicator Bar */}
+        <div
+          style={{
+            padding: "8px 16px",
+            background: "var(--surface-subtle)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            flexWrap: "wrap",
+            fontSize: "11px",
+          }}
+        >
+          <span style={{ color: "var(--text-tertiary)" }}>
+            Scoped to {goalSpaceIds.length} space{goalSpaceIds.length === 1 ? "" : "s"}:
+          </span>
+          {relevantSpaces.length > 0 ? (
+            relevantSpaces.map((s) => (
+              <span
+                key={s.id}
+                style={{
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                }}
+              >
+                {s.name}
+              </span>
+            ))
+          ) : (
+            <span style={{ color: "var(--text-tertiary)", fontStyle: "italic" }}>Workspace</span>
+          )}
+        </div>
+
+        {/* Chat Messages List */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          {goalChatMessages.length === 0 && (
+            <div
+              style={{
+                margin: "auto",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "10px",
+                padding: "16px 8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "12px",
+                  background: "var(--accent-soft)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--accent)",
+                }}
+              >
+                <Sparkles style={{ width: "20px", height: "20px" }} />
+              </div>
+              <h4 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Goal Advisor Ready
+              </h4>
+              <p style={{ fontSize: "11.5px", color: "var(--text-tertiary)", margin: 0, lineHeight: "1.4" }}>
+                Ask strategic questions or request execution roadmaps. Retrieval is scoped to linked space documents.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", marginTop: "6px" }}>
+                {[
+                  "What should be my immediate next priority?",
+                  "Review my progress and identify bottlenecks",
+                  "Draft an execution plan for my top task",
+                ].map((promptText, pIdx) => (
+                  <button
+                    key={pIdx}
+                    type="button"
+                    onClick={() => setGoalChatInput(promptText)}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      color: "var(--text-secondary)",
+                      fontSize: "11.5px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 120ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }}
+                  >
+                    💡 {promptText}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {goalChatMessages.map((msg, mIdx) => (
+            <div
+              key={mIdx}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+                gap: "3px",
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "92%",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  background: msg.role === "user" ? "var(--accent)" : "var(--surface-subtle)",
+                  color: msg.role === "user" ? "var(--accent-contrast)" : "var(--text-primary)",
+                  border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                  fontSize: "12.5px",
+                  lineHeight: "1.5",
+                  whiteSpace: "pre-wrap",
+                  boxShadow: "var(--shadow-xs)",
+                }}
+              >
+                {msg.content}
+
+                {/* Citations from Scoped Space Docs */}
+                {msg.citations && msg.citations.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      paddingTop: "6px",
+                      borderTop: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "5px",
+                    }}
+                  >
+                    <span style={{ fontSize: "9.5px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Referenced Space Knowledge:
+                    </span>
+                    {msg.citations.map((c, cIdx) => (
+                      <div
+                        key={cIdx}
+                        style={{
+                          fontSize: "10.5px",
+                          padding: "5px 8px",
+                          borderRadius: "6px",
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <FileText style={{ width: "10px", height: "10px", color: "var(--accent)" }} />
+                          <span>{c.document_title || "Space Document"}</span>
+                          {c.page_number && <span style={{ color: "var(--text-tertiary)" }}>• Page {c.page_number}</span>}
+                        </div>
+                        <div style={{ marginTop: "2px", fontStyle: "italic", color: "var(--text-tertiary)" }}>
+                          &ldquo;{c.snippet}&rdquo;
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {msg.timestamp && (
+                <span style={{ fontSize: "9.5px", color: "var(--text-tertiary)", padding: "0 3px" }}>
+                  {msg.timestamp}
+                </span>
+              )}
+            </div>
+          ))}
+
+          {isSendingGoalChat && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", color: "var(--text-secondary)", fontSize: "11.5px" }}>
+              <Sparkles style={{ width: "13px", height: "13px", color: "var(--accent)", animation: "spin 2s linear infinite" }} />
+              <span>Querying space documents & analyzing goal state...</span>
+            </div>
+          )}
+        </div>
+
+        {/* Input Form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendGoalChat(activeGoal);
+          }}
+          style={{
+            padding: "12px 14px",
+            borderTop: "1px solid var(--border)",
+            background: "var(--surface)",
+            display: "flex",
+            gap: "8px",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Ask Copilot about this goal..."
+            value={goalChatInput}
+            onChange={(e) => setGoalChatInput(e.target.value)}
+            disabled={isSendingGoalChat}
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              borderRadius: "8px",
+              border: "1px solid var(--border)",
+              background: "var(--surface-subtle)",
+              color: "var(--text-primary)",
+              fontSize: "12.5px",
+              outline: "none",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isSendingGoalChat || !goalChatInput.trim()}
+            style={{
+              padding: "8px 14px",
+              borderRadius: "8px",
+              border: "none",
+              background: "var(--accent)",
+              color: "var(--accent-contrast)",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              cursor: isSendingGoalChat || !goalChatInput.trim() ? "not-allowed" : "pointer",
+              opacity: isSendingGoalChat || !goalChatInput.trim() ? 0.6 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <Send style={{ width: "13px", height: "13px" }} />
+            <span>Send</span>
+          </button>
+        </form>
+      </aside>
+    );
+  }
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* 3. EXPANDED VIEW: DOCUMENT INSPECTOR MODE (if item selected)*/
   /* ─────────────────────────────────────────────────────────── */
   if (selectedObject) {
     const rawContent = selectedObject.content || selectedObject.summary || "";

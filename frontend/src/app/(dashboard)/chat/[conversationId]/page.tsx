@@ -654,7 +654,12 @@ export default function ConversationPage() {
       }
 
       const personalization = useMyndStore.getState().personalization;
-      const response = await fetch(`/api/v1/conversations/${conversationId}/messages`, {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
+      const endpoint = apiUrl 
+        ? `${apiUrl}/api/v1/conversations/${conversationId}/messages`
+        : `/api/v1/conversations/${conversationId}/messages`;
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers,
         signal: controller.signal,

@@ -51,6 +51,7 @@ class GoalResponse(BaseModel):
 class RecommendTasksRequest(BaseModel):
     goal_description: str = Field(..., min_length=2)
     space_id: Optional[str] = None
+    space_ids: Optional[List[str]] = None
     category: Optional[str] = "career"
 
 
@@ -64,6 +65,34 @@ class RecommendTasksResponse(BaseModel):
     goal: str
     suggested_tasks: List[RecommendedTaskItem]
     context_used: Optional[str] = None
+
+
+class GoalChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str
+
+
+class GoalChatCitation(BaseModel):
+    document_title: Optional[str] = None
+    page_number: Optional[int] = None
+    snippet: str
+    score: Optional[float] = None
+
+
+class GoalChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    history: Optional[List[GoalChatMessage]] = []
+    goal_description: Optional[str] = None
+    progress: Optional[int] = None
+    tasks: Optional[List[dict]] = []
+    target_date: Optional[str] = None
+    space_ids: Optional[List[str]] = []
+
+
+class GoalChatResponse(BaseModel):
+    response: str
+    citations: List[GoalChatCitation] = []
+    spaces_searched: List[str] = []
 
 # -------------------------------------------------------------
 # Endpoints
@@ -417,20 +446,26 @@ async def recommend_goal_tasks(
 
     import asyncio
     context_snippets = []
-    # If space_id provided, search space knowledge chunks with a protective timeout
-    if request.space_id:
+    # If space_ids or space_id provided, search space knowledge chunks with a protective timeout
+    target_space_ids = [s for s in (request.space_ids or []) if s]
+    if request.space_id and request.space_id not in target_space_ids:
+        target_space_ids.append(request.space_id)
+
+    if target_space_ids:
         try:
             results = await asyncio.wait_for(
                 retrieve_context(
                     query=request.goal_description,
                     user_id=str(current_user.id),
-                    space_id=str(request.space_id),
+                    space_ids=target_space_ids,
                     top_k=4,
                 ),
                 timeout=3.5,
             )
             for r in results:
-                if "text" in r:
+                if "content" in r:
+                    context_snippets.append(r["content"][:300])
+                elif "text" in r:
                     context_snippets.append(r["text"][:300])
         except Exception as e:
             logger.warning(f"Failed or timed out retrieving RAG context for goal recommendation: {e}")
@@ -527,7 +562,7 @@ async def recommend_goal_tasks(
             from llm.provider import llm_service
             raw_llm_out = await asyncio.wait_for(
                 llm_service.generate(prompt=full_prompt),
-                timeout=10.0,
+                timeout=25.0,
             )
             match = re.search(r"\{[\s\S]*\}", raw_llm_out)
             if match:
@@ -557,3 +592,175 @@ async def recommend_goal_tasks(
         suggested_tasks=suggested_tasks,
         context_used=f"{len(context_snippets)} relevant source documents consulted" if context_snippets else None,
     )
+
+
+@router.post("/{goal_id}/chat", response_model=GoalChatResponse)
+async def goal_chat(
+    goal_id: str,
+    request: GoalChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Goal-specific Chat Advisor with Space Scoped Retrieval.
+    Searches documents exclusively in the spaces associated with this goal,
+    and leverages the goal's real-time state, tasks, and progress to answer.
+    """
+    import asyncio
+    import google.generativeai as genai
+    from core.config import settings
+    from rag.retriever import retrieve_context
+
+    goal_uuid = None
+    try:
+        goal_uuid = uuid.UUID(goal_id)
+    except (ValueError, TypeError):
+        pass
+
+    db_goal = None
+    if goal_uuid:
+        stmt = select(Goal).where(Goal.id == goal_uuid, Goal.user_id == current_user.id)
+        result = await db.execute(stmt)
+        db_goal = result.scalar_one_or_none()
+
+    # Determine goal details
+    goal_desc = request.goal_description or (db_goal.description if db_goal else "Personal Objective")
+    target_date = request.target_date or "Flexible"
+    progress = request.progress if request.progress is not None else 0
+
+    # Determine spaces to search
+    target_spaces = [s for s in (request.space_ids or []) if s]
+    if db_goal and db_goal.space_id and str(db_goal.space_id) not in target_spaces:
+        target_spaces.append(str(db_goal.space_id))
+
+    citations: List[GoalChatCitation] = []
+    rag_context = ""
+
+    # 1. Scoped Space Retrieval
+    if target_spaces:
+        try:
+            results = await asyncio.wait_for(
+                retrieve_context(
+                    query=request.message,
+                    user_id=str(current_user.id),
+                    space_ids=target_spaces,
+                    top_k=5,
+                ),
+                timeout=4.0,
+            )
+            snippets = []
+            for r in results:
+                doc_title = r.get("document_title") or "Associated Knowledge Doc"
+                content = r.get("content") or r.get("text") or ""
+                page_num = r.get("page_number")
+                score = r.get("score")
+                if content:
+                    snippet = content[:350]
+                    snippets.append(f"[{doc_title}]: {snippet}")
+                    citations.append(
+                        GoalChatCitation(
+                            document_title=doc_title,
+                            page_number=page_num,
+                            snippet=snippet,
+                            score=score,
+                        )
+                    )
+            if snippets:
+                rag_context = "\n---\n".join(snippets)
+        except Exception as e:
+            logger.warning(f"Goal chat context retrieval failed or timed out: {e}")
+
+    # Format Tasks Summary
+    tasks_summary = "No subtasks recorded yet."
+    if request.tasks:
+        formatted_tasks = []
+        for t in request.tasks:
+            status_icon = "[DONE]" if t.get("completed") else "[TODO]"
+            prio = t.get("priority", "medium")
+            title = t.get("title", "Task")
+            formatted_tasks.append(f"- {status_icon} ({prio}) {title}")
+        tasks_summary = "\n".join(formatted_tasks)
+
+    # 2. Build Executive AI Prompt
+    system_prompt = (
+        "You are QueryMind's executive AI Goal Coach and Strategic Advisor.\n"
+        "You are having a focused working conversation with the user regarding their specific goal.\n"
+        "You have direct access to their goal milestones and documents retrieved EXCLUSIVELY from their associated spaces.\n\n"
+        f"=== CURRENT GOAL STATE ===\n"
+        f"Goal: {goal_desc}\n"
+        f"Progress: {progress}%\n"
+        f"Target Date: {target_date}\n"
+        f"Associated Spaces Filter: {', '.join(target_spaces) if target_spaces else 'None'}\n"
+        f"Key Tasks / Subtasks:\n{tasks_summary}\n"
+        f"===========================\n\n"
+        "Guidelines:\n"
+        "1. Give direct, actionable, and inspiring guidance tailored to the user's progress and tasks.\n"
+        "2. If relevant documents were found in their associated spaces, ground your advice in those documents and cite them naturally.\n"
+        "3. If they ask about next steps, suggest which subtask to tackle next based on priority or propose a new specific subtask.\n"
+        "4. Keep your tone concise, strategic, and empowering."
+    )
+
+    user_prompt_parts = []
+    if rag_context:
+        user_prompt_parts.append(f"Retrieved Documents from Associated Spaces:\n{rag_context}\n")
+
+    # Append brief recent conversation history if provided
+    if request.history:
+        user_prompt_parts.append("Conversation History:")
+        for h in request.history[-6:]:
+            role_tag = "User" if h.role == "user" else "Advisor"
+            user_prompt_parts.append(f"{role_tag}: {h.content}")
+        user_prompt_parts.append("")
+
+    user_prompt_parts.append(f"User Query: {request.message}")
+    full_user_prompt = "\n".join(user_prompt_parts)
+
+    # 3. Fast Dynamic LLM Generation
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    gemini_candidates = [
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-3.6-flash",
+    ]
+
+    ai_reply = ""
+    for model_name in gemini_candidates:
+        try:
+            gen_model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_prompt,
+            )
+            response = await asyncio.wait_for(
+                asyncio.to_thread(gen_model.generate_content, full_user_prompt),
+                timeout=12.0,
+            )
+            ai_reply = response.text.strip()
+            if ai_reply:
+                break
+        except Exception as cand_err:
+            logger.warning(f"Candidate {model_name} in goal_chat failed: {cand_err}")
+            continue
+
+    if not ai_reply:
+        # Fallback to local LLM service
+        try:
+            from llm.provider import llm_service
+            ai_reply = await asyncio.wait_for(
+                llm_service.generate(
+                    prompt=full_user_prompt,
+                    system_prompt=system_prompt,
+                ),
+                timeout=10.0,
+            )
+        except Exception as e:
+            logger.error(f"Fallback LLM service failed in goal_chat: {e}")
+            ai_reply = "I'm having trouble connecting to the intelligence model right now. Please try your question again in a moment."
+
+    return GoalChatResponse(
+        response=ai_reply,
+        citations=citations,
+        spaces_searched=target_spaces,
+    )
+

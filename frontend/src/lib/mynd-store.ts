@@ -155,6 +155,11 @@ export interface MyndState {
   activeSpaceSection: string;
   selectedObject: KnowledgeObject | null;
   isObjectModalOpen: boolean;
+  activeGoal: any | null;
+  setActiveGoal: (goal: any | null) => void;
+  isContextPanelCollapsed: boolean;
+  toggleContextPanel: () => void;
+  setContextPanelCollapsed: (collapsed: boolean) => void;
 
   isFocusMode: boolean;
   isZenMode: boolean;
@@ -562,6 +567,11 @@ export const useMyndStore = create<MyndState>()(
       activeSpaceSection: "all",
       selectedObject: null,
       isObjectModalOpen: false,
+      activeGoal: null,
+      setActiveGoal: (goal) => set({ activeGoal: goal }),
+      isContextPanelCollapsed: false,
+      toggleContextPanel: () => set((state) => ({ isContextPanelCollapsed: !state.isContextPanelCollapsed })),
+      setContextPanelCollapsed: (collapsed) => set({ isContextPanelCollapsed: collapsed }),
 
       isFocusMode: false,
       isZenMode: false,

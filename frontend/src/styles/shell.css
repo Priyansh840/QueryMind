@@ -12,12 +12,24 @@
   overflow: hidden;
 }
 
-/* ---- BODY GRID ---- */
+/* ---- BODY GRID / CONTAINER ---- */
 .app-body {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: row;
   height: 100%;
+  width: 100%;
   overflow: hidden;
+}
+
+.app-workspace {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  border-right: none;
 }
 
 /* ---- SIDEBAR (Top-to-Bottom, Left) ---- */

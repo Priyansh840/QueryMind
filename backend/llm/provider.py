@@ -58,6 +58,17 @@ class FallbackStructuredOutput:
                 last_error = e
                 continue
 
+        # Fallback to local Ollama if available
+        if ChatOllama is not None:
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    structured_ollama = ollama.with_structured_output(self.schema, **self.kwargs)
+                    return structured_ollama.invoke(input, config=config, **kwargs)
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama structured fallback on {ollama_url} failed: {ollama_err}")
+
         # Fallback to safe schema default if possible
         try:
             if hasattr(self.schema, "model_validate"):
@@ -86,6 +97,17 @@ class FallbackStructuredOutput:
                 last_error = e
                 continue
 
+        # Fallback to local Ollama if available
+        if ChatOllama is not None:
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    structured_ollama = ollama.with_structured_output(self.schema, **self.kwargs)
+                    return await structured_ollama.ainvoke(input, config=config, **kwargs)
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama structured async fallback on {ollama_url} failed: {ollama_err}")
+
         # Fallback to safe schema default if possible
         try:
             if hasattr(self.schema, "model_validate"):
@@ -99,7 +121,7 @@ class FallbackStructuredOutput:
 
 
 class FallbackGeminiChatModel(BaseChatModel):
-    """Custom LangChain chat model wrapper that transparently falls back across Gemini models on 429 quota/404 errors."""
+    """Custom LangChain chat model wrapper that transparently falls back across Gemini models on 429 quota/404 errors, and then to local Ollama."""
 
     models: List[str] = GEMINI_MODELS
     temperature: float = 0.2
@@ -110,7 +132,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         return "fallback_gemini"
 
     def with_structured_output(self, schema: Any, **kwargs: Any):
-        """Returns structured output runnable with Gemini candidate fallbacks."""
+        """Returns structured output runnable with Gemini candidate and Ollama fallbacks."""
         return FallbackStructuredOutput(self.models, self.google_api_key, self.temperature, schema, **kwargs)
 
     def _generate(
@@ -137,11 +159,13 @@ class FallbackGeminiChatModel(BaseChatModel):
 
         # Fallback to local Ollama if available
         if ChatOllama is not None:
-            try:
-                ollama = ChatOllama(model="tinyllama", base_url=settings.OLLAMA_BASE_URL, temperature=self.temperature)
-                return ollama._generate(messages, stop=stop, **kwargs)
-            except Exception as ollama_err:
-                logger.warning(f"Ollama fallback failed: {ollama_err}")
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    return ollama._generate(messages, stop=stop, **kwargs)
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama fallback on {ollama_url} failed: {ollama_err}")
 
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
 
@@ -169,11 +193,13 @@ class FallbackGeminiChatModel(BaseChatModel):
                 
         # Fallback to local Ollama if available
         if ChatOllama is not None:
-            try:
-                ollama = ChatOllama(model="tinyllama", base_url=settings.OLLAMA_BASE_URL, temperature=self.temperature)
-                return await ollama._agenerate(messages, stop=stop, **kwargs)
-            except Exception as ollama_err:
-                logger.warning(f"Ollama async fallback failed: {ollama_err}")
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    return await ollama._agenerate(messages, stop=stop, **kwargs)
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama async fallback on {ollama_url} failed: {ollama_err}")
 
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
 

@@ -354,6 +354,7 @@ export const queryMindApi = {
   recommendGoalTasks: async (data: {
     goal_description: string;
     space_id?: string;
+    space_ids?: string[];
     category?: string;
   }): Promise<{
     goal: string;
@@ -361,6 +362,25 @@ export const queryMindApi = {
     context_used?: string;
   }> => {
     const res = await api.post("/goals/recommend-tasks", data);
+    return res.data;
+  },
+  sendGoalChatMessage: async (
+    goalId: string,
+    data: {
+      message: string;
+      history?: Array<{ role: "user" | "assistant"; content: string }>;
+      goal_description?: string;
+      progress?: number;
+      tasks?: Array<any>;
+      target_date?: string;
+      space_ids?: string[];
+    }
+  ): Promise<{
+    response: string;
+    citations: Array<{ document_title?: string; page_number?: number; snippet: string; score?: number }>;
+    spaces_searched: string[];
+  }> => {
+    const res = await api.post(`/goals/${goalId}/chat`, data);
     return res.data;
   },
 

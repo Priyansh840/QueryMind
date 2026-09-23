@@ -27,22 +27,27 @@ async def retrieve_context(
     query: str,
     user_id: Optional[str] = None,
     space_id: Optional[str] = None,
+    space_ids: Optional[List[str]] = None,
     top_k: int = 8,
     score_threshold: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """
     1. Embeds query dynamically.
-    2. Searches Qdrant strictly scoped to space_id (primary collaboration boundary).
+    2. Searches Qdrant strictly scoped to space_id or space_ids (primary collaboration boundary).
     3. Fetches actual text from PostgreSQL using chunk_id from payload.
     """
-    logger.info(f"Retrieving context for query: '{query}' (space={space_id})")
+    target_spaces = [str(s) for s in (space_ids or []) if s]
+    if space_id and str(space_id) not in target_spaces:
+        target_spaces.append(str(space_id))
+
+    logger.info(f"Retrieving context for query: '{query}' (spaces={target_spaces})")
 
     if not settings.qdrant_client_url:
         logger.warning("Qdrant URL missing. Skipping retrieval.")
         return []
 
-    if not space_id:
-        logger.error("space_id is strictly required for retrieval.")
+    if not target_spaces:
+        logger.error("At least one space_id is strictly required for retrieval.")
         return []
 
     client = AsyncQdrantClient(
@@ -51,10 +56,15 @@ async def retrieve_context(
     )
 
     # 1. Strict Space Isolation Filter (Collaborative Space Boundary)
+    if len(target_spaces) == 1:
+        space_match = models.MatchValue(value=target_spaces[0])
+    else:
+        space_match = models.MatchAny(any=target_spaces)
+
     filter_conditions = [
         models.FieldCondition(
             key="space_id",
-            match=models.MatchValue(value=str(space_id))
+            match=space_match
         )
     ]
     if user_id:

@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import AppSidebar from "./AppSidebar";
 import WorkspaceHeader from "./WorkspaceHeader";
+import ContextPanel from "./ContextPanel";
 import SpotlightModal from "../modals/SpotlightModal";
 import AskAiDrawer from "../modals/AskAiDrawer";
 import SettingsModal from "../modals/SettingsModal";
@@ -120,7 +121,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* 2. Main Body Grid */}
       <div
         className="app-body"
-        style={{ gridTemplateColumns: "1fr" }}
+        style={isFocusMode || isZenMode || isChat ? { gridTemplateColumns: "1fr" } : undefined}
       >
         <main
           className="app-workspace"
@@ -171,6 +172,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </main>
+
+        {/* 3. Right Context Panel (hidden on chat, focus mode & zen mode) */}
+        {!isFocusMode && !isZenMode && !isChat && <ContextPanel />}
       </div>
 
       {/* Modals & Drawers */}
