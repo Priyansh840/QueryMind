@@ -1,5 +1,5 @@
 from typing import List, Literal, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 class TaskDefinition(BaseModel):
     id: str = Field(description="Unique task ID, typically task_<number>")
@@ -39,8 +39,22 @@ class DecisionAnalysis(BaseModel):
 # ==============================================================================
 
 class CreateGoalParams(BaseModel):
-    description: str = Field(..., min_length=1, description="Description of the goal to create")
+    description: Optional[str] = Field(None, min_length=1, description="Description of the goal to create")
+    title: Optional[str] = Field(None, min_length=1, description="Title of the goal to create")
+    space_id: Optional[str] = Field(None, description="Optional target space UUID")
     project_id: Optional[str] = Field(None, description="Optional UUID of the project this goal belongs to")
+    target_date: Optional[str] = Field(None, description="Optional target completion date or deadline")
+    priority: Optional[str] = Field("medium", description="Priority rating: high, medium, low")
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_goal_title(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            desc = data.get("description") or data.get("title")
+            if not desc:
+                raise ValueError("Goal must have either a description or title.")
+            data["description"] = desc
+        return data
 
 
 class UpdateGoalStatusParams(BaseModel):
@@ -51,6 +65,7 @@ class UpdateGoalStatusParams(BaseModel):
 class CreateProjectParams(BaseModel):
     space_id: str = Field(..., description="UUID of the space where the project will be created")
     name: str = Field(..., min_length=1, max_length=255, description="Name of the project")
+    description: Optional[str] = Field(None, description="Optional project description")
 
 
 class UpdateProjectStatusParams(BaseModel):
@@ -64,12 +79,26 @@ class AddMemoryParams(BaseModel):
     importance: Literal["high", "medium", "low"] = Field(default="medium", description="Importance rating")
 
 
+class CreateSpaceParams(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, description="Name of the space to create")
+    description: Optional[str] = Field(None, description="Optional description of the space")
+    icon: Optional[str] = Field(None, description="Optional emoji or icon character for the space")
+
+
+class CreateNoteParams(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255, description="Title of the note or document")
+    content: str = Field(..., min_length=1, description="Text content of the note")
+    space_id: Optional[str] = Field(None, description="Optional target space UUID")
+
+
 ActionType = Literal[
     "create_goal",
     "update_goal_status",
     "create_project",
     "update_project_status",
-    "add_memory"
+    "add_memory",
+    "create_space",
+    "create_note",
 ]
 
 
@@ -98,6 +127,10 @@ class ActionProposal(BaseModel):
             return UpdateProjectStatusParams.model_validate(self.parameters)
         elif self.action_type == "add_memory":
             return AddMemoryParams.model_validate(self.parameters)
+        elif self.action_type == "create_space":
+            return CreateSpaceParams.model_validate(self.parameters)
+        elif self.action_type == "create_note":
+            return CreateNoteParams.model_validate(self.parameters)
         else:
             raise ValueError(f"Unsupported action type: {self.action_type}")
 

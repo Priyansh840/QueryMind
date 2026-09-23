@@ -27,6 +27,11 @@ import {
   BookOpen,
   Compass,
   Zap,
+  Target,
+  Folder,
+  FolderPlus,
+  Brain,
+  Loader2,
 } from "lucide-react";
 import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -34,8 +39,10 @@ import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import AgentWorkflowStepper, { WorkflowStepData } from "@/components/chat/AgentWorkflowStepper";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 /* ─── quick prompt definitions ───────────────────────────────── */
+
 
 const emptyStatePrompts = [
   {
@@ -77,6 +84,21 @@ export interface CitationItem {
   [key: string]: any;
 }
 
+interface ActionProposalItem {
+  id?: string;
+  proposal_id: string;
+  action_type: string;
+  target_id?: string;
+  space_id?: string;
+  parameters: Record<string, any>;
+  reason: string;
+  source_recommendation?: string;
+  confidence?: string;
+  status: "pending" | "executed" | "rejected" | "failed";
+  executed_target_id?: string;
+  execution_message?: string;
+}
+
 interface Message {
   id: string | number;
   role: "user" | "ai";
@@ -86,6 +108,7 @@ interface Message {
   objectiveId?: string;
   decisionInsight?: DecisionAnalysis | null;
   workflowSteps?: WorkflowStepData[];
+  actionProposals?: ActionProposalItem[];
   isError?: boolean;
 }
 
@@ -250,6 +273,75 @@ function formatRelativeTime(dateStr?: string) {
   }
 }
 
+function getActionIcon(actionType: string) {
+  switch (actionType) {
+    case "create_goal":
+    case "update_goal_status":
+      return <Target style={{ width: "13px", height: "13px", color: "#10B981" }} />;
+    case "create_space":
+      return <Folder style={{ width: "13px", height: "13px", color: "#818CF8" }} />;
+    case "create_project":
+    case "update_project_status":
+      return <FolderPlus style={{ width: "13px", height: "13px", color: "#60A5FA" }} />;
+    case "create_note":
+      return <FileText style={{ width: "13px", height: "13px", color: "#FBBF24" }} />;
+    case "add_memory":
+      return <Brain style={{ width: "13px", height: "13px", color: "#F472B6" }} />;
+    default:
+      return <Zap style={{ width: "13px", height: "13px", color: "var(--accent)" }} />;
+  }
+}
+
+function getActionTypeLabel(actionType: string): string {
+  switch (actionType) {
+    case "create_goal": return "New Goal";
+    case "update_goal_status": return "Update Goal";
+    case "create_space": return "New Space";
+    case "create_project": return "New Project";
+    case "update_project_status": return "Update Project";
+    case "create_note": return "Vault Note";
+    case "add_memory": return "Workspace Memory";
+    default: return actionType.replace(/_/g, " ");
+  }
+}
+
+function getActionDestinationLink(proposal: ActionProposalItem): string {
+  switch (proposal.action_type) {
+    case "create_goal":
+    case "update_goal_status":
+      return "/goals";
+    case "create_space":
+      return proposal.executed_target_id ? `/spaces/${proposal.executed_target_id}` : "/spaces";
+    case "create_project":
+    case "update_project_status":
+      return "/projects";
+    case "create_note":
+    case "add_memory":
+      return "/vault";
+    default:
+      return "/dashboard";
+  }
+}
+
+function getActionDestinationLabel(proposal: ActionProposalItem): string {
+  switch (proposal.action_type) {
+    case "create_goal":
+    case "update_goal_status":
+      return "View Goals";
+    case "create_space":
+      return "Open Space";
+    case "create_project":
+    case "update_project_status":
+      return "View Projects";
+    case "create_note":
+      return "View in Vault";
+    case "add_memory":
+      return "View Memories";
+    default:
+      return "View in Workspace";
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════ */
 
 export default function ConversationPage() {
@@ -277,6 +369,7 @@ export default function ConversationPage() {
   const [decisionInsight, setDecisionInsight] = useState<DecisionAnalysis | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string>("Chat Session");
   const [copiedMessageId, setCopiedMessageId] = useState<string | number | null>(null);
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
 
   // History Drawer State
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -337,6 +430,7 @@ export default function ConversationPage() {
             citations: m.citations ? deduplicateCitations(m.citations) : undefined,
             objectiveId: m.metadata_json?.objective_id,
             workflowSteps: m.metadata_json?.workflow_steps || undefined,
+            actionProposals: m.metadata_json?.action_proposals || undefined,
             timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           }));
           setMessages((prev) => {
@@ -669,12 +763,33 @@ export default function ConversationPage() {
                 }
                 : msg
             ));
+          } else if (data.event === "action.proposed") {
+            setMessages((prev) => prev.map(msg => {
+              if (msg.id !== tempAiId) return msg;
+              const existing = msg.actionProposals || [];
+              const proposal = data.data;
+              const next = existing.some(p => p.proposal_id === proposal.proposal_id)
+                ? existing.map(p => p.proposal_id === proposal.proposal_id ? { ...p, ...proposal } : p)
+                : [...existing, proposal];
+              return { ...msg, actionProposals: next };
+            }));
+          } else if (data.event === "action.executed") {
+            setMessages((prev) => prev.map(msg => {
+              if (msg.id !== tempAiId) return msg;
+              const existing = msg.actionProposals || [];
+              const executed = data.data;
+              const next = existing.some(p => p.proposal_id === executed.proposal_id)
+                ? existing.map(p => p.proposal_id === executed.proposal_id ? { ...p, ...executed, status: "executed" } : p)
+                : [...existing, { ...executed, status: "executed" }];
+              return { ...msg, actionProposals: next };
+            }));
           } else if (data.event === "message.completed") {
             setMessages((prev) => prev.map(msg =>
               msg.id === tempAiId ? {
                 ...msg,
                 id: data.data.message_id || msg.id,
-                content: data.data.content || msg.content
+                content: data.data.content || msg.content,
+                actionProposals: data.data.action_proposals || msg.actionProposals,
               } : msg
             ));
           } else if (data.event === "error") {
@@ -756,6 +871,64 @@ export default function ConversationPage() {
       trace: [],
     });
     setIsTraceModalOpen(true);
+  };
+
+  const handleApproveAction = async (proposalId: string) => {
+    try {
+      setExecutingActionId(proposalId);
+      const res = await queryMindApi.approveAction(proposalId);
+      if (res && (res.success || res.status === "executed")) {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (!msg.actionProposals) return msg;
+            return {
+              ...msg,
+              actionProposals: msg.actionProposals.map((p) =>
+                p.proposal_id === proposalId || p.id === proposalId
+                  ? {
+                      ...p,
+                      status: "executed",
+                      executed_target_id: res.target_id || p.executed_target_id,
+                      execution_message: res.message || "Executed successfully",
+                    }
+                  : p
+              ),
+            };
+          })
+        );
+      } else {
+        alert(res?.message || "Failed to execute action.");
+      }
+    } catch (err: any) {
+      console.error("Action execution failed", err);
+      alert(err?.response?.data?.detail || err?.message || "Action execution failed");
+    } finally {
+      setExecutingActionId(null);
+    }
+  };
+
+  const handleRejectAction = async (proposalId: string) => {
+    try {
+      setExecutingActionId(proposalId);
+      await queryMindApi.rejectAction(proposalId);
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (!msg.actionProposals) return msg;
+          return {
+            ...msg,
+            actionProposals: msg.actionProposals.map((p) =>
+              p.proposal_id === proposalId || p.id === proposalId
+                ? { ...p, status: "rejected" }
+                : p
+            ),
+          };
+        })
+      );
+    } catch (err: any) {
+      console.error("Action rejection failed", err);
+    } finally {
+      setExecutingActionId(null);
+    }
   };
 
   return (
@@ -1279,6 +1452,332 @@ export default function ConversationPage() {
                             </ul>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Action Execution Cards */}
+                    {msg.actionProposals && msg.actionProposals.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          border: "1px solid rgba(16, 185, 129, 0.25)",
+                          background: "linear-gradient(180deg, rgba(16, 185, 129, 0.04) 0%, rgba(0, 0, 0, 0.02) 100%)",
+                          borderRadius: "14px",
+                          padding: "16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                            paddingBottom: "10px",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <Zap style={{ width: "16px", height: "16px", color: "#10B981" }} />
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: "var(--text-primary)",
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Workspace Actions
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: "10px",
+                              background: "rgba(16, 185, 129, 0.15)",
+                              color: "#10B981",
+                              border: "1px solid rgba(16, 185, 129, 0.3)",
+                            }}
+                          >
+                            {msg.actionProposals.length} {msg.actionProposals.length === 1 ? "ACTION" : "ACTIONS"}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                          {msg.actionProposals.map((proposal, pIdx) => {
+                            const pId = proposal.proposal_id || proposal.id || `prop-${pIdx}`;
+                            const isExecuting = executingActionId === pId;
+                            const title =
+                              proposal.parameters?.title ||
+                              proposal.parameters?.name ||
+                              proposal.parameters?.key ||
+                              proposal.parameters?.description ||
+                              getActionTypeLabel(proposal.action_type);
+
+                            return (
+                              <div
+                                key={pId || pIdx}
+                                style={{
+                                  padding: "14px",
+                                  borderRadius: "10px",
+                                  background: "var(--surface-subtle)",
+                                  border: "1px solid var(--border)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "8px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "10px",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                    <div
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        padding: "2px 8px",
+                                        borderRadius: "6px",
+                                        background: "rgba(255, 255, 255, 0.05)",
+                                        border: "1px solid var(--border)",
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                        color: "var(--text-primary)",
+                                      }}
+                                    >
+                                      {getActionIcon(proposal.action_type)}
+                                      <span>{getActionTypeLabel(proposal.action_type)}</span>
+                                    </div>
+                                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                                      {title}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    {proposal.status === "executed" && (
+                                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                        <div
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            padding: "3px 10px",
+                                            borderRadius: "12px",
+                                            background: "rgba(16, 185, 129, 0.15)",
+                                            color: "#10B981",
+                                            border: "1px solid rgba(16, 185, 129, 0.35)",
+                                            fontSize: "11px",
+                                            fontWeight: 700,
+                                          }}
+                                        >
+                                          <CheckCircle2 style={{ width: "12px", height: "12px" }} />
+                                          <span>Executed</span>
+                                        </div>
+                                        <Link
+                                          href={getActionDestinationLink(proposal)}
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            padding: "4px 10px",
+                                            borderRadius: "var(--r-sm)",
+                                            background: "var(--surface-active, rgba(255, 255, 255, 0.08))",
+                                            color: "var(--text-primary)",
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            textDecoration: "none",
+                                            border: "1px solid var(--border)",
+                                            transition: "all 120ms ease",
+                                          }}
+                                        >
+                                          <span>{getActionDestinationLabel(proposal)}</span>
+                                          <ExternalLink style={{ width: "11px", height: "11px" }} />
+                                        </Link>
+                                      </div>
+                                    )}
+
+                                    {proposal.status === "pending" && (
+                                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                        <button
+                                          type="button"
+                                          disabled={isExecuting}
+                                          onClick={() => handleApproveAction(proposal.proposal_id || proposal.id!)}
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "5px",
+                                            padding: "5px 12px",
+                                            borderRadius: "var(--r-md)",
+                                            background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                                            color: "#FFFFFF",
+                                            border: "none",
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            cursor: isExecuting ? "not-allowed" : "pointer",
+                                            opacity: isExecuting ? 0.7 : 1,
+                                            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.25)",
+                                          }}
+                                        >
+                                          {isExecuting ? (
+                                            <>
+                                              <Loader2 style={{ width: "12px", height: "12px", animation: "spin 1s linear infinite" }} />
+                                              <span>Executing...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Check style={{ width: "12px", height: "12px" }} />
+                                              <span>Approve & Execute</span>
+                                            </>
+                                          )}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isExecuting}
+                                          onClick={() => handleRejectAction(proposal.proposal_id || proposal.id!)}
+                                          style={{
+                                            padding: "5px 10px",
+                                            borderRadius: "var(--r-md)",
+                                            background: "transparent",
+                                            color: "var(--text-tertiary)",
+                                            border: "1px solid var(--border)",
+                                            fontSize: "11px",
+                                            fontWeight: 500,
+                                            cursor: isExecuting ? "not-allowed" : "pointer",
+                                          }}
+                                        >
+                                          Dismiss
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {proposal.status === "rejected" && (
+                                      <span
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "var(--text-tertiary)",
+                                          padding: "2px 8px",
+                                          borderRadius: "6px",
+                                          background: "rgba(255, 255, 255, 0.04)",
+                                        }}
+                                      >
+                                        Dismissed
+                                      </span>
+                                    )}
+
+                                    {proposal.status === "failed" && (
+                                      <span
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#EF4444",
+                                          padding: "2px 8px",
+                                          borderRadius: "6px",
+                                          background: "rgba(239, 68, 68, 0.15)",
+                                          border: "1px solid rgba(239, 68, 68, 0.3)",
+                                        }}
+                                      >
+                                        Failed
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {proposal.reason && (
+                                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                                    <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>Intent: </span>
+                                    {proposal.reason}
+                                  </div>
+                                )}
+
+                                {/* Parameter Tags / Chips */}
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                  {proposal.parameters?.priority && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        fontWeight: 600,
+                                        textTransform: "uppercase",
+                                        padding: "1px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(245, 158, 11, 0.15)",
+                                        color: "#F59E0B",
+                                        border: "1px solid rgba(245, 158, 11, 0.25)",
+                                      }}
+                                    >
+                                      Priority: {proposal.parameters.priority}
+                                    </span>
+                                  )}
+                                  {proposal.parameters?.target_date && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        padding: "1px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(255, 255, 255, 0.05)",
+                                        color: "var(--text-tertiary)",
+                                        border: "1px solid var(--border)",
+                                      }}
+                                    >
+                                      Target Date: {proposal.parameters.target_date}
+                                    </span>
+                                  )}
+                                  {proposal.parameters?.category && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        padding: "1px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(236, 72, 153, 0.1)",
+                                        color: "#F472B6",
+                                        border: "1px solid rgba(236, 72, 153, 0.25)",
+                                      }}
+                                    >
+                                      {proposal.parameters.category}
+                                    </span>
+                                  )}
+                                  {proposal.parameters?.tags && Array.isArray(proposal.parameters.tags) && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        padding: "1px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(255, 255, 255, 0.05)",
+                                        color: "var(--text-tertiary)",
+                                      }}
+                                    >
+                                      Tags: {proposal.parameters.tags.join(", ")}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {proposal.status === "executed" && proposal.execution_message && (
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      color: "#10B981",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      marginTop: "2px",
+                                    }}
+                                  >
+                                    <Check style={{ width: "12px", height: "12px" }} />
+                                    <span>{proposal.execution_message}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 

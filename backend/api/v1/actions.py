@@ -168,9 +168,9 @@ async def reject_action_proposal(
             detail="Action proposal not found."
         )
 
-    # Verify Space admin/owner membership
+    # Verify Space membership
     from api.deps import get_space_membership
-    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="admin")
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="member")
 
     if proposal.status == "executed":
         raise HTTPException(
@@ -213,9 +213,9 @@ async def approve_action_by_id(
             detail="Action proposal not found."
         )
 
-    # Verify Space admin/owner membership
+    # Verify Space membership
     from api.deps import get_space_membership
-    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="admin")
+    space, membership = await get_space_membership(str(proposal.space_id), current_user, db, min_role="member")
 
     if proposal.status == "executed":
         return ActionExecutionResult(

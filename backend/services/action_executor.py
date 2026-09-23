@@ -21,6 +21,8 @@ from orchestrator.schemas import (
     CreateProjectParams,
     UpdateProjectStatusParams,
     AddMemoryParams,
+    CreateSpaceParams,
+    CreateNoteParams,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,10 @@ async def execute_action(
             return await _execute_update_project_status(proposal_id, parsed_params, user_id, db, auto_commit)
         elif action_type == "add_memory":
             return await _execute_add_memory(proposal_id, parsed_params, user_id, db, auto_commit, space_id=prop_space_id)
+        elif action_type == "create_space":
+            return await _execute_create_space(proposal_id, parsed_params, user_id, db, auto_commit)
+        elif action_type == "create_note":
+            return await _execute_create_note(proposal_id, parsed_params, user_id, db, auto_commit, space_id=prop_space_id)
 
         else:
             return ActionExecutionResult(
@@ -180,6 +186,12 @@ async def _execute_create_goal(
                 error_code="unauthorized"
             )
         target_space_uuid = project.space_id
+
+    if not target_space_uuid and getattr(params, "space_id", None):
+        try:
+            target_space_uuid = uuid.UUID(str(params.space_id))
+        except (ValueError, TypeError):
+            pass
 
     if not target_space_uuid:
         s_res = await db.execute(
@@ -653,4 +665,193 @@ async def _execute_add_memory(
             error_code="execution_failed",
             state_delta=None,
             target_entity_type="memory",
+        )
+
+
+async def _execute_create_space(
+    proposal_id: str,
+    params: CreateSpaceParams,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    auto_commit: bool = True,
+) -> ActionExecutionResult:
+    from models.space_member import SpaceMember
+    import re
+    
+    name = params.name.strip()
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", name.lower()).strip("-") or "space"
+    new_space_id = uuid.uuid4()
+    now = datetime.now(timezone.utc)
+    
+    new_space = Space(
+        id=new_space_id,
+        user_id=user_id,
+        name=name,
+        slug=f"{slug}-{str(new_space_id)[:8]}",
+        description=params.description,
+        icon=params.icon or "📁",
+        is_default=False,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(new_space)
+    
+    membership = SpaceMember(
+        id=uuid.uuid4(),
+        space_id=new_space.id,
+        user_id=user_id,
+        role="owner",
+        created_at=now,
+        updated_at=now
+    )
+    db.add(membership)
+    
+    state_delta = {
+        "before": None,
+        "after": {
+            "id": str(new_space.id),
+            "name": new_space.name,
+            "slug": new_space.slug
+        }
+    }
+    
+    if not auto_commit:
+        await db.flush()
+        return ActionExecutionResult(
+            success=True,
+            proposal_id=proposal_id,
+            action_type="create_space",
+            status="executed",
+            target_id=str(new_space.id),
+            message=f"Space '{new_space.name}' created successfully.",
+            state_delta=state_delta,
+            target_entity_type="space"
+        )
+    
+    try:
+        await db.commit()
+        await db.refresh(new_space)
+        return ActionExecutionResult(
+            success=True,
+            proposal_id=proposal_id,
+            action_type="create_space",
+            status="executed",
+            target_id=str(new_space.id),
+            message=f"Space '{new_space.name}' created successfully.",
+            state_delta=state_delta,
+            target_entity_type="space"
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error creating space: {e}")
+        return ActionExecutionResult(
+            success=False,
+            proposal_id=proposal_id,
+            action_type="create_space",
+            status="failed",
+            message=f"Failed to create space: {e}",
+            error_code="execution_failed"
+        )
+
+
+async def _execute_create_note(
+    proposal_id: str,
+    params: CreateNoteParams,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    auto_commit: bool = True,
+    space_id: uuid.UUID | str | None = None,
+) -> ActionExecutionResult:
+    from models.knowledge import Document, DocumentChunk
+    
+    target_space_uuid = None
+    if params.space_id or space_id:
+        try:
+            target_space_uuid = uuid.UUID(str(params.space_id or space_id))
+        except (ValueError, TypeError):
+            pass
+            
+    if not target_space_uuid:
+        s_res = await db.execute(
+            select(Space.id).where(Space.user_id == user_id).order_by(Space.is_default.desc()).limit(1)
+        )
+        target_space_uuid = s_res.scalar_one_or_none()
+        
+    if not target_space_uuid:
+        return ActionExecutionResult(
+            success=False,
+            proposal_id=proposal_id,
+            action_type="create_note",
+            status="rejected",
+            message="No active space found to save note.",
+            error_code="target_not_found"
+        )
+        
+    doc_id = uuid.uuid4()
+    now = datetime.now(timezone.utc)
+    new_doc = Document(
+        id=doc_id,
+        space_id=target_space_uuid,
+        title=params.title.strip(),
+        file_url=f"note://{doc_id}",
+        type="note",
+        status="ready",
+        created_at=now
+    )
+    db.add(new_doc)
+    
+    chunk = DocumentChunk(
+        id=uuid.uuid4(),
+        document_id=doc_id,
+        chunk_index=0,
+        content=params.content.strip(),
+        token_count=len(params.content.split())
+    )
+    db.add(chunk)
+    
+    state_delta = {
+        "before": None,
+        "after": {
+            "id": str(doc_id),
+            "title": new_doc.title,
+            "space_id": str(target_space_uuid)
+        }
+    }
+    
+    if not auto_commit:
+        await db.flush()
+        return ActionExecutionResult(
+            success=True,
+            proposal_id=proposal_id,
+            action_type="create_note",
+            status="executed",
+            target_id=str(doc_id),
+            message=f"Note '{new_doc.title}' saved to Vault successfully.",
+            state_delta=state_delta,
+            target_entity_type="document"
+        )
+        
+    try:
+        await db.commit()
+        await db.refresh(new_doc)
+        return ActionExecutionResult(
+            success=True,
+            proposal_id=proposal_id,
+            action_type="create_note",
+            status="executed",
+            target_id=str(doc_id),
+            message=f"Note '{new_doc.title}' saved to Vault successfully.",
+            state_delta=state_delta,
+            target_entity_type="document"
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error creating note: {e}")
+        return ActionExecutionResult(
+            success=False,
+            proposal_id=proposal_id,
+            action_type="create_note",
+            status="failed",
+            message=f"Failed to save note: {e}",
+            error_code="execution_failed"
         )

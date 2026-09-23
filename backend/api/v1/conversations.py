@@ -22,9 +22,12 @@ from schemas.conversation import (
     MessageCreate,
     MessageResponse
 )
+from datetime import datetime, timezone
 from orchestrator.schemas import DecisionAnalysis, ActionProposal
 from orchestrator.graph import get_orchestrator
 from repositories.action_proposals import ActionProposalRepository
+from repositories.outcomes import OutcomeRepository
+from services.action_executor import execute_action
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -350,26 +353,48 @@ async def send_message(
                     yielded_citations.add(c_key)
                     yield f"data: {json.dumps({'event': 'citation', 'data': c})}\n\n"
             
-            # Save Assistant Message with historical JSONB snapshot
-            asst_msg_id = uuid.uuid4()
-            metadata_dict = {
-                "objective_id": str(objective_id),
-                "action_proposals": action_proposals_collected,
-                "workflow_steps": workflow_steps_collected
-            }
-            asst_msg = Message(
-                id=asst_msg_id,
-                conversation_id=conversation.id,
-                role="assistant",
-                content=final_text,
-                citations=citations,
-                metadata_json=metadata_dict
+            # Check if user query was an imperative command to take an action
+            user_content_clean = request.content.strip().lower()
+            action_keywords = ("make", "create", "add", "set", "save", "remember", "start", "build", "schedule")
+            is_direct_command = (
+                any(user_content_clean.startswith(kw) for kw in action_keywords)
+                or any(f"{kw} a " in user_content_clean or f"{kw} new " in user_content_clean for kw in ("make", "create", "add"))
             )
-            db.add(asst_msg)
 
-            # Persist authoritative ActionProposal database rows (Step 9 Phase 3)
+            asst_msg_id = uuid.uuid4()
+            persisted_proposals_data = []
+
+            # Persist authoritative ActionProposal database rows & execute if direct command
             for p_dict in action_proposals_collected:
-                await ActionProposalRepository.create(
+                proposal_status = "pending"
+                exec_target_id = None
+                exec_msg = None
+
+                if is_direct_command:
+                    try:
+                        validated_p = ActionProposal.model_validate(p_dict)
+                        exec_res = await execute_action(
+                            proposal=validated_p,
+                            user_id=current_user.id,
+                            db=db,
+                            auto_commit=False,
+                        )
+                        if exec_res.success and exec_res.status == "executed":
+                            proposal_status = "executed"
+                            exec_target_id = exec_res.target_id
+                            exec_msg = exec_res.message
+                            p_dict["status"] = "executed"
+                            p_dict["executed_target_id"] = exec_target_id
+                            p_dict["execution_message"] = exec_msg
+                            yield f"data: {json.dumps({'event': 'action.executed', 'data': {'proposal_id': validated_p.proposal_id, 'action_type': validated_p.action_type, 'message': exec_msg, 'target_id': exec_target_id, 'status': 'executed'}})}\n\n"
+                    except Exception as exec_err:
+                        logger.warning(f"Direct command auto-execution failed, leaving as pending: {exec_err}")
+
+                if proposal_status == "pending":
+                    p_dict["status"] = "pending"
+                    yield f"data: {json.dumps({'event': 'action.proposed', 'data': p_dict})}\n\n"
+
+                prop_row = await ActionProposalRepository.create(
                     db,
                     proposal_id=p_dict.get("proposal_id", f"prop-{uuid.uuid4().hex[:6]}"),
                     user_id=current_user.id,
@@ -383,15 +408,62 @@ async def send_message(
                     reason=p_dict.get("reason", ""),
                     source_recommendation=p_dict.get("source_recommendation"),
                     confidence=p_dict.get("confidence", "medium"),
-                    status="pending",
-                    auto_commit=False
+                    status=proposal_status,
+                    auto_commit=False,
                 )
 
-            # Atomically commit Message + ActionProposal rows
+                if proposal_status == "executed" and exec_target_id:
+                    now_utc = datetime.now(timezone.utc)
+                    prop_row.executed_at = now_utc
+                    prop_row.executed_target_id = str(exec_target_id)
+                    prop_row.approved_at = now_utc
+                    prop_row.approved_by_user_id = current_user.id
+
+                    target_uuid = None
+                    try:
+                        target_uuid = uuid.UUID(str(exec_target_id))
+                    except (ValueError, TypeError):
+                        pass
+
+                    await OutcomeRepository.create(
+                        db,
+                        space_id=conversation.space_id,
+                        user_id=current_user.id,
+                        action_proposal_id=prop_row.id,
+                        workflow_id=None,
+                        target_entity_type=p_dict.get("action_type", "").split("_")[-1],
+                        target_entity_id=target_uuid,
+                        initiated_by="ai_proposal",
+                        status="unknown",
+                        expected_outcome=p_dict.get("reason", ""),
+                        actual_outcome=exec_msg,
+                        auto_commit=False,
+                    )
+
+                p_dict["id"] = str(prop_row.id)
+                persisted_proposals_data.append(p_dict)
+
+            # Save Assistant Message with historical JSONB snapshot
+            metadata_dict = {
+                "objective_id": str(objective_id),
+                "action_proposals": persisted_proposals_data,
+                "workflow_steps": workflow_steps_collected,
+            }
+            asst_msg = Message(
+                id=asst_msg_id,
+                conversation_id=conversation.id,
+                role="assistant",
+                content=final_text,
+                citations=citations,
+                metadata_json=metadata_dict,
+            )
+            db.add(asst_msg)
+
+            # Atomically commit Message + ActionProposal rows + Executed entities
             await db.commit()
             
             # Yield message.completed
-            yield f"data: {json.dumps({'event': 'message.completed', 'data': {'message_id': str(asst_msg_id), 'content': final_text}})}\n\n"
+            yield f"data: {json.dumps({'event': 'message.completed', 'data': {'message_id': str(asst_msg_id), 'content': final_text, 'action_proposals': persisted_proposals_data}})}\n\n"
             
         except asyncio.CancelledError:
             logger.info(f"SSE client disconnected for conversation {conversation.id}; rolling back pending session state")

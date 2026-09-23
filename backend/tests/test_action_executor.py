@@ -398,16 +398,17 @@ async def test_p_result_contains_no_raw_db_object(db_session: AsyncSession):
 # ==============================================================================
 @pytest.mark.asyncio
 async def test_q_proposal_remains_pure_intent(db_session: AsyncSession):
+    unique_desc = f"Unexecuted Intent Goal {uuid.uuid4().hex[:8]}"
     # Simply creating the proposal object causes 0 DB state changes
     proposal = ActionProposal(
-        proposal_id="p-intent-only",
+        proposal_id=f"p-intent-{uuid.uuid4().hex[:6]}",
         action_type="create_goal",
-        parameters={"description": "Unexecuted Intent Goal"},
+        parameters={"description": unique_desc},
         reason="Intent only",
         confidence="high"
     )
     # Check that it doesn't exist in DB
-    stmt = select(Goal).where(Goal.description == "Unexecuted Intent Goal")
+    stmt = select(Goal).where(Goal.description == unique_desc)
     res = await db_session.execute(stmt)
     assert res.scalar_one_or_none() is None
 

@@ -148,6 +148,10 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
         decision_out = state.get("decision_output")
         if decision_out:
             context_blocks.append("DECISION ANALYSIS START\n" + json.dumps(decision_out, indent=2) + "\nDECISION ANALYSIS END")
+
+        action_proposals = state.get("action_proposals", [])
+        if action_proposals:
+            context_blocks.append("PROPOSED WORKSPACE ACTIONS:\n" + json.dumps(action_proposals, indent=2))
             
         human_prompt = (
             f"Original Query: {state.get('raw_query')}\n\n"

@@ -522,6 +522,17 @@ export const queryMindApi = {
     const res = await api.get(`/test/search?query=${encodeURIComponent(query)}`);
     return res.data;
   },
+
+  // Action Proposals & Execution
+  approveAction: async (proposalId: string) => {
+    const res = await api.post(`/actions/${proposalId}/approve`);
+    return res.data;
+  },
+
+  rejectAction: async (proposalId: string) => {
+    const res = await api.post(`/actions/${proposalId}/reject`);
+    return res.data;
+  },
 };
 
 export default api;

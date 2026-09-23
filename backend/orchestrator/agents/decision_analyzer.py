@@ -74,6 +74,7 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
             "9. Ensure `source_type` is one of: 'workspace', 'document', 'conversation'.\n"
             "10. Review `<recent_action_outcomes>` and `<lessons_learned>` where present to recognize past failures and avoid repeating known mistakes. Always distinguish objective workspace FACTS from subjective REFLECTIONS, and never treat an unverified reflection as authoritative objective truth.\n"
             "11. Do not blindly follow previous recommendations; assess all lessons judiciously in context of the current objective.\n"
+            "12. If the user's query is an explicit command to take a workspace action (e.g. create a goal, create a space, create a project, add a memory, save a note), formulate a high-confidence recommendation directly fulfilling the user's command.\n"
         )
         
         # Append Workspace Context
