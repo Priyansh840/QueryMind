@@ -32,11 +32,20 @@ import {
   FolderPlus,
   Brain,
   Loader2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Headphones,
+  Square,
+  Radio,
 } from "lucide-react";
 import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import AgentWorkflowStepper, { WorkflowStepData } from "@/components/chat/AgentWorkflowStepper";
+import VoiceChatModal from "@/components/chat/VoiceChatModal";
+import { useSpeechToText, useTextToSpeech } from "@/lib/voice";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -396,6 +405,48 @@ export default function ConversationPage() {
 
   const queryExecutedRef = useRef(false);
   const isSendingRef = useRef(false);
+
+  // ─── Speak to Chat & Voice Mode Integration ───
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [voiceToast, setVoiceToast] = useState<string | null>(null);
+
+  const {
+    isListening,
+    interimTranscript: speechInterim,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    toggleListening,
+    error: speechError,
+  } = useSpeechToText({
+    onTranscriptChange: (liveText) => {
+      setInput(liveText);
+    },
+  });
+
+  const {
+    isSpeaking,
+    speakingId,
+    speak: speakAloud,
+    stop: stopSpeaking,
+  } = useTextToSpeech();
+
+  useEffect(() => {
+    if (speechError) {
+      setVoiceToast(speechError);
+      const timer = setTimeout(() => setVoiceToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [speechError]);
+
+  const lastAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "ai" && messages[i].content) {
+        return messages[i].content;
+      }
+    }
+    return "";
+  }, [messages]);
 
   // Auto-scroll on new messages or streaming tokens
   useEffect(() => {
@@ -1829,6 +1880,54 @@ export default function ConversationPage() {
                             )}
                           </button>
 
+                          {/* Read Aloud (Speak to Chat Response) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isSpeaking && speakingId === String(msg.id)) {
+                                stopSpeaking();
+                              } else {
+                                speakAloud(msg.content, String(msg.id));
+                              }
+                            }}
+                            title={isSpeaking && speakingId === String(msg.id) ? "Stop speaking" : "Read aloud (Listen to AI)"}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "4px 8px",
+                              borderRadius: "var(--r-sm)",
+                              background: isSpeaking && speakingId === String(msg.id) ? "rgba(16, 185, 129, 0.12)" : "transparent",
+                              border: isSpeaking && speakingId === String(msg.id) ? "1px solid rgba(16, 185, 129, 0.3)" : "none",
+                              color: isSpeaking && speakingId === String(msg.id) ? "#10B981" : "var(--text-tertiary)",
+                              fontSize: "12px",
+                              cursor: "pointer",
+                              transition: "all 120ms var(--ease)",
+                            }}
+                            onMouseOver={(e) => {
+                              if (!(isSpeaking && speakingId === String(msg.id))) {
+                                e.currentTarget.style.color = "var(--text-primary)";
+                              }
+                            }}
+                            onMouseOut={(e) => {
+                              if (!(isSpeaking && speakingId === String(msg.id))) {
+                                e.currentTarget.style.color = "var(--text-tertiary)";
+                              }
+                            }}
+                          >
+                            {isSpeaking && speakingId === String(msg.id) ? (
+                              <>
+                                <Square style={{ width: "11px", height: "11px", fill: "currentColor" }} />
+                                <span>Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 style={{ width: "13px", height: "13px" }} />
+                                <span>Read aloud</span>
+                              </>
+                            )}
+                          </button>
+
                           {msg.objectiveId && (
                             <button
                               type="button"
@@ -1990,6 +2089,90 @@ export default function ConversationPage() {
               </div>
             )}
 
+            {/* Live Voice Listening Bar (ChatGPT style) */}
+            {isListening && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  marginBottom: "8px",
+                  borderRadius: "10px",
+                  background: "rgba(16, 185, 129, 0.08)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  animation: "fadeIn 150ms ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "3px", height: "18px" }}>
+                    {[10, 18, 26, 14, 20].map((h, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          width: "3px",
+                          height: `${h}px`,
+                          borderRadius: "2px",
+                          background: "#10B981",
+                          animation: `pulse ${0.5 + i * 0.15}s ease-in-out infinite alternate`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#10B981" }}>
+                      Listening... Speak now
+                    </span>
+                    {speechInterim && (
+                      <span style={{ fontSize: "11.5px", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                        &ldquo;{speechInterim}&rdquo;
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={() => stopListening()}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "14px",
+                      background: "rgba(16, 185, 129, 0.2)",
+                      border: "1px solid rgba(16, 185, 129, 0.4)",
+                      color: "#10B981",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Done
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopListening();
+                      handleSend();
+                    }}
+                    disabled={!input.trim()}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "14px",
+                      background: "var(--accent)",
+                      border: "none",
+                      color: "#FFFFFF",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: input.trim() ? "pointer" : "not-allowed",
+                      opacity: input.trim() ? 1 : 0.5,
+                    }}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               placeholder="Ask anything..."
@@ -2070,6 +2253,87 @@ export default function ConversationPage() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {/* Voice Mode (ChatGPT Full Hands-Free Voice Chat) */}
+                <button
+                  type="button"
+                  title="Voice Mode (Hands-free Voice Chat with AI)"
+                  onClick={() => setIsVoiceModalOpen(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "4px 10px",
+                    borderRadius: "16px",
+                    fontSize: "12px",
+                    color: "var(--text-secondary)",
+                    background: "var(--surface-subtle)",
+                    border: "1px solid var(--border)",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--text-primary)";
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.borderColor = "var(--border)";
+                  }}
+                >
+                  <Headphones style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                  <span>Voice</span>
+                </button>
+
+                {/* Speak to Chat (Microphone Dictation) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isListening) {
+                      stopListening();
+                    } else {
+                      toggleListening(input);
+                    }
+                  }}
+                  title={isListening ? "Stop listening" : "Speak to Chat (Dictate)"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    background: isListening
+                      ? "rgba(239, 68, 68, 0.2)"
+                      : "var(--surface-subtle)",
+                    border: isListening
+                      ? "1px solid #EF4444"
+                      : "1px solid var(--border)",
+                    color: isListening ? "#EF4444" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    boxShadow: isListening ? "0 0 10px rgba(239, 68, 68, 0.4)" : "none",
+                    transition: "all 150ms var(--ease)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isListening) {
+                      e.currentTarget.style.color = "var(--text-primary)";
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isListening) {
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                    }
+                  }}
+                >
+                  {isListening ? (
+                    <MicOff style={{ width: "15px", height: "15px" }} />
+                  ) : (
+                    <Mic style={{ width: "15px", height: "15px" }} />
+                  )}
+                </button>
+
                 {/* Think / Reasoning chip */}
                 <div
                   style={{
@@ -2419,6 +2683,57 @@ export default function ConversationPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* ─── ChatGPT-style Voice Chat Modal ─── */}
+      <VoiceChatModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        spaceName={activeSpace?.name || conversationTitle || "Workspace"}
+        onSendMessage={async (queryText) => {
+          handleSend(queryText);
+        }}
+        isGenerating={isOrchestrating}
+        lastAssistantMessage={lastAssistantMessage}
+      />
+
+      {/* ─── Voice Notification Toast ─── */}
+      {voiceToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 9999,
+            padding: "12px 18px",
+            borderRadius: "10px",
+            background: "rgba(239, 68, 68, 0.95)",
+            color: "#FFFFFF",
+            fontSize: "13px",
+            fontWeight: 500,
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.4)",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            animation: "fadeIn 200ms ease",
+          }}
+        >
+          <AlertCircle style={{ width: "16px", height: "16px", flexShrink: 0 }} />
+          <span>{voiceToast}</span>
+          <button
+            type="button"
+            onClick={() => setVoiceToast(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#FFFFFF",
+              cursor: "pointer",
+              padding: "2px",
+              marginLeft: "6px",
+            }}
+          >
+            <X style={{ width: "14px", height: "14px" }} />
+          </button>
         </div>
       )}
     </div>
