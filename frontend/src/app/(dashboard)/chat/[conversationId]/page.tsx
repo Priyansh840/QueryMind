@@ -647,10 +647,10 @@ export default function ConversationPage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // 120s timeout to prevent forever-hanging requests
+    // 240s timeout to allow deep reasoning without cutting off streaming responses
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 120_000);
+    }, 240_000);
 
     if (!textToSend.trim() && attachments.length > 0) {
       textToSend = `Please analyze and summarize the attached document "${attachments[0].name}" and highlight key takeaways.`;
@@ -893,15 +893,25 @@ export default function ConversationPage() {
       setMessages((prev) => {
         const hasTemp = prev.some((m) => m.id === tempAiId);
         if (hasTemp) {
-          return prev.map((m) =>
-            m.id === tempAiId
-              ? {
+          return prev.map((m) => {
+            if (m.id !== tempAiId) return m;
+            // If the AI already has recommendations or partial content, preserve it
+            if (m.content) {
+              return { ...m, isError: false };
+            }
+            if (m.decisionInsight || (m.actionProposals && m.actionProposals.length > 0)) {
+              return {
                 ...m,
-                content: `⚠️ ${errorMsg}`,
-                isError: true,
-              }
-              : m
-          );
+                content: "I have prepared the workspace recommendations and action plan below based on the retrieved document context.",
+                isError: false,
+              };
+            }
+            return {
+              ...m,
+              content: `⚠️ ${errorMsg}`,
+              isError: true,
+            };
+          });
         }
         return [
           ...prev,
