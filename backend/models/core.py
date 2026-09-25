@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.postgres import Base, utc_now
@@ -54,6 +54,10 @@ class Goal(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="active")
+    tasks: Mapped[list | None] = mapped_column(JSONB, default=list, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(50), default="career", nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(50), default="medium", nullable=True)
+    target_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     

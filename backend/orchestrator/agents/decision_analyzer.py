@@ -75,6 +75,8 @@ async def decision_analyzer_node(state: AgentState, config: RunnableConfig) -> A
             "10. Review `<recent_action_outcomes>` and `<lessons_learned>` where present to recognize past failures and avoid repeating known mistakes. Always distinguish objective workspace FACTS from subjective REFLECTIONS, and never treat an unverified reflection as authoritative objective truth.\n"
             "11. Do not blindly follow previous recommendations; assess all lessons judiciously in context of the current objective.\n"
             "12. If the user's query is an explicit command to take a workspace action (e.g. create a goal, create a space, create a project, add a memory, save a note), formulate a high-confidence recommendation directly fulfilling the user's command.\n"
+            "13. When the user requests creating a goal with specific tasks, steps, or milestones (e.g. 'with tasks: A, B, C' or 'covering X, Y, Z'), explicitly list those tasks/milestones in the recommendation action details so the Action Proposer can include them.\n"
+            "14. DOCUMENT-TO-GOAL: If research evidence was retrieved from an uploaded document to build a goal, study plan, or project roadmap, formulate a 'Create goal' recommendation using the document's main topics, chapters, or phases as the structured subtasks/milestones, citing the document evidence directly.\n"
         )
         
         # Append Workspace Context

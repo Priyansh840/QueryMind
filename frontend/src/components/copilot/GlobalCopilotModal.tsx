@@ -43,6 +43,7 @@ export default function GlobalCopilotModal() {
   const isCopilotOpen = useMyndStore((state) => state.isAskAiOpen);
   const closeCopilot = useMyndStore((state) => state.closeAskAi);
   const activeGoal = useMyndStore((state) => state.activeGoal);
+  const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
 
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
@@ -151,18 +152,33 @@ export default function GlobalCopilotModal() {
 
       const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
-      // 1. Get or create active conversation
+      // 1. Get or create active conversation in current space
       let targetConvId = "omni-copilot";
       try {
-        const convsRes = await fetch(`${rawApiUrl}/api/v1/conversations`, { headers });
+        const queryParam = activeSpaceId ? `?space_id=${encodeURIComponent(activeSpaceId)}` : "";
+        const convsRes = await fetch(`${rawApiUrl}/api/v1/conversations${queryParam}`, { headers });
         if (convsRes.ok) {
           const convList = await convsRes.json();
           if (Array.isArray(convList) && convList.length > 0) {
             targetConvId = convList[0].id;
+          } else if (activeSpaceId) {
+            // Create a conversation scoped to this active space
+            const createRes = await fetch(`${rawApiUrl}/api/v1/conversations`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                space_id: activeSpaceId,
+                title: "Omni Copilot Session",
+              }),
+            });
+            if (createRes.ok) {
+              const newConv = await createRes.json();
+              if (newConv?.id) targetConvId = newConv.id;
+            }
           }
         }
       } catch (err) {
-        console.warn("Could not list conversations for copilot", err);
+        console.warn("Could not resolve space conversation for copilot", err);
       }
 
       // 2. Stream from orchestrator
@@ -552,6 +568,19 @@ export default function GlobalCopilotModal() {
                               <p style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.8)", margin: 0 }}>
                                 {prop.reason || prop.parameters?.description || prop.parameters?.title || "Action proposed"}
                               </p>
+                              {Array.isArray(prop.parameters?.tasks) && prop.parameters.tasks.length > 0 && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", paddingLeft: "4px" }}>
+                                  <span style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.5)", fontWeight: 500 }}>
+                                    Included Subtasks ({prop.parameters.tasks.length}):
+                                  </span>
+                                  {prop.parameters.tasks.map((task: any, tIdx: number) => (
+                                    <div key={tIdx} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "rgba(255, 255, 255, 0.75)" }}>
+                                      <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#a855f7" }} />
+                                      <span>{task.title || task}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

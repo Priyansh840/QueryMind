@@ -199,6 +199,17 @@ async def _execute_create_goal(
         )
         target_space_uuid = s_res.scalar_one_or_none()
 
+    raw_tasks = getattr(params, "tasks", None) or []
+    cleaned_tasks = []
+    for idx, t in enumerate(raw_tasks):
+        if isinstance(t, dict) and t.get("title"):
+            cleaned_tasks.append({
+                "id": str(t.get("id") or f"t-{int(datetime.now(timezone.utc).timestamp()*1000)}-{idx}"),
+                "title": str(t["title"]).strip(),
+                "completed": bool(t.get("completed", False)),
+                "priority": str(t.get("priority", "medium")).lower(),
+            })
+
     new_goal = Goal(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -206,6 +217,10 @@ async def _execute_create_goal(
         project_id=project_uuid,
         description=params.description.strip(),
         status="active",
+        tasks=cleaned_tasks,
+        category=getattr(params, "category", None) or "career",
+        priority=getattr(params, "priority", None) or "medium",
+        target_date=getattr(params, "target_date", None),
         created_at=datetime.now(timezone.utc)
     )
     db.add(new_goal)
@@ -216,6 +231,10 @@ async def _execute_create_goal(
             "id": str(new_goal.id),
             "description": new_goal.description,
             "status": new_goal.status,
+            "tasks": new_goal.tasks,
+            "category": new_goal.category,
+            "priority": new_goal.priority,
+            "target_date": new_goal.target_date,
             "space_id": str(target_space_uuid) if target_space_uuid else None,
             "project_id": str(project_uuid) if project_uuid else None,
         },

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
             return self.QDRANT_URL
         return f"http://{self.QDRANT_HOST}:{self.QDRANT_PORT}"
         
-    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_DIMENSION: int = 768
     EMBEDDING_MODEL: str = "nomic-embed-text"
     QDRANT_COLLECTION_DOCUMENTS: str = "querymind_documents"
     QDRANT_COLLECTION_MEMORIES: str = "querymind_memories"

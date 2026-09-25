@@ -387,9 +387,18 @@ async def send_message(
             
             # Check if user query was an imperative command to take an action
             user_content_clean = request.content.strip().lower()
-            action_keywords = ("make", "create", "add", "set", "save", "remember", "start", "build", "schedule")
+            action_keywords = ("make", "create", "add", "set", "save", "remember", "start", "build", "schedule", "register", "generate")
+            
+            # Direct imperative intent checking (flexible to phrasing like "create me a goal", "make a goal for...", "add goal")
+            has_action_verb = any(v in user_content_clean for v in ("create", "make", "add", "set", "save", "build", "register", "generate"))
+            has_goal_entity = "goal" in user_content_clean
+            is_goal_command = has_action_verb and has_goal_entity
+            is_goal_followup = any(phrase in user_content_clean for phrase in ("why cant i see that goal", "why can't i see that goal", "where is that goal", "where is the goal", "show me that goal", "i cant see that goal", "i can't see that goal"))
+
             is_direct_command = (
-                any(user_content_clean.startswith(kw) for kw in action_keywords)
+                is_goal_command
+                or is_goal_followup
+                or any(user_content_clean.startswith(kw) for kw in action_keywords)
                 or any(f"{kw} a " in user_content_clean or f"{kw} new " in user_content_clean or f"{kw} goal" in user_content_clean for kw in ("make", "create", "add"))
                 or "create a goal" in user_content_clean
                 or "make a goal" in user_content_clean

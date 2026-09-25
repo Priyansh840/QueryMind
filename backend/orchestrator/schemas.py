@@ -33,6 +33,25 @@ class DecisionAnalysis(BaseModel):
     recommendations: List[Recommendation] = Field(default_factory=list, description="Proposed next steps grounded in evidence")
     uncertainties: List[str] = Field(default_factory=list, description="Missing information or ambiguity")
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_string_lists(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for field in ("blockers", "uncertainties"):
+                if field in data and isinstance(data[field], list):
+                    normalized = []
+                    for item in data[field]:
+                        if isinstance(item, str):
+                            normalized.append(item)
+                        elif isinstance(item, dict):
+                            # extract message or content or fallback to string representation
+                            text = item.get("content") or item.get("message") or item.get("reason") or str(item)
+                            normalized.append(text)
+                        else:
+                            normalized.append(str(item))
+                    data[field] = normalized
+        return data
+
 
 # ==============================================================================
 # Step 8 Phase 1: Action Proposal Schemas (Read -> Analyze -> Propose)
@@ -42,8 +61,10 @@ class CreateGoalParams(BaseModel):
     description: str = Field(..., min_length=1, description="Description of the goal to create")
     space_id: Optional[str] = Field(None, description="Optional target space UUID")
     project_id: Optional[str] = Field(None, description="Optional UUID of the project this goal belongs to")
-    target_date: Optional[str] = Field(None, description="Optional target completion date or deadline")
+    tasks: Optional[List[dict]] = Field(default_factory=list, description="Initial list of tasks/milestones")
+    category: Optional[str] = Field("career", description="Category: career, knowledge, architecture, personal")
     priority: Optional[str] = Field("medium", description="Priority rating: high, medium, low")
+    target_date: Optional[str] = Field(None, description="Optional target completion date or deadline")
 
 
 class UpdateGoalStatusParams(BaseModel):

@@ -212,11 +212,13 @@ export default function GoalsPage() {
 
         const enriched: EnrichedGoal[] = data.map((g) => {
           const meta = storedMeta[g.id] || {};
-          const goalSpaceIds: string[] = meta.space_ids || (g.project_id ? [g.project_id] : []);
-          const space = spaces.find((s) => s.id === (g.project_id || meta.space_name));
-          // Migrate old milestones to tasks if needed
-          const tasks: GoalTask[] = (meta.tasks || meta.milestones || []).map((t) => ({
-            id: t.id,
+          const goalSpaceIds: string[] = meta.space_ids || (g.space_id ? [g.space_id] : (g.project_id ? [g.project_id] : []));
+          const space = spaces.find((s) => s.id === (g.space_id || g.project_id || meta.space_name));
+          
+          // Prefer database tasks, falling back to localStorage
+          const rawTasks = (g.tasks && g.tasks.length > 0) ? g.tasks : (meta.tasks || meta.milestones || []);
+          const tasks: GoalTask[] = rawTasks.map((t: any) => ({
+            id: t.id || `t-${Math.random().toString(36).slice(2, 7)}`,
             title: t.title,
             completed: Boolean(t.completed),
             priority: t.priority || "medium",
@@ -225,9 +227,9 @@ export default function GoalsPage() {
 
           return {
             ...g,
-            category: meta.category || "career",
-            target_date: meta.target_date || "",
-            priority: meta.priority || "high",
+            category: g.category || meta.category || "career",
+            target_date: g.target_date || meta.target_date || "",
+            priority: (g.priority as any) || meta.priority || "medium",
             progress: calculatedProgress,
             tasks,
             milestones: tasks,
@@ -400,7 +402,11 @@ export default function GoalsPage() {
     try {
       const created = await queryMindApi.createGoal({
         description: goalDescription.trim(),
-        project_id: selectedSpaceId || undefined,
+        space_id: selectedSpaceId || undefined,
+        tasks: initialTasks,
+        category,
+        priority: priority as any,
+        target_date: targetDate || undefined,
       });
 
       const effectiveSpaceIds = selectedSpaceIds.length > 0 ? selectedSpaceIds : (selectedSpaceId ? [selectedSpaceId] : []);
@@ -408,7 +414,7 @@ export default function GoalsPage() {
         ...created,
         category,
         target_date: targetDate,
-        priority,
+        priority: priority as any,
         progress: 0,
         tasks: initialTasks,
         milestones: initialTasks,
@@ -491,12 +497,14 @@ export default function GoalsPage() {
   };
 
   const handleToggleTask = (goalId: string, taskId: string) => {
+    let updatedTasksToPersist: GoalTask[] = [];
     const nextGoals = goals.map((g) => {
       if (g.id === goalId) {
         const currentTasks = g.tasks || g.milestones || [];
         const updatedTasks = currentTasks.map((t) =>
           t.id === taskId ? { ...t, completed: !t.completed } : t
         );
+        updatedTasksToPersist = updatedTasks;
         const calcProgress = computeGoalProgress(updatedTasks);
         const isAllDone = updatedTasks.length > 0 && updatedTasks.every((t) => t.completed);
 
@@ -516,6 +524,13 @@ export default function GoalsPage() {
     if (selectedGoal?.id === goalId) {
       setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
     }
+    
+    // Sync to backend DB asynchronously
+    if (updatedTasksToPersist.length > 0) {
+      queryMindApi.updateGoal(goalId, { tasks: updatedTasksToPersist }).catch((err) => {
+        console.warn("Could not sync tasks to backend:", err);
+      });
+    }
   };
 
   const handleAddModalTask = (goalId: string) => {
@@ -526,9 +541,11 @@ export default function GoalsPage() {
       completed: false,
       priority: modalTaskPriority,
     };
+    let updatedTasksToPersist: GoalTask[] = [];
     const nextGoals = goals.map((g) => {
       if (g.id === goalId) {
         const updated = [...(g.tasks || g.milestones || []), newTask];
+        updatedTasksToPersist = updated;
         const calcProgress = computeGoalProgress(updated);
         return {
           ...g,
@@ -545,12 +562,21 @@ export default function GoalsPage() {
       setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
     }
     setModalTaskInput("");
+
+    // Sync to backend DB asynchronously
+    if (updatedTasksToPersist.length > 0) {
+      queryMindApi.updateGoal(goalId, { tasks: updatedTasksToPersist }).catch((err) => {
+        console.warn("Could not sync tasks to backend:", err);
+      });
+    }
   };
 
   const handleRemoveModalTask = (goalId: string, taskId: string) => {
+    let updatedTasksToPersist: GoalTask[] = [];
     const nextGoals = goals.map((g) => {
       if (g.id === goalId) {
         const updated = (g.tasks || g.milestones || []).filter((t) => t.id !== taskId);
+        updatedTasksToPersist = updated;
         const calcProgress = computeGoalProgress(updated);
         return {
           ...g,
@@ -566,6 +592,11 @@ export default function GoalsPage() {
     if (selectedGoal?.id === goalId) {
       setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
     }
+
+    // Sync to backend DB asynchronously
+    queryMindApi.updateGoal(goalId, { tasks: updatedTasksToPersist }).catch((err) => {
+      console.warn("Could not sync tasks to backend:", err);
+    });
   };
 
   const handleDeleteGoal = async (id: string) => {

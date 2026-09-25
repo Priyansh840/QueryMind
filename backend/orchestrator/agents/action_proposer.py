@@ -58,20 +58,21 @@ async def action_proposer_node(state: AgentState, config: RunnableConfig) -> Age
     
     # If there are no recommendations from decision analysis, but the user explicitly ordered an action:
     if not recommendations:
-        for kw in ("create a goal", "create goal", "make a goal", "make goal", "add a goal", "add goal", "new goal"):
-            if kw in raw_query_clean:
-                # Extract goal description
-                parts = raw_query.split("goal", 1)
-                goal_desc = parts[1].strip(" :-\"'to").strip() if len(parts) > 1 else raw_query
-                if not goal_desc:
-                    goal_desc = raw_query
-                recommendations = [{
-                    "action": f"Create new goal: {goal_desc}",
-                    "reason": f"Direct user command: {raw_query}",
-                    "confidence": "high",
-                    "evidence": []
-                }]
-                break
+        has_goal_verb = any(v in raw_query_clean for v in ("create", "make", "add", "set", "build", "register", "generate"))
+        has_goal_kw = "goal" in raw_query_clean or any(kw in raw_query_clean for kw in ("create a goal", "create goal", "make a goal", "make goal", "add a goal", "add goal", "new goal"))
+        
+        if (has_goal_verb and has_goal_kw) or has_goal_kw:
+            # Extract goal description
+            parts = raw_query.split("goal", 1)
+            goal_desc = parts[1].strip(" :-\"'tofor ").strip() if len(parts) > 1 else raw_query
+            if not goal_desc or len(goal_desc) < 3:
+                goal_desc = raw_query
+            recommendations = [{
+                "action": f"Create new goal: {goal_desc}",
+                "reason": f"Direct user command: {raw_query}",
+                "confidence": "high",
+                "evidence": []
+            }]
 
     if not recommendations:
         state["action_proposals"] = []
@@ -91,7 +92,9 @@ async def action_proposer_node(state: AgentState, config: RunnableConfig) -> Age
             "Your objective is to examine the provided Decision Recommendations and determine if any recommendation "
             "can be directly translated into one of MYND's strictly supported workspace action proposals.\n\n"
             "STRICT ALLOWLIST OF SUPPORTED ACTIONS:\n"
-            "1. 'create_goal': Requires parameters {'description': str, 'space_id': Optional[str], 'project_id': Optional[str]}\n"
+            "1. 'create_goal': Requires parameters {'description': str, 'space_id': Optional[str], 'project_id': Optional[str], 'tasks': Optional[List[dict]], 'category': Optional[str], 'priority': Optional[str], 'target_date': Optional[str]}\n"
+            "   (Each task in tasks MUST be an object with: {'title': str, 'completed': bool, 'priority': 'high'|'medium'|'low'}).\n"
+            "   IMPORTANT: If the user or recommendation mentions subtasks, milestones, or key phases (or if the goal naturally breaks down into concrete actionable steps), populate 'tasks' with 2 to 5 structured tasks!\n"
             "2. 'update_goal_status': Requires parameters {'goal_id': str, 'status': 'active'|'completed'|'archived'|'paused'}\n"
             "3. 'create_space': Requires parameters {'name': str, 'description': Optional[str], 'icon': Optional[str]}\n"
             "4. 'create_project': Requires parameters {'space_id': str, 'name': str, 'description': Optional[str]}\n"

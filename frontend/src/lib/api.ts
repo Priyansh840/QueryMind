@@ -247,9 +247,14 @@ export interface ProjectData {
 export interface GoalData {
   id: string;
   user_id: string;
+  space_id?: string;
   project_id?: string;
   description: string;
   status: string;
+  tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+  category?: string;
+  priority?: "high" | "medium" | "low";
+  target_date?: string;
   created_at: string;
 }
 
@@ -339,11 +344,29 @@ export const queryMindApi = {
     const res = await api.get<GoalData>(`/goals/${goalId}`);
     return res.data;
   },
-  createGoal: async (data: { description: string; project_id?: string }): Promise<GoalData> => {
+  createGoal: async (data: {
+    description: string;
+    space_id?: string;
+    project_id?: string;
+    tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+    category?: string;
+    priority?: "high" | "medium" | "low";
+    target_date?: string;
+  }): Promise<GoalData> => {
     const res = await api.post<GoalData>("/goals", data);
     return res.data;
   },
-  updateGoal: async (goalId: string, data: { description?: string; status?: string }): Promise<GoalData> => {
+  updateGoal: async (
+    goalId: string,
+    data: {
+      description?: string;
+      status?: string;
+      tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+      category?: string;
+      priority?: "high" | "medium" | "low";
+      target_date?: string;
+    }
+  ): Promise<GoalData> => {
     const res = await api.patch<GoalData>(`/goals/${goalId}`, data);
     return res.data;
   },

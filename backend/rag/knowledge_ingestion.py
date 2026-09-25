@@ -14,6 +14,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from core.config import settings
+from llm.embeddings import get_embeddings
 from ingestion.embeddings import embedding_service
 from models.knowledge import Document, DocumentChunk, Knowledge
 from rag.knowledge_extractor import extract_document_knowledge, DocumentUnderstandingResult
@@ -103,7 +104,8 @@ async def ingest_document_knowledge(
 
     # 3. Generate Embeddings
     logger.info(f"Generating embeddings for {len(knowledge_texts)} knowledge records...")
-    vectors = embedding_service.embed_texts(knowledge_texts)
+    embeddings_model = get_embeddings()
+    vectors = await embeddings_model.aembed_documents(knowledge_texts)
 
     # 4. Upsert Vectors to Qdrant Knowledge Collection
     points_uploaded = False

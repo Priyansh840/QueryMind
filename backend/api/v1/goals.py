@@ -28,11 +28,19 @@ class GoalCreateRequest(BaseModel):
     description: str = Field(..., min_length=1)
     space_id: Optional[str] = None
     project_id: Optional[str] = None
+    tasks: Optional[List[dict]] = None
+    category: Optional[str] = "career"
+    priority: Optional[str] = "medium"
+    target_date: Optional[str] = None
 
 
 class GoalUpdateRequest(BaseModel):
     description: Optional[str] = Field(None, min_length=1)
     status: Optional[str] = Field(None, max_length=50)
+    tasks: Optional[List[dict]] = None
+    category: Optional[str] = None
+    priority: Optional[str] = None
+    target_date: Optional[str] = None
 
 
 class GoalResponse(BaseModel):
@@ -42,6 +50,10 @@ class GoalResponse(BaseModel):
     project_id: Optional[str] = None
     description: str
     status: str
+    tasks: Optional[List[dict]] = []
+    category: Optional[str] = "career"
+    priority: Optional[str] = "medium"
+    target_date: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -152,6 +164,10 @@ async def create_goal(
         project_id=project_uuid,
         description=request.description.strip(),
         status="active",
+        tasks=request.tasks or [],
+        category=request.category or "career",
+        priority=request.priority or "medium",
+        target_date=request.target_date,
         created_at=datetime.now(timezone.utc)
     )
     db.add(new_goal)
@@ -175,6 +191,10 @@ async def create_goal(
                     "id": str(new_goal.id),
                     "description": new_goal.description,
                     "status": new_goal.status,
+                    "tasks": new_goal.tasks,
+                    "category": new_goal.category,
+                    "priority": new_goal.priority,
+                    "target_date": new_goal.target_date,
                     "space_id": str(target_space_id),
                     "project_id": str(project_uuid) if project_uuid else None,
                 },
@@ -200,6 +220,10 @@ async def create_goal(
         project_id=str(new_goal.project_id) if new_goal.project_id else None,
         description=new_goal.description,
         status=new_goal.status,
+        tasks=new_goal.tasks or [],
+        category=new_goal.category or "career",
+        priority=new_goal.priority or "medium",
+        target_date=new_goal.target_date,
         created_at=new_goal.created_at,
     )
 
@@ -258,6 +282,10 @@ async def list_goals(
             project_id=str(g.project_id) if g.project_id else None,
             description=g.description,
             status=g.status,
+            tasks=g.tasks or [],
+            category=g.category or "career",
+            priority=g.priority or "medium",
+            target_date=g.target_date,
             created_at=g.created_at,
         )
         for g in goals
@@ -300,6 +328,10 @@ async def get_goal(
         project_id=str(goal.project_id) if goal.project_id else None,
         description=goal.description,
         status=goal.status,
+        tasks=goal.tasks or [],
+        category=goal.category or "career",
+        priority=goal.priority or "medium",
+        target_date=goal.target_date,
         created_at=goal.created_at,
     )
 
@@ -338,6 +370,10 @@ async def update_goal(
         "id": str(goal.id),
         "description": goal.description,
         "status": goal.status,
+        "tasks": goal.tasks,
+        "category": goal.category,
+        "priority": goal.priority,
+        "target_date": goal.target_date,
         "space_id": str(goal.space_id) if goal.space_id else None,
         "project_id": str(goal.project_id) if goal.project_id else None,
     }
@@ -346,11 +382,23 @@ async def update_goal(
         goal.description = request.description.strip()
     if request.status is not None:
         goal.status = request.status.strip()
+    if request.tasks is not None:
+        goal.tasks = request.tasks
+    if request.category is not None:
+        goal.category = request.category
+    if request.priority is not None:
+        goal.priority = request.priority
+    if request.target_date is not None:
+        goal.target_date = request.target_date
 
     state_after = {
         "id": str(goal.id),
         "description": goal.description,
         "status": goal.status,
+        "tasks": goal.tasks,
+        "category": goal.category,
+        "priority": goal.priority,
+        "target_date": goal.target_date,
         "space_id": str(goal.space_id) if goal.space_id else None,
         "project_id": str(goal.project_id) if goal.project_id else None,
     }
@@ -391,6 +439,10 @@ async def update_goal(
         project_id=str(goal.project_id) if goal.project_id else None,
         description=goal.description,
         status=goal.status,
+        tasks=goal.tasks or [],
+        category=goal.category or "career",
+        priority=goal.priority or "medium",
+        target_date=goal.target_date,
         created_at=goal.created_at,
     )
 

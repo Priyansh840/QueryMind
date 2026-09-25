@@ -839,6 +839,11 @@ export default function ConversationPage() {
                 : [...existing, { ...executed, status: "executed" }];
               return { ...msg, actionProposals: next };
             }));
+            // Refresh workspace store and notify goals view
+            useMyndStore.getState().syncWithBackend().catch(() => {});
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("mynd:goals-refresh"));
+            }
           } else if (data.event === "message.completed") {
             setMessages((prev) => prev.map(msg =>
               msg.id === tempAiId ? {
@@ -1814,6 +1819,27 @@ export default function ConversationPage() {
                                     </span>
                                   )}
                                 </div>
+
+                                {proposal.parameters?.tasks && Array.isArray(proposal.parameters.tasks) && proposal.parameters.tasks.length > 0 && (
+                                  <div style={{ marginTop: "4px", padding: "8px 12px", borderRadius: "8px", background: "rgba(255, 255, 255, 0.03)", border: "1px solid var(--border)" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                      Tasks / Milestones ({proposal.parameters.tasks.length})
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                      {proposal.parameters.tasks.map((task: any, tIdx: number) => (
+                                        <div key={tIdx} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                                          <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#10B981" }} />
+                                          <span>{typeof task === "string" ? task : task.title}</span>
+                                          {task.priority && (
+                                            <span style={{ fontSize: "9px", textTransform: "uppercase", opacity: 0.6, marginLeft: "auto" }}>
+                                              {task.priority}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
 
                                 {proposal.status === "executed" && proposal.execution_message && (
                                   <div

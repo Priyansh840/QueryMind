@@ -77,13 +77,17 @@ def get_embeddings() -> Embeddings:
 
     if provider == "ollama":
         try:
-            logger.info(f"Initializing local Ollama Embeddings (Model: {model})")
-            return SafeEmbeddings(OllamaEmbeddings(
+            logger.info(f"Initializing Ollama Embeddings (Model: {model}, URL: {settings.OLLAMA_BASE_URL})")
+            try:
+                from langchain_ollama import OllamaEmbeddings as LangOllamaEmbeddings
+            except ImportError:
+                from langchain_community.embeddings import OllamaEmbeddings as LangOllamaEmbeddings
+            return SafeEmbeddings(LangOllamaEmbeddings(
                 model=model,
                 base_url=settings.OLLAMA_BASE_URL
             ))
         except Exception as e:
-            logger.warning(f"Failed to initialize Ollama Embeddings: {e}. Falling back to local BGE embeddings.")
+            logger.warning(f"Failed to initialize Ollama Embeddings: {e}.")
 
-    logger.info("Using FallbackEmbeddings for local vector embedding.")
+    logger.info("Using FallbackEmbeddings (BAAI/bge-small-en-v1.5) for vector embeddings.")
     return FallbackEmbeddings()
