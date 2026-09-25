@@ -142,6 +142,30 @@ async def upload_document(
                     )
                 buffer.write(chunk)
 
+        # Check if an existing completed document with this filename already exists in this space
+        stmt = (
+            select(Document)
+            .where(
+                Document.space_id == space_uuid,
+                Document.title == filename,
+                Document.status == "completed",
+            )
+            .order_by(Document.created_at.desc())
+        )
+        existing_doc = (await db.execute(stmt)).scalars().first()
+        if existing_doc:
+            logger.info(f"Document '{filename}' already exists and is completed (ID: {existing_doc.id}). Re-using existing index.")
+            return {
+                "status": "success",
+                "document_id": str(existing_doc.id),
+                "filename": existing_doc.title,
+                "ingestion_status": "completed",
+                "space_id": str(space_uuid),
+                "space_name": space.name,
+                "chunks_created": 1,
+                "vectors_stored": 1,
+            }
+
         # Run ingestion with authenticated user_id
         document = await process_document(
             file_path=file_path,

@@ -575,9 +575,28 @@ export default function ChatPage() {
                       <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
                     )}
                     {att.status === "error" && (
-                      <span title={att.errorMessage || "Upload error"} style={{ display: "flex", alignItems: "center" }}>
-                        <AlertCircle style={{ width: "13px", height: "13px", color: "#EF4444" }} />
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (att.file) handleAttachFiles([att.file] as any);
+                        }}
+                        title={`Upload failed: ${att.errorMessage || "Click to retry"}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          background: "none",
+                          border: "none",
+                          color: "#EF4444",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          padding: 0,
+                        }}
+                      >
+                        <AlertCircle style={{ width: "13px", height: "13px" }} />
+                        <span style={{ textDecoration: "underline" }}>Retry</span>
+                      </button>
                     )}
                     <button
                       type="button"

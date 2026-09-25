@@ -7,6 +7,7 @@ import os
 import uuid
 import logging
 import base64
+import asyncio
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -424,7 +425,8 @@ async def process_document(
     user_id: str,
     space_id: str,
     db: AsyncSession,
-    fail_at_stage: str = None
+    fail_at_stage: str = None,
+    run_in_background: bool = True,
 ) -> Document:
     """Wrapper that creates the document and triggers the IngestionEngine."""
     document = Document(
@@ -433,23 +435,35 @@ async def process_document(
         title=filename,
         file_url=file_path,
         type=content_type or "unknown",
-        status="pending"
+        status="processing",
     )
     db.add(document)
     await db.commit()
-    
+
     engine = IngestionEngine()
-    # In an actual deployment, you might dispatch run_ingestion to a background task
-    # For now, we await it or run it in the background if we don't want to block
-    await engine.run_ingestion(
-        document_id=str(document.id),
-        file_path=file_path,
-        filename=filename,
-        content_type=content_type,
-        user_id=user_id,
-        space_id=space_id,
-        fail_at_stage=fail_at_stage
-    )
-    
+    if run_in_background:
+        # Run asynchronously in background so client upload requests return in <100ms
+        asyncio.create_task(
+            engine.run_ingestion(
+                document_id=str(document.id),
+                file_path=file_path,
+                filename=filename,
+                content_type=content_type,
+                user_id=user_id,
+                space_id=space_id,
+                fail_at_stage=fail_at_stage,
+            )
+        )
+    else:
+        await engine.run_ingestion(
+            document_id=str(document.id),
+            file_path=file_path,
+            filename=filename,
+            content_type=content_type,
+            user_id=user_id,
+            space_id=space_id,
+            fail_at_stage=fail_at_stage,
+        )
+
     return document
 
