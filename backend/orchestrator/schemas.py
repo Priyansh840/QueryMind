@@ -1,5 +1,5 @@
 from typing import List, Literal, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 class TaskDefinition(BaseModel):
     id: str = Field(description="Unique task ID, typically task_<number>")
