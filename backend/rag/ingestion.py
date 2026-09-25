@@ -6,19 +6,23 @@ Decoupled class for asynchronous ingestion with idempotent cleanup, page trackin
 import os
 import uuid
 import logging
+import base64
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+import pypdf
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LCDocument
+from langchain_core.messages import HumanMessage
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from core.config import settings
 from llm.embeddings import get_embeddings
+from llm.provider import get_llm
 from models.knowledge import Document, DocumentChunk
 from database.postgres import async_session
 from rag.knowledge_ingestion import ingest_document_knowledge
@@ -237,13 +241,156 @@ class IngestionEngine:
         except Exception as e:
             logger.warning(f"Failed to cleanup specific Postgres chunks: {e}")
 
+    def _ocr_image_file(self, file_path: str, content_type: str) -> List[LCDocument]:
+        """Perform multimodal OCR on a standalone image file (jpg, png, webp)."""
+        try:
+            with open(file_path, "rb") as f:
+                raw_data = f.read()
+            if not raw_data:
+                return []
+
+            b64_str = base64.b64encode(raw_data).decode("utf-8")
+            lower_path = file_path.lower()
+            mime = content_type if content_type and "image/" in content_type else "image/jpeg"
+            if lower_path.endswith(".png"):
+                mime = "image/png"
+            elif lower_path.endswith(".webp"):
+                mime = "image/webp"
+
+            prompt_text = (
+                "You are an OCR and document extraction engine. "
+                "Transcribe all text, headings, questions, code, mathematical equations, marks, "
+                "and tables from this document image verbatim into clean markdown format. "
+                "Preserve the original structure, question numbers, and layout as closely as possible. "
+                "Output only the transcribed content without any conversational filler or preambles."
+            )
+            msg = HumanMessage(
+                content=[
+                    {"type": "text", "text": prompt_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime};base64,{b64_str}"},
+                    },
+                ]
+            )
+            llm = get_llm(temperature=0.0)
+            res = llm.invoke([msg])
+            content = res.content
+            if isinstance(content, list):
+                texts = [part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in content]
+                content = "".join(texts)
+            text_str = str(content).strip() if content else ""
+            if text_str:
+                return [LCDocument(page_content=text_str, metadata={"page": 0, "source": file_path})]
+        except Exception as e:
+            logger.error(f"Image OCR failed for {file_path}: {e}")
+        return []
+
+    def _ocr_pdf(self, file_path: str) -> List[LCDocument]:
+        """Extract text from scanned or image-based PDF pages via multimodal vision LLM."""
+        ocr_docs: List[LCDocument] = []
+        try:
+            reader = pypdf.PdfReader(file_path)
+            llm = get_llm(temperature=0.0)
+
+            for page_idx, page in enumerate(reader.pages):
+                # First check if the page already has extracted text
+                raw_page_text = (page.extract_text() or "").strip()
+                if len(raw_page_text) >= 50:
+                    ocr_docs.append(
+                        LCDocument(page_content=raw_page_text, metadata={"page": page_idx, "source": file_path})
+                    )
+                    continue
+
+                # If text is empty or minimal, inspect embedded page images
+                extracted_image_texts = []
+                page_images = getattr(page, "images", [])
+                for img_idx, img in enumerate(page_images):
+                    try:
+                        raw_data = getattr(img, "data", None)
+                        if not raw_data or len(raw_data) < 500:
+                            continue
+
+                        img_name = getattr(img, "name", "").lower()
+                        mime = "image/jpeg"
+                        if img_name.endswith(".png"):
+                            mime = "image/png"
+                        elif img_name.endswith(".webp"):
+                            mime = "image/webp"
+
+                        b64_str = base64.b64encode(raw_data).decode("utf-8")
+                        prompt_text = (
+                            "You are an OCR and document extraction engine. "
+                            "Transcribe all text, headings, questions, code, mathematical equations, marks, "
+                            "and tables from this document page verbatim into clean markdown format. "
+                            "Preserve the original structure, question numbers, and layout as closely as possible. "
+                            "Output only the transcribed content without any conversational filler or preambles."
+                        )
+                        msg = HumanMessage(
+                            content=[
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:{mime};base64,{b64_str}"},
+                                },
+                            ]
+                        )
+                        res = llm.invoke([msg])
+                        content = res.content
+                        if isinstance(content, list):
+                            texts = [part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in content]
+                            content = "".join(texts)
+                        if content and str(content).strip():
+                            extracted_image_texts.append(str(content).strip())
+                    except Exception as img_err:
+                        logger.warning(
+                            f"OCR failed on page {page_idx}, image {img_idx} of {file_path}: {img_err}"
+                        )
+
+                if extracted_image_texts:
+                    page_content = "\n\n".join(extracted_image_texts)
+                    ocr_docs.append(
+                        LCDocument(page_content=page_content, metadata={"page": page_idx, "source": file_path})
+                    )
+                elif raw_page_text:
+                    ocr_docs.append(
+                        LCDocument(page_content=raw_page_text, metadata={"page": page_idx, "source": file_path})
+                    )
+
+            logger.info(f"PDF OCR produced {len(ocr_docs)} document pages for {file_path}.")
+        except Exception as e:
+            logger.error(f"Failed to perform PDF OCR on {file_path}: {e}")
+
+        return ocr_docs
+
     def _load_document(self, file_path: str, content_type: str) -> List[LCDocument]:
-        """Helper to load different file types using LangChain loaders with robust fallback."""
+        """Helper to load different file types using LangChain loaders with robust fallback and vision OCR."""
         try:
             lower_path = file_path.lower()
-            if content_type == "application/pdf" or lower_path.endswith(".pdf"):
-                loader = PyPDFLoader(file_path)
-                return loader.load()
+            if content_type.startswith("image/") or lower_path.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                return self._ocr_image_file(file_path, content_type)
+            elif content_type == "application/pdf" or lower_path.endswith(".pdf"):
+                docs = []
+                try:
+                    loader = PyPDFLoader(file_path)
+                    docs = loader.load()
+                except Exception as pdf_err:
+                    logger.warning(f"PyPDFLoader failed for {file_path}: {pdf_err}")
+
+                total_chars = sum(len(d.page_content.strip()) for d in docs) if docs else 0
+                if total_chars >= 50:
+                    return docs
+
+                logger.info(
+                    f"PyPDFLoader produced low text yield ({total_chars} chars) for {file_path}. Initiating multimodal vision OCR..."
+                )
+                ocr_docs = self._ocr_pdf(file_path)
+                if ocr_docs and sum(len(d.page_content.strip()) for d in ocr_docs) > 0:
+                    return ocr_docs
+
+                if docs:
+                    return docs
+                return []
             elif "word" in content_type or lower_path.endswith(".docx") or lower_path.endswith(".doc"):
                 loader = Docx2txtLoader(file_path)
                 return loader.load()

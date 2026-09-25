@@ -647,7 +647,7 @@ export default function ConversationPage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // 240s timeout to allow deep reasoning without cutting off streaming responses
+    // 240s timeout for deep multi-step research, critic refinement, and large document synthesis
     const timeoutId = setTimeout(() => {
       controller.abort();
     }, 240_000);
