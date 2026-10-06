@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import {
   Sparkles,
   User,
@@ -28,12 +28,13 @@ import {
   Headphones,
   Radio,
   Calendar,
+  Target,
 } from "lucide-react";
 import { queryMindApi } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import VoiceChatModal from "@/components/chat/VoiceChatModal";
 import { useSpeechToText } from "@/lib/voice";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -97,12 +98,14 @@ const quickChips = [
 
 /* ═══════════════════════════════════════════════════════════════ */
 
-export default function ChatPage() {
+function ChatPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const userProfile = useMyndStore((state) => state.userProfile);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
+  const activeGoal = useMyndStore((state) => state.activeGoal);
 
   const activeSpace = useMemo(() => {
     return spaces.find((s) => s.id === activeSpaceId || s.slug === activeSpaceId) || spaces[0];
@@ -113,6 +116,7 @@ export default function ChatPage() {
   /* ─── state ───────────────────────────────────────────────── */
   const [input, setInput] = useState("");
   const [isOrchestrating, setIsOrchestrating] = useState(false);
+  const [focusedGoalDesc, setFocusedGoalDesc] = useState<string | null>(null);
 
   // History Drawer State
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -131,6 +135,30 @@ export default function ChatPage() {
   }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Check URL query parameters for goal-specific prefill
+  useEffect(() => {
+    const qParam = searchParams.get("q");
+    const goalIdParam = searchParams.get("goalId");
+
+    if (qParam && !input) {
+      setInput(qParam);
+    }
+    if (goalIdParam) {
+      if (activeGoal && activeGoal.id === goalIdParam) {
+        setFocusedGoalDesc(activeGoal.description);
+      } else {
+        queryMindApi.getGoals().then((loadedGoals) => {
+          if (Array.isArray(loadedGoals)) {
+            const match = loadedGoals.find((g: any) => g.id === goalIdParam);
+            if (match) {
+              setFocusedGoalDesc(match.description);
+            }
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [searchParams]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -532,6 +560,44 @@ export default function ChatPage() {
         >
           {/* Greeting Hero - ChatGPT Style */}
           <div style={{ textAlign: "center", marginBottom: "26px" }}>
+            {focusedGoalDesc && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "4px 12px 4px 10px",
+                  borderRadius: "20px",
+                  background: "var(--accent-soft)",
+                  border: "1px solid var(--border)",
+                  color: "var(--accent)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "12px",
+                }}
+              >
+                <span>🎯 Focused Goal:</span>
+                <span style={{ maxWidth: "340px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
+                  {focusedGoalDesc}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFocusedGoalDesc(null)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-tertiary)",
+                    cursor: "pointer",
+                    padding: "0 2px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                  title="Clear goal focus"
+                >
+                  <X style={{ width: "12px", height: "12px" }} />
+                </button>
+              </div>
+            )}
             <h1
               style={{
                 fontSize: "28px",
@@ -542,7 +608,7 @@ export default function ChatPage() {
                 marginBottom: "6px",
               }}
             >
-              Hey, {userProfile.name || "there"}. Ready to dive in?
+              {focusedGoalDesc ? "Goal Strategizer & Execution Mode" : `Hey, ${userProfile.name || "there"}. Ready to dive in?`}
             </h1>
             <p
               style={{
@@ -553,7 +619,9 @@ export default function ChatPage() {
                 lineHeight: 1.5,
               }}
             >
-              Ask anything about your workspace documents or explore strategic insights.
+              {focusedGoalDesc 
+                ? "Autonomous multi-agent synthesis scoped to this goal's milestones and linked spaces." 
+                : "Ask anything about your workspace documents or explore strategic insights."}
             </p>
           </div>
 
@@ -966,9 +1034,12 @@ export default function ChatPage() {
               width: "100%",
             }}
           >
-            {quickChips.map((chip) => {
-              const Icon = chip.icon;
-              return (
+            {focusedGoalDesc ? (
+              [
+                { label: "Immediate Priority", prompt: `Analyze my current progress on "${focusedGoalDesc}" and tell me the single highest leverage task to execute right now.` },
+                { label: "Identify Bottlenecks", prompt: `What potential risks, missing dependencies, or bottlenecks might delay completing "${focusedGoalDesc}"?` },
+                { label: "Draft Action Plan", prompt: `Draft a concrete 3-step execution roadmap with clear milestones for "${focusedGoalDesc}".` },
+              ].map((chip) => (
                 <button
                   key={chip.label}
                   type="button"
@@ -981,7 +1052,7 @@ export default function ChatPage() {
                     borderRadius: "20px",
                     fontSize: "12px",
                     fontWeight: 500,
-                    color: "var(--text-secondary)",
+                    color: "var(--accent)",
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
                     cursor: "pointer",
@@ -989,21 +1060,58 @@ export default function ChatPage() {
                     boxShadow: "var(--shadow-xs)",
                   }}
                   onMouseOver={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-strong)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                    e.currentTarget.style.background = "var(--surface-hover)";
+                    e.currentTarget.style.borderColor = "var(--accent)";
+                    e.currentTarget.style.background = "var(--accent-soft)";
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.color = "var(--text-secondary)";
                     e.currentTarget.style.background = "var(--surface)";
                   }}
                 >
-                  <Icon style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
+                  <Target style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
                   <span>{chip.label}</span>
                 </button>
-              );
-            })}
+              ))
+            ) : (
+              quickChips.map((chip) => {
+                const Icon = chip.icon;
+                return (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => handleSend(chip.prompt)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "7px",
+                      padding: "7px 13px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text-secondary)",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      cursor: "pointer",
+                      transition: "all 150ms var(--ease)",
+                      boxShadow: "var(--shadow-xs)",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                      e.currentTarget.style.background = "var(--surface-hover)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                      e.currentTarget.style.background = "var(--surface)";
+                    }}
+                  >
+                    <Icon style={{ width: "13px", height: "13px", color: "var(--accent)" }} />
+                    <span>{chip.label}</span>
+                  </button>
+                );
+              })
+            )}
           </div>
 
           <div
@@ -1297,5 +1405,13 @@ export default function ChatPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-tertiary)" }}>Loading Reasoning Cockpit...</div>}>
+      <ChatPageContent />
+    </Suspense>
   );
 }

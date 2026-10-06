@@ -27,6 +27,14 @@ def route_after_planner(state: AgentState) -> str:
     planner_out = state.get("planner_output", {})
     if planner_out.get("needs_research", False):
         return "researcher"
+
+    # Fast path: If this is conversational small talk / greeting or no research was needed
+    # and no action was ordered, skip decision_analyzer and action_proposer directly to synthesizer
+    raw_q = (state.get("raw_query") or "").lower()
+    is_action_command = any(kw in raw_q for kw in ("create", "make", "add", "set", "update", "delete", "plan", "roadmap"))
+    if planner_out.get("is_conversational") or not is_action_command:
+        return "synthesizer"
+
     return "decision_analyzer"
 
 def route_after_critic(state: AgentState) -> str:

@@ -1,505 +1,178 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useMyndStore } from "@/lib/mynd-store";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
 import { queryMindApi } from "@/lib/api";
 import {
+  MessageSquare,
+  FileText,
+  Target,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Trash2,
+  ArrowUpRight,
   PanelRightClose,
   PanelRightOpen,
-  Target,
-  Compass,
-  Lightbulb,
-  HelpCircle,
-  AlertTriangle,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  Zap,
-  Brain,
-  GitBranch,
-  Circle,
-  Diamond,
-  Hexagon,
-  Sparkles,
-  RefreshCw,
-  Scale,
-  ArrowUpRight,
-  Sliders,
-  ShieldCheck,
+  Upload,
+  Copy,
   Check,
   Search,
+  Sparkles,
+  RefreshCw,
+  AlertCircle,
+  X,
+  ChevronLeft,
+  Code2,
+  CheckSquare,
+  Bot,
+  Send,
 } from "lucide-react";
 
-/* ─── Refined Cognitive Design Tokens ─── */
-const COGNITIVE_THEME = {
-  lavender: "#8B7EC8",
-  lavenderHover: "#7C6DBE",
-  lavenderSoft: "rgba(139, 126, 200, 0.09)",
-  lavenderBorder: "rgba(139, 126, 200, 0.22)",
-  lavenderGlow: "rgba(139, 126, 200, 0.16)",
-  violet: "#7C5CBF",
-  violetSoft: "rgba(124, 92, 191, 0.08)",
-  indigo: "#6366F1",
-  indigoSoft: "rgba(99, 102, 241, 0.08)",
-  indigoBorder: "rgba(99, 102, 241, 0.2)",
-  emerald: "#10B981",
-  emeraldSoft: "rgba(16, 185, 129, 0.08)",
-  emeraldBorder: "rgba(16, 185, 129, 0.2)",
-  amber: "#F59E0B",
-  amberSoft: "rgba(245, 158, 11, 0.08)",
-  amberBorder: "rgba(245, 158, 11, 0.22)",
-  rose: "#F43F5E",
-  roseSoft: "rgba(244, 63, 94, 0.08)",
-  roseBorder: "rgba(244, 63, 94, 0.2)",
-  cyan: "#06B6D4",
-  cyanSoft: "rgba(6, 182, 212, 0.08)",
-  cyanBorder: "rgba(6, 182, 212, 0.2)",
-};
-
-/* ─── Section Header with Micro Pill ─── */
-function SectionHeader({
-  icon,
-  title,
-  count,
-  action,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  count?: string | number;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 2px",
-        marginBottom: "8px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-        <span style={{ display: "flex", alignItems: "center", opacity: 0.9 }}>{icon}</span>
-        <span
-          style={{
-            fontSize: "10.5px",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "var(--text-tertiary)",
-          }}
-        >
-          {title}
-        </span>
-        {count !== undefined && (
-          <span
-            style={{
-              fontSize: "9.5px",
-              fontWeight: 600,
-              padding: "1px 6px",
-              borderRadius: "999px",
-              background: "var(--surface-hover)",
-              color: "var(--text-tertiary)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {count}
-          </span>
-        )}
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
+function formatRelativeTime(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
 }
-
-/* ─── Epistemic Belief Card ─── */
-function BeliefCard({
-  belief,
-  conviction,
-  domain,
-  onProbe,
-}: {
-  belief: string;
-  conviction: number;
-  domain: string;
-  onProbe?: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        padding: "11px 13px",
-        borderRadius: "10px",
-        background: hovered ? "var(--surface-hover)" : "var(--surface)",
-        border: `1px solid ${hovered ? COGNITIVE_THEME.indigoBorder : "var(--border)"}`,
-        transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "6px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "9.5px",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: COGNITIVE_THEME.indigo,
-          }}
-        >
-          {domain}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              color: "var(--text-tertiary)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {conviction}% conviction
-          </span>
-          <div
-            style={{
-              width: "36px",
-              height: "4px",
-              borderRadius: "2px",
-              background: "var(--surface-subtle)",
-              overflow: "hidden",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              style={{
-                width: `${conviction}%`,
-                height: "100%",
-                background: COGNITIVE_THEME.indigo,
-                borderRadius: "2px",
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          fontSize: "12px",
-          lineHeight: "1.48",
-          color: "var(--text-secondary)",
-          fontStyle: "italic",
-        }}
-      >
-        &ldquo;{belief}&rdquo;
-      </div>
-
-      {hovered && onProbe && (
-        <button
-          type="button"
-          onClick={onProbe}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            marginTop: "8px",
-            fontSize: "10px",
-            fontWeight: 600,
-            color: COGNITIVE_THEME.indigo,
-            background: COGNITIVE_THEME.indigoSoft,
-            border: `1px solid ${COGNITIVE_THEME.indigoBorder}`,
-            padding: "3px 8px",
-            borderRadius: "6px",
-            cursor: "pointer",
-            transition: "all 120ms ease",
-          }}
-        >
-          <span>Examine basis</span>
-          <ArrowUpRight style={{ width: "10px", height: "10px" }} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ─── Dialectic Tension Slider Component ─── */
-function DialecticTensionItem({
-  labelA,
-  labelB,
-  ratio,
-  summary,
-}: {
-  labelA: string;
-  labelB: string;
-  ratio: number; // 0 to 100 representing pull towards B
-  summary: string;
-}) {
-  return (
-    <div
-      style={{
-        padding: "12px 14px",
-        borderRadius: "10px",
-        background: "var(--surface)",
-        border: `1px solid ${COGNITIVE_THEME.roseBorder}`,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: "11px",
-          fontWeight: 600,
-          color: "var(--text-primary)",
-          marginBottom: "8px",
-        }}
-      >
-        <span style={{ color: ratio < 50 ? COGNITIVE_THEME.rose : "var(--text-secondary)" }}>
-          {labelA}
-        </span>
-        <span style={{ fontSize: "9.5px", color: "var(--text-tertiary)", fontWeight: 500 }}>
-          vs
-        </span>
-        <span style={{ color: ratio >= 50 ? COGNITIVE_THEME.rose : "var(--text-secondary)" }}>
-          {labelB}
-        </span>
-      </div>
-
-      {/* Tension Balance Bar */}
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "5px",
-          background: "var(--surface-subtle)",
-          borderRadius: "999px",
-          border: "1px solid var(--border)",
-          marginBottom: "8px",
-          overflow: "visible",
-        }}
-      >
-        {/* Indicator Pip */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: `${ratio}%`,
-            transform: "translate(-50%, -50%)",
-            width: "11px",
-            height: "11px",
-            borderRadius: "50%",
-            background: COGNITIVE_THEME.rose,
-            border: "2px solid var(--surface)",
-            boxShadow: `0 0 6px ${COGNITIVE_THEME.roseSoft}`,
-            transition: "left 300ms ease",
-          }}
-        />
-      </div>
-
-      <div style={{ fontSize: "11.5px", lineHeight: "1.45", color: "var(--text-secondary)" }}>
-        {summary}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Interactive Thought Evolution Node ─── */
-function EvolutionStep({
-  period,
-  thesis,
-  catalyst,
-  isCurrent,
-  isFirst,
-  onSelect,
-}: {
-  period: string;
-  thesis: string;
-  catalyst?: string;
-  isCurrent?: boolean;
-  isFirst?: boolean;
-  onSelect?: () => void;
-}) {
-  const [expanded, setExpanded] = useState(isCurrent);
-
-  return (
-    <div style={{ display: "flex", gap: "10px", position: "relative" }}>
-      {/* Node column */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          width: "18px",
-          flexShrink: 0,
-        }}
-      >
-        {!isFirst && (
-          <div
-            style={{
-              width: "1px",
-              height: "10px",
-              background: isCurrent ? COGNITIVE_THEME.lavender : "var(--border)",
-            }}
-          />
-        )}
-        <div
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            width: isCurrent ? "12px" : "8px",
-            height: isCurrent ? "12px" : "8px",
-            borderRadius: "50%",
-            background: isCurrent ? COGNITIVE_THEME.lavender : "var(--text-tertiary)",
-            border: isCurrent ? `3px solid ${COGNITIVE_THEME.lavenderSoft}` : "none",
-            boxShadow: isCurrent ? `0 0 10px ${COGNITIVE_THEME.lavenderGlow}` : "none",
-            cursor: "pointer",
-            transition: "all 180ms ease",
-            flexShrink: 0,
-          }}
-        />
-        <div
-          style={{
-            width: "1px",
-            flex: 1,
-            background: "var(--border)",
-            minHeight: "14px",
-          }}
-        />
-      </div>
-
-      {/* Content */}
-      <div
-        style={{
-          paddingBottom: "14px",
-          paddingTop: isFirst ? "0" : "1px",
-          flex: 1,
-          minWidth: 0,
-        }}
-      >
-        <div
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            cursor: "pointer",
-            marginBottom: "3px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span
-              style={{
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: isCurrent ? COGNITIVE_THEME.lavender : "var(--text-tertiary)",
-              }}
-            >
-              {period}
-            </span>
-            {isCurrent && (
-              <span
-                style={{
-                  fontSize: "8.5px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "1px 5px",
-                  borderRadius: "4px",
-                  background: COGNITIVE_THEME.lavenderSoft,
-                  color: COGNITIVE_THEME.lavender,
-                  border: `1px solid ${COGNITIVE_THEME.lavenderBorder}`,
-                }}
-              >
-                Current Model
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div
-          style={{
-            fontSize: "12px",
-            lineHeight: "1.45",
-            color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
-            fontWeight: isCurrent ? 500 : 400,
-          }}
-        >
-          &ldquo;{thesis}&rdquo;
-        </div>
-
-        {expanded && catalyst && (
-          <div
-            style={{
-              marginTop: "6px",
-              padding: "6px 9px",
-              borderRadius: "6px",
-              background: "var(--surface-hover)",
-              border: "1px solid var(--border)",
-              fontSize: "10.5px",
-              color: "var(--text-tertiary)",
-              lineHeight: "1.4",
-            }}
-          >
-            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Catalyst: </span>
-            {catalyst}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   MAIN COMPONENT: MYND MIND STATE COGNITIVE PANEL
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function ContextPanel() {
+  const router = useRouter();
+  const selectedObject = useMyndStore((state) => state.selectedObject);
+  const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
+  const activeGoal = useMyndStore((state) => state.activeGoal);
+  const setActiveGoal = useMyndStore((state) => state.setActiveGoal);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
-  const isCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
-  const setIsCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
-  const openAskAi = useMyndStore((state) => state.openAskAi);
+  const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
+  const addDocument = useMyndStore((state) => state.addDocument);
+  const removeDocument = useMyndStore((state) => state.removeDocument);
 
-  /* Section fold states */
-  const [isEvolutionFolded, setIsEvolutionFolded] = useState(false);
-  const [isRipplesFolded, setIsRipplesFolded] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chats" | "docs" | "goals">("chats");
 
-  /* Interactive Hypothesis Simulator Selection */
-  const [activeHypothesisIndex, setActiveHypothesisIndex] = useState(0);
+  // Real data states
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [docsList, setDocsList] = useState<any[]>([]);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(false);
 
-  /* Backend data states */
-  const [localGoals, setLocalGoals] = useState<any[]>([]);
-  const [localDocs, setLocalDocs] = useState<any[]>([]);
+  // Search & inputs
+  const [chatSearch, setChatSearch] = useState("");
+  const [docSearch, setDocSearch] = useState("");
+  const [newGoalInput, setNewGoalInput] = useState("");
+  const [isAddingGoal, setIsAddingGoal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const [goalsRes, docsRes] = await Promise.all([
-        queryMindApi.getGoals().catch(() => []),
-        queryMindApi.listDocuments(activeSpaceId || undefined).catch(() => []),
-      ]);
-      if (Array.isArray(goalsRes)) setLocalGoals(goalsRes);
-      if (Array.isArray(docsRes)) setLocalDocs(docsRes);
-    } catch {
-      /* silent */
-    } finally {
-      setTimeout(() => setIsSyncing(false), 500);
-    }
-  }, [activeSpaceId]);
+  // Goal Copilot Advisor Chat state
+  const [goalChatMessages, setGoalChatMessages] = useState<
+    Array<{
+      role: "user" | "assistant";
+      content: string;
+      citations?: Array<{ document_title?: string; page_number?: number; snippet: string; score?: number }>;
+      timestamp?: string;
+    }>
+  >([]);
+  const [goalChatInput, setGoalChatInput] = useState("");
+  const [isSendingGoalChat, setIsSendingGoalChat] = useState(false);
+  const [goalChatSpacesSearched, setGoalChatSpacesSearched] = useState<string[]>([]);
 
+  // Reset goal chat messages and auto-expand sidebar when activeGoal changes
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setGoalChatMessages([]);
+    setGoalChatInput("");
+    setGoalChatSpacesSearched([]);
+    if (activeGoal) {
+      setIsCollapsed(false);
+    }
+  }, [activeGoal]);
 
+  const handleSendGoalChat = async (goal: any) => {
+    if (!goalChatInput.trim() || isSendingGoalChat) return;
+    const userMsg = goalChatInput.trim();
+    setGoalChatInput("");
+    setIsSendingGoalChat(true);
+
+    const newMsgItem = {
+      role: "user" as const,
+      content: userMsg,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setGoalChatMessages((prev) => [...prev, newMsgItem]);
+
+    try {
+      const historyPayload = goalChatMessages.slice(-6).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const effectiveSpaceIds =
+        goal.space_ids && goal.space_ids.length > 0
+          ? goal.space_ids
+          : goal.project_id
+          ? [goal.project_id]
+          : [];
+
+      const res = await queryMindApi.sendGoalChatMessage(goal.id, {
+        message: userMsg,
+        history: historyPayload,
+        goal_description: goal.description,
+        progress: goal.progress || 0,
+        tasks: goal.tasks || goal.milestones || [],
+        target_date: goal.target_date,
+        space_ids: effectiveSpaceIds,
+      });
+
+      if (res && res.response) {
+        setGoalChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.response,
+            citations: res.citations || [],
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]);
+        if (res.spaces_searched) {
+          setGoalChatSpacesSearched(res.spaces_searched);
+        }
+      }
+    } catch (err: any) {
+      console.error("Goal chat error:", err);
+      setGoalChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I ran into a temporary error reaching the intelligence service. Please check your model or try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
+      setIsSendingGoalChat(false);
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Current Space
   const currentSpace = useMemo(() => {
     return (
       spaces.find(
@@ -511,47 +184,11 @@ export default function ContextPanel() {
     );
   }, [spaces, activeSpaceId]);
 
-  const spaceName = currentSpace?.name || "General";
+  const spaceName = currentSpace?.name || "Workspace";
 
-  /* Goals data */
-  const activeGoals = useMemo(() => localGoals.filter((g) => g.status !== "completed"), [localGoals]);
-  const primaryGoal = activeGoals[0];
-
-  /* Simulated Hypotheses for the "If This Changes..." Engine */
-  const hypothesisPresets = useMemo(() => [
-    {
-      id: "focus-switch",
-      label: "Pivot Focus",
-      premise: `Shift priority from ${primaryGoal?.description || "current goal"} to Architectural Rigor & Reliability`,
-      ripples: [
-        { level: "1st Order", desc: "Refactor core event loop & add idempotency checks across workers" },
-        { level: "2nd Order", desc: "Temporary 40% reduction in user-facing feature additions" },
-        { level: "3rd Order", desc: "Autonomous synthesis stability reaches 99.8% for enterprise workspaces" },
-      ],
-    },
-    {
-      id: "ambient-indexing",
-      label: "Ambient Ingestion",
-      premise: "Automate knowledge ingestion directly from browser telemetry & commits",
-      ripples: [
-        { level: "1st Order", desc: "No manual file uploading or note copying required" },
-        { level: "2nd Order", desc: "Graph density increases 4x, requiring automated noise filtering" },
-        { level: "3rd Order", desc: "MYND anticipates context shifts before manual prompt input" },
-      ],
-    },
-    {
-      id: "recovery-priority",
-      label: "Cognitive Balance",
-      premise: "Prioritize uninterrupted 8-hour sleep & cognitive recovery protocol",
-      ripples: [
-        { level: "1st Order", desc: "Nighttime notification silence enforced at 22:30" },
-        { level: "2nd Order", desc: "Morning synthesis briefs replace late-night drafting sessions" },
-        { level: "3rd Order", desc: "Long-term mental clarity score elevates by +28%" },
-      ],
-    },
-  ], [primaryGoal]);
-
-  const activeHypothesis = hypothesisPresets[activeHypothesisIndex] || hypothesisPresets[0];
+  const isCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
+  const setIsCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
+  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
 
   const handleToggleCollapse = (collapsed: boolean) => {
     setIsCollapsed(collapsed);
@@ -560,7 +197,177 @@ export default function ContextPanel() {
     }
   };
 
-  /* ─── COLLAPSED MINIMAL RAIL VIEW ─── */
+  // Fetch real conversations
+  const fetchConversations = useCallback(async () => {
+    setIsLoadingChats(true);
+    try {
+      const data = await queryMindApi.getConversations(activeSpaceId || undefined);
+      if (Array.isArray(data)) {
+        setConversations(data);
+      }
+    } catch (err) {
+      console.warn("ContextPanel: error loading conversations", err);
+    } finally {
+      setIsLoadingChats(false);
+    }
+  }, [activeSpaceId]);
+
+  // Fetch real documents for current space
+  const fetchDocuments = useCallback(async () => {
+    setIsLoadingDocs(true);
+    try {
+      const data = await queryMindApi.listDocuments(activeSpaceId || undefined);
+      if (Array.isArray(data)) {
+        setDocsList(data);
+      }
+    } catch (err) {
+      console.warn("ContextPanel: error loading documents", err);
+    } finally {
+      setIsLoadingDocs(false);
+    }
+  }, [activeSpaceId]);
+
+  // Fetch real goals
+  const fetchGoals = useCallback(async () => {
+    setIsLoadingGoals(true);
+    try {
+      const data = await queryMindApi.getGoals();
+      if (Array.isArray(data)) {
+        setGoals(data);
+      }
+    } catch (err) {
+      console.warn("ContextPanel: error loading goals", err);
+    } finally {
+      setIsLoadingGoals(false);
+    }
+  }, []);
+
+  // Fetch data when active space changes
+  useEffect(() => {
+    fetchConversations();
+    fetchDocuments();
+    fetchGoals();
+  }, [fetchConversations, fetchDocuments, fetchGoals]);
+
+  // Handle Quick Upload
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    setUploadError(null);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const res = await queryMindApi.uploadDocument(file, activeSpaceId);
+        addDocument({
+          name: res.filename || file.name,
+          type: file.name.split(".").pop() || "txt",
+          size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          chunks: res.chunks_created || 1,
+          vectorsStored: res.vectors_stored || 1,
+          summary: "Uploaded via Workspace Panel",
+          spaceId: activeSpaceId,
+        });
+        await fetchDocuments();
+      } catch (err: any) {
+        console.warn("Failed to upload file:", err);
+        setUploadError(err.message || "Upload failed");
+      }
+    }
+    setIsUploading(false);
+  };
+
+  // Handle Goal Toggle
+  const handleToggleGoal = async (goalId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "completed" ? "in_progress" : "completed";
+    // Optimistic update
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, status: nextStatus } : g))
+    );
+    try {
+      await queryMindApi.updateGoal(goalId, { status: nextStatus });
+    } catch (err) {
+      console.warn("Failed to update goal:", err);
+      // Revert on error
+      fetchGoals();
+    }
+  };
+
+  // Handle Add Goal
+  const handleAddGoal = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newGoalInput.trim() || isAddingGoal) return;
+    setIsAddingGoal(true);
+    try {
+      const created = await queryMindApi.createGoal({
+        description: newGoalInput.trim(),
+      });
+      setGoals((prev) => [created, ...prev]);
+      setNewGoalInput("");
+    } catch (err: any) {
+      console.warn("Failed to create goal:", err);
+      alert("Failed to create goal: " + (err.message || err));
+    } finally {
+      setIsAddingGoal(false);
+    }
+  };
+
+  // Handle Delete Conversation
+  const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await queryMindApi.deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.warn("Failed to delete conversation:", err);
+    }
+  };
+
+  // Handle Delete Document
+  const handleDeleteDocument = async (e: React.MouseEvent, docId: string) => {
+    e.stopPropagation();
+    try {
+      await queryMindApi.deleteDocument(docId);
+      setDocsList((prev) => prev.filter((d) => d.id !== docId));
+      removeDocument(docId);
+    } catch (err) {
+      console.warn("Failed to delete document:", err);
+    }
+  };
+
+  // Handle Copy text
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Filtered lists
+  const filteredConversations = useMemo(() => {
+    if (!chatSearch.trim()) return conversations;
+    const q = chatSearch.toLowerCase();
+    return conversations.filter((c) => (c.title || "").toLowerCase().includes(q));
+  }, [conversations, chatSearch]);
+
+  const filteredDocs = useMemo(() => {
+    if (!docSearch.trim()) return docsList;
+    const q = docSearch.toLowerCase();
+    return docsList.filter((d) => (d.filename || "").toLowerCase().includes(q));
+  }, [docsList, docSearch]);
+
+  // Goal progress calculation
+  const completedGoalsCount = useMemo(() => {
+    return goals.filter((g) => g.status === "completed").length;
+  }, [goals]);
+
+  const goalProgressPercent = useMemo(() => {
+    if (goals.length === 0) return 0;
+    return Math.round((completedGoalsCount / goals.length) * 100);
+  }, [goals.length, completedGoalsCount]);
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* 1. COLLAPSED VIEW (Minimalist Dock)                         */
+  /* ─────────────────────────────────────────────────────────── */
   if (isCollapsed) {
     return (
       <aside
@@ -581,27 +388,27 @@ export default function ContextPanel() {
         <button
           type="button"
           onClick={() => handleToggleCollapse(false)}
-          title="Open Mind State (Model of How You Think)"
+          title="Expand Workspace Essentials"
           style={{
             width: "36px",
             height: "36px",
-            borderRadius: "10px",
-            background: COGNITIVE_THEME.lavenderSoft,
-            border: `1px solid ${COGNITIVE_THEME.lavenderBorder}`,
-            color: COGNITIVE_THEME.lavender,
+            borderRadius: "8px",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            transition: "all 180ms cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: "all 150ms ease",
           }}
           onMouseOver={(e) => {
-            e.currentTarget.style.background = COGNITIVE_THEME.lavenderGlow;
-            e.currentTarget.style.borderColor = COGNITIVE_THEME.lavender;
+            e.currentTarget.style.borderColor = "var(--border-strong)";
+            e.currentTarget.style.color = "var(--text-primary)";
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.background = COGNITIVE_THEME.lavenderSoft;
-            e.currentTarget.style.borderColor = COGNITIVE_THEME.lavenderBorder;
+            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.color = "var(--text-secondary)";
           }}
         >
           <PanelRightOpen style={{ width: "16px", height: "16px" }} />
@@ -609,65 +416,789 @@ export default function ContextPanel() {
 
         <div style={{ width: "24px", height: "1px", background: "var(--border)" }} />
 
-        {/* Pulsing Cognitive Sync Indicator */}
-        <div
-          title="Mind State Model: Active Sync"
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            background: COGNITIVE_THEME.lavender,
-            boxShadow: `0 0 8px ${COGNITIVE_THEME.lavender}`,
-            animation: "mindPulse 2.5s ease-in-out infinite",
+        {/* Chats icon & badge */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("chats");
+            handleToggleCollapse(false);
           }}
-        />
+          title={`Recent Chats (${conversations.length})`}
+          style={{
+            position: "relative",
+            width: "36px",
+            height: "36px",
+            borderRadius: "8px",
+            background: "transparent",
+            border: "none",
+            color: "var(--text-secondary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 150ms ease",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+            e.currentTarget.style.background = "var(--surface)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <MessageSquare style={{ width: "16px", height: "16px" }} />
+          {conversations.length > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "3px",
+                right: "3px",
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "var(--accent)",
+              }}
+            />
+          )}
+        </button>
 
-        {/* Rail Dimension Icons */}
-        {[
-          { icon: <Target style={{ width: "15px", height: "15px" }} />, label: "Goal Anchor", color: COGNITIVE_THEME.lavender },
-          { icon: <Lightbulb style={{ width: "15px", height: "15px" }} />, label: "Beliefs", color: COGNITIVE_THEME.indigo },
-          { icon: <Compass style={{ width: "15px", height: "15px" }} />, label: "Decisions", color: COGNITIVE_THEME.emerald },
-          { icon: <HelpCircle style={{ width: "15px", height: "15px" }} />, label: "Uncertainties", color: COGNITIVE_THEME.amber },
-          { icon: <Scale style={{ width: "15px", height: "15px" }} />, label: "Tensions", color: COGNITIVE_THEME.rose },
-          { icon: <GitBranch style={{ width: "15px", height: "15px" }} />, label: "Evolution", color: COGNITIVE_THEME.lavender },
-          { icon: <Zap style={{ width: "15px", height: "15px" }} />, label: "Ripples", color: COGNITIVE_THEME.cyan },
-        ].map((item, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => handleToggleCollapse(false)}
-            title={item.label}
-            style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "8px",
-              background: "transparent",
-              border: "none",
-              color: item.color,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "all 150ms ease",
-              opacity: 0.75,
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "var(--surface-hover)";
-              e.currentTarget.style.opacity = "1";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.opacity = "0.75";
-            }}
-          >
-            {item.icon}
-          </button>
-        ))}
+        {/* Docs icon & badge */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("docs");
+            handleToggleCollapse(false);
+          }}
+          title={`Documents in ${spaceName} (${docsList.length})`}
+          style={{
+            position: "relative",
+            width: "36px",
+            height: "36px",
+            borderRadius: "8px",
+            background: "transparent",
+            border: "none",
+            color: "var(--text-secondary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 150ms ease",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+            e.currentTarget.style.background = "var(--surface)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <FileText style={{ width: "16px", height: "16px" }} />
+          {docsList.length > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "3px",
+                right: "3px",
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#10B981",
+              }}
+            />
+          )}
+        </button>
+
+        {/* Goals icon & badge */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("goals");
+            handleToggleCollapse(false);
+          }}
+          title={`Goals & Tasks (${goals.length})`}
+          style={{
+            position: "relative",
+            width: "36px",
+            height: "36px",
+            borderRadius: "8px",
+            background: "transparent",
+            border: "none",
+            color: "var(--text-secondary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 150ms ease",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+            e.currentTarget.style.background = "var(--surface)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <Target style={{ width: "16px", height: "16px" }} />
+          {goals.length > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "3px",
+                right: "3px",
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#F59E0B",
+              }}
+            />
+          )}
+        </button>
       </aside>
     );
   }
 
-  /* ─── FULL REFINED MIND STATE PANEL ─── */
+  /* ─────────────────────────────────────────────────────────── */
+  /* 2. EXPANDED VIEW: GOAL COPILOT ADVISOR (when a goal is active) */
+  /* ─────────────────────────────────────────────────────────── */
+  if (activeGoal) {
+    const goalSpaceIds = activeGoal.space_ids || (activeGoal.project_id ? [activeGoal.project_id] : []);
+    const relevantSpaces = spaces.filter((s) => goalSpaceIds.includes(s.id));
+
+    return (
+      <aside
+        className="app-context-panel"
+        style={{
+          width: "var(--context-w, 380px)",
+          height: "100vh",
+          background: "var(--bg)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          zIndex: 10,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header Toolbar */}
+        <div
+          style={{
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+            <div
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "8px",
+                background: "var(--accent-soft)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--accent)",
+                flexShrink: 0,
+              }}
+            >
+              <Bot style={{ width: "16px", height: "16px" }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Goal Copilot</span>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    padding: "1px 5px",
+                    borderRadius: "4px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    color: "#10B981",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Isolated RAG
+                </span>
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "200px" }}>
+                {activeGoal.description}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                const tasks = activeGoal.tasks || activeGoal.milestones || [];
+                const pendingTasks = tasks.filter((t: any) => !t.completed).map((t: any) => `- ${t.title || t.name}`).slice(0, 5);
+                const taskSnippet = pendingTasks.length > 0 ? `\nPending tasks:\n${pendingTasks.join("\n")}` : "";
+                const goalPrompt = `Strategize execution and next immediate steps for the following objective:\n\n**Goal**: "${activeGoal.description}"\n**Progress**: ${activeGoal.progress || 0}%\n**Priority**: ${(activeGoal.priority || "medium").toUpperCase()}${taskSnippet}\n\nBased on linked workspace documents, what are the key leverage actions and bottlenecks I should tackle right now?`;
+                router.push(`/chat?q=${encodeURIComponent(goalPrompt)}&goalId=${encodeURIComponent(activeGoal.id)}`);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "4px 8px",
+                borderRadius: "6px",
+                background: "var(--accent-soft)",
+                border: "1px solid var(--border)",
+                color: "var(--accent)",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+              title="Open this goal in full multi-agent Reasoning Chat"
+            >
+              <Sparkles style={{ width: "12px", height: "12px" }} />
+              <span>Open in Chat</span>
+              <ArrowUpRight style={{ width: "11px", height: "11px" }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveGoal(null)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                borderRadius: "4px",
+              }}
+              title="Close Goal Inspector"
+            >
+              <X style={{ width: "15px", height: "15px" }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleCollapse(true)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                padding: "4px",
+                display: "flex",
+                alignItems: "center",
+                borderRadius: "4px",
+              }}
+              title="Collapse Panel"
+            >
+              <PanelRightClose style={{ width: "16px", height: "16px" }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Scoped Spaces Indicator Bar */}
+        <div
+          style={{
+            padding: "8px 16px",
+            background: "var(--surface-subtle)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            flexWrap: "wrap",
+            fontSize: "11px",
+          }}
+        >
+          <span style={{ color: "var(--text-tertiary)" }}>
+            Scoped to {goalSpaceIds.length} space{goalSpaceIds.length === 1 ? "" : "s"}:
+          </span>
+          {relevantSpaces.length > 0 ? (
+            relevantSpaces.map((s) => (
+              <span
+                key={s.id}
+                style={{
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                }}
+              >
+                {s.name}
+              </span>
+            ))
+          ) : (
+            <span style={{ color: "var(--text-tertiary)", fontStyle: "italic" }}>Workspace</span>
+          )}
+        </div>
+
+        {/* Chat Messages List */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          {goalChatMessages.length === 0 && (
+            <div
+              style={{
+                margin: "auto",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "10px",
+                padding: "16px 8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "12px",
+                  background: "var(--accent-soft)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--accent)",
+                }}
+              >
+                <Sparkles style={{ width: "20px", height: "20px" }} />
+              </div>
+              <h4 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Goal Advisor Ready
+              </h4>
+              <p style={{ fontSize: "11.5px", color: "var(--text-tertiary)", margin: 0, lineHeight: "1.4" }}>
+                Ask strategic questions or request execution roadmaps. Retrieval is scoped to linked space documents.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", marginTop: "6px" }}>
+                {[
+                  "What should be my immediate next priority?",
+                  "Review my progress and identify bottlenecks",
+                  "Draft an execution plan for my top task",
+                ].map((promptText, pIdx) => (
+                  <button
+                    key={pIdx}
+                    type="button"
+                    onClick={() => setGoalChatInput(promptText)}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      color: "var(--text-secondary)",
+                      fontSize: "11.5px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 120ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "var(--accent)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }}
+                  >
+                    💡 {promptText}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {goalChatMessages.map((msg, mIdx) => (
+            <div
+              key={mIdx}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+                gap: "3px",
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "92%",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  background: msg.role === "user" ? "var(--accent)" : "var(--surface-subtle)",
+                  color: msg.role === "user" ? "var(--accent-contrast)" : "var(--text-primary)",
+                  border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                  fontSize: "12.5px",
+                  lineHeight: "1.5",
+                  whiteSpace: "pre-wrap",
+                  boxShadow: "var(--shadow-xs)",
+                }}
+              >
+                {msg.content}
+
+                {/* Citations from Scoped Space Docs */}
+                {msg.citations && msg.citations.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      paddingTop: "6px",
+                      borderTop: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "5px",
+                    }}
+                  >
+                    <span style={{ fontSize: "9.5px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Referenced Space Knowledge:
+                    </span>
+                    {msg.citations.map((c, cIdx) => (
+                      <div
+                        key={cIdx}
+                        style={{
+                          fontSize: "10.5px",
+                          padding: "5px 8px",
+                          borderRadius: "6px",
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <FileText style={{ width: "10px", height: "10px", color: "var(--accent)" }} />
+                          <span>{c.document_title || "Space Document"}</span>
+                          {c.page_number && <span style={{ color: "var(--text-tertiary)" }}>• Page {c.page_number}</span>}
+                        </div>
+                        <div style={{ marginTop: "2px", fontStyle: "italic", color: "var(--text-tertiary)" }}>
+                          &ldquo;{c.snippet}&rdquo;
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {msg.timestamp && (
+                <span style={{ fontSize: "9.5px", color: "var(--text-tertiary)", padding: "0 3px" }}>
+                  {msg.timestamp}
+                </span>
+              )}
+            </div>
+          ))}
+
+          {isSendingGoalChat && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", color: "var(--text-secondary)", fontSize: "11.5px" }}>
+              <Sparkles style={{ width: "13px", height: "13px", color: "var(--accent)", animation: "spin 2s linear infinite" }} />
+              <span>Querying space documents & analyzing goal state...</span>
+            </div>
+          )}
+        </div>
+
+        {/* Input Form */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendGoalChat(activeGoal);
+          }}
+          style={{
+            padding: "12px 14px",
+            borderTop: "1px solid var(--border)",
+            background: "var(--surface)",
+            display: "flex",
+            gap: "8px",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Ask Copilot about this goal..."
+            value={goalChatInput}
+            onChange={(e) => setGoalChatInput(e.target.value)}
+            disabled={isSendingGoalChat}
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              borderRadius: "8px",
+              border: "1px solid var(--border)",
+              background: "var(--surface-subtle)",
+              color: "var(--text-primary)",
+              fontSize: "12.5px",
+              outline: "none",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isSendingGoalChat || !goalChatInput.trim()}
+            style={{
+              padding: "8px 14px",
+              borderRadius: "8px",
+              border: "none",
+              background: "var(--accent)",
+              color: "var(--accent-contrast)",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              cursor: isSendingGoalChat || !goalChatInput.trim() ? "not-allowed" : "pointer",
+              opacity: isSendingGoalChat || !goalChatInput.trim() ? 0.6 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <Send style={{ width: "13px", height: "13px" }} />
+            <span>Send</span>
+          </button>
+        </form>
+      </aside>
+    );
+  }
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* 3. EXPANDED VIEW: DOCUMENT INSPECTOR MODE (if item selected)*/
+  /* ─────────────────────────────────────────────────────────── */
+  if (selectedObject) {
+    const rawContent = selectedObject.content || selectedObject.summary || "";
+    const isCode =
+      (selectedObject.type || "").toLowerCase().includes("code") ||
+      rawContent.trim().startsWith("//") ||
+      rawContent.includes("import ") ||
+      rawContent.includes("function ");
+
+    return (
+      <aside
+        className="app-context-panel"
+        style={{
+          width: "var(--context-w, 360px)",
+          height: "100vh",
+          background: "var(--bg)",
+          borderLeft: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          zIndex: 10,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "16px 20px 12px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+            <button
+              type="button"
+              onClick={() => setSelectedObject(null)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                padding: "2px",
+                display: "flex",
+                alignItems: "center",
+              }}
+              title="Back to Workspace Essentials"
+            >
+              <ChevronLeft style={{ width: "16px", height: "16px" }} />
+            </button>
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {selectedObject.title}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <button
+              type="button"
+              onClick={() => setSelectedObject(null)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+              title="Close Inspection"
+            >
+              <X style={{ width: "15px", height: "15px" }} />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleCollapse(true)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+              title="Collapse Panel"
+            >
+              <PanelRightClose style={{ width: "15px", height: "15px" }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div
+          style={{
+            flex: 1,
+            padding: "18px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            overflowY: "auto",
+          }}
+        >
+          {/* Metadata pill */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              borderRadius: "8px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontSize: "12px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              {isCode ? <Code2 style={{ width: "14px", height: "14px", color: "var(--accent)" }} /> : <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />}
+              <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                {selectedObject.type?.toUpperCase() || "DOCUMENT"}
+              </span>
+            </div>
+            <span style={{ color: "var(--text-tertiary)" }}>
+              {selectedObject.size || "Indexed"}
+            </span>
+          </div>
+
+          {/* Action: Chat with this item */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedObject(null);
+              router.push(
+                `/chat?q=${encodeURIComponent(`Analyze and summarize "${selectedObject.title}":\n${rawContent.slice(0, 300)}`)}`
+              );
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              background: "var(--accent)",
+              color: "#FFFFFF",
+              border: "none",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <Sparkles style={{ width: "14px", height: "14px" }} />
+            <span>Chat With This Document</span>
+          </button>
+
+          {/* Source Snippet or Summary */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: "10px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 14px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              <span>Content Extract</span>
+              <button
+                type="button"
+                onClick={() => handleCopy(rawContent)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: copied ? "#10B981" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontSize: "11px",
+                }}
+              >
+                {copied ? (
+                  <>
+                    <Check style={{ width: "12px", height: "12px" }} />
+                    <span>Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy style={{ width: "12px", height: "12px" }} />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <div
+              style={{
+                padding: "14px",
+                fontSize: "12.5px",
+                lineHeight: "1.6",
+                color: "var(--text-primary)",
+                maxHeight: "360px",
+                overflowY: "auto",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: isCode ? "var(--mono)" : "inherit",
+              }}
+            >
+              {rawContent || "No plain text content available."}
+            </div>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* 3. EXPANDED VIEW: WORKSPACE ESSENTIALS                      */
+  /* ─────────────────────────────────────────────────────────── */
   return (
     <aside
       className="app-context-panel"
@@ -681,905 +1212,682 @@ export default function ContextPanel() {
         flexShrink: 0,
         zIndex: 10,
         overflow: "hidden",
-        position: "relative",
       }}
     >
-      {/* ── 1. PANEL HEADER ── */}
+      {/* 1. Header Toolbar */}
       <div
         style={{
-          padding: "16px 20px 14px",
+          padding: "14px 18px",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg)",
-          flexShrink: 0,
+          background: "var(--surface)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* Luminous Brain Glyph */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
           <div
             style={{
-              width: "30px",
-              height: "30px",
-              borderRadius: "9px",
-              background: `linear-gradient(135deg, ${COGNITIVE_THEME.lavenderSoft}, ${COGNITIVE_THEME.violetSoft})`,
-              border: `1px solid ${COGNITIVE_THEME.lavenderBorder}`,
+              padding: "4px 8px",
+              borderRadius: "6px",
+              background: "var(--surface-hover)",
+              border: "1px solid var(--border)",
+              fontSize: "12px",
+              color: "var(--text-primary)",
+              fontWeight: 500,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              boxShadow: `0 2px 8px ${COGNITIVE_THEME.lavenderGlow}`,
+              gap: "6px",
             }}
           >
-            <Brain style={{ width: "16px", height: "16px", color: COGNITIVE_THEME.lavender }} />
-          </div>
-
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: "var(--text-primary)",
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Mind State
-              </span>
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "1px 6px",
-                  borderRadius: "999px",
-                  background: COGNITIVE_THEME.lavenderSoft,
-                  color: COGNITIVE_THEME.lavender,
-                  border: `1px solid ${COGNITIVE_THEME.lavenderBorder}`,
-                }}
-              >
-                Live Model
-              </span>
-            </div>
-            <div style={{ fontSize: "10.5px", color: "var(--text-tertiary)", marginTop: "1px" }}>
-              Cognitive model of your reasoning
-            </div>
+            <span>📁</span>
+            <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {spaceName}
+            </span>
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <button
-            type="button"
-            onClick={fetchData}
-            title="Refresh Cognitive State"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--text-tertiary)",
-              cursor: "pointer",
-              padding: "5px",
-              display: "flex",
-              alignItems: "center",
-              borderRadius: "6px",
-              transition: "all 150ms ease",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.color = "var(--text-primary)";
-              e.currentTarget.style.background = "var(--surface-hover)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.color = "var(--text-tertiary)";
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <RefreshCw
-              style={{
-                width: "13px",
-                height: "13px",
-                transform: isSyncing ? "rotate(180deg)" : "none",
-                transition: "transform 400ms ease",
-              }}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleToggleCollapse(true)}
-            title="Collapse Mind State"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--text-tertiary)",
-              cursor: "pointer",
-              padding: "5px",
-              display: "flex",
-              alignItems: "center",
-              borderRadius: "6px",
-              transition: "all 150ms ease",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.color = "var(--text-primary)";
-              e.currentTarget.style.background = "var(--surface-hover)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.color = "var(--text-tertiary)";
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <PanelRightClose style={{ width: "15px", height: "15px" }} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => handleToggleCollapse(true)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--text-secondary)",
+            cursor: "pointer",
+            padding: "4px",
+            display: "flex",
+            alignItems: "center",
+            borderRadius: "4px",
+          }}
+          title="Collapse Panel"
+        >
+          <PanelRightClose style={{ width: "16px", height: "16px" }} />
+        </button>
       </div>
 
-      {/* ── 2. SCROLLABLE COGNITIVE CANVAS ── */}
+      {/* 2. Clean Navigation Tabs */}
       <div
-        className="mind-state-scroll"
         style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "18px 20px 32px",
           display: "flex",
-          flexDirection: "column",
-          gap: "22px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--surface)",
         }}
       >
-        {/* ── A. CURRENTLY THINKING ABOUT (Active Cognitive Vector) ── */}
-        <div>
-          <SectionHeader
-            icon={<Zap style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.lavender }} />}
-            title="Currently Thinking About"
-          />
-
-          <div
-            style={{
-              padding: "14px 16px",
-              borderRadius: "12px",
-              background: `linear-gradient(145deg, ${COGNITIVE_THEME.lavenderSoft}, var(--surface))`,
-              border: `1px solid ${COGNITIVE_THEME.lavenderBorder}`,
-              position: "relative",
-              overflow: "hidden",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
-            }}
-          >
-            {/* Top row metadata */}
-            <div
+        {[
+          { id: "chats", label: "Chats", icon: MessageSquare, count: conversations.length },
+          { id: "docs", label: "Docs", icon: FileText, count: docsList.length },
+          { id: "goals", label: "Goals", icon: Target, count: goals.length },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as any)}
               style={{
+                flex: 1,
+                padding: "10px 0",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "8px",
+                justifyContent: "center",
+                gap: "6px",
+                fontSize: "12px",
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                borderTop: "none",
+                borderLeft: "none",
+                borderRight: "none",
+                background: "transparent",
+                cursor: "pointer",
+                transition: "all 150ms ease",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span
-                  style={{
-                    width: "6px",
-                    height: "6px",
-                    borderRadius: "50%",
-                    background: COGNITIVE_THEME.lavender,
-                    boxShadow: `0 0 6px ${COGNITIVE_THEME.lavender}`,
-                  }}
-                />
+              <Icon style={{ width: "13px", height: "13px" }} />
+              <span>{tab.label}</span>
+              {tab.count > 0 && (
                 <span
                   style={{
                     fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: COGNITIVE_THEME.lavender,
+                    padding: "1px 5px",
+                    borderRadius: "8px",
+                    background: isActive ? "var(--surface-hover)" : "transparent",
+                    color: "var(--text-secondary)",
+                    fontWeight: 600,
                   }}
                 >
-                  {spaceName} Space Focus
+                  {tab.count}
                 </span>
-              </div>
-              <span
-                style={{
-                  fontSize: "9.5px",
-                  fontWeight: 600,
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                Depth: Deep
-              </span>
-            </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-            {/* Core Thought Title */}
-            <div
+      {/* 3. Panel Content Area */}
+      <div
+        style={{
+          flex: 1,
+          padding: "16px 18px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "14px",
+          overflowY: "auto",
+        }}
+      >
+        {/* ========================================================= */}
+        {/* TAB 1: RECENT CHATS                                       */}
+        {/* ========================================================= */}
+        {activeTab === "chats" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
+            {/* Action: New Chat button */}
+            <button
+              type="button"
+              onClick={() => router.push("/chat")}
               style={{
-                fontSize: "14.5px",
-                fontWeight: 700,
-                color: "var(--text-primary)",
-                letterSpacing: "-0.01em",
-                lineHeight: "1.35",
-                marginBottom: "8px",
-              }}
-            >
-              {primaryGoal?.description || `Synthesizing architectural knowledge in ${spaceName}`}
-            </div>
-
-            {/* Inferred rationale */}
-            <div
-              style={{
-                fontSize: "11.5px",
-                lineHeight: "1.45",
-                color: "var(--text-secondary)",
-              }}
-            >
-              MYND detects heavy activity centered on{" "}
-              <strong style={{ color: "var(--text-primary)" }}>{spaceName}</strong>. Your focus is
-              converging toward establishing durable foundations before scaling.
-            </div>
-
-            {/* Action pill */}
-            <div
-              style={{
-                marginTop: "11px",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                paddingTop: "9px",
-                borderTop: `1px solid ${COGNITIVE_THEME.lavenderSoft}`,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  openAskAi(
-                    `Let's explore the active thought premise: "${primaryGoal?.description || spaceName}". What are the key blindspots?`
-                  )
-                }
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  background: "transparent",
-                  border: "none",
-                  color: COGNITIVE_THEME.lavender,
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                <span>Probe premise with Copilot</span>
-                <ArrowRight style={{ width: "11px", height: "11px" }} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── B. GOAL (North Star Anchor) ── */}
-        <div>
-          <SectionHeader
-            icon={<Target style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.lavender }} />}
-            title="Strategic Goal Anchor"
-            count={activeGoals.length}
-          />
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "10px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.02)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-              <div
-                style={{
-                  marginTop: "3px",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  border: `2px solid ${COGNITIVE_THEME.lavender}`,
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "12.5px",
-                    lineHeight: "1.45",
-                    color: "var(--text-primary)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {primaryGoal?.description || `Mastery and structured synthesis of ${spaceName}`}
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "4px" }}>
-                  Anchor Status: Aligned with current decision pathways
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── C. INFERRED BELIEFS (Mental Models) ── */}
-        <div>
-          <SectionHeader
-            icon={<Lightbulb style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.indigo }} />}
-            title="Inferred Beliefs"
-            count="3"
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <BeliefCard
-              domain="Architecture"
-              conviction={94}
-              belief="A second brain must model the user's reasoning and decisions, not simply act as an archive of text."
-              onProbe={() =>
-                openAskAi("Examine my belief: Why must a second brain model decisions rather than just act as a document store?")
-              }
-            />
-            <BeliefCard
-              domain="Execution"
-              conviction={82}
-              belief="Clarity of thought precedes velocity of output; unresolved tensions compound over time."
-              onProbe={() =>
-                openAskAi("Analyze how unresolved cognitive tensions are currently impacting my decision velocity.")
-              }
-            />
-          </div>
-        </div>
-
-        {/* ── D. ACTIVE DECISIONS (Branching Forks) ── */}
-        <div>
-          <SectionHeader
-            icon={<Compass style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.emerald }} />}
-            title="Active Decisions"
-            count="2"
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {/* Decision 1 */}
-            <div
-              style={{
-                padding: "11px 13px",
-                borderRadius: "10px",
-                background: COGNITIVE_THEME.emeraldSoft,
-                border: `1px solid ${COGNITIVE_THEME.emeraldBorder}`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "5px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "9.5px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    color: COGNITIVE_THEME.emerald,
-                  }}
-                >
-                  Decision Fork #1
-                </span>
-                <span
-                  style={{
-                    fontSize: "9.5px",
-                    fontWeight: 600,
-                    padding: "1px 6px",
-                    borderRadius: "4px",
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: COGNITIVE_THEME.emerald,
-                  }}
-                >
-                  Weighing Options
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  lineHeight: "1.45",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: "4px",
-                }}
-              >
-                Deep Cognitive Second-Brain vs. Standard Notion/Note App
-              </div>
-              <div style={{ fontSize: "11px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
-                Favoring deep personal cognitive modeling over generic multi-user document collaboration.
-              </div>
-            </div>
-
-            {/* Decision 2 */}
-            <div
-              style={{
-                padding: "11px 13px",
-                borderRadius: "10px",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+                e.currentTarget.style.background = "var(--surface-hover)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.background = "var(--surface)";
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "5px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "9.5px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  Decision Fork #2
-                </span>
-                <span
-                  style={{
-                    fontSize: "9.5px",
-                    fontWeight: 600,
-                    padding: "1px 6px",
-                    borderRadius: "4px",
-                    background: "var(--surface-hover)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  Committed
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  lineHeight: "1.45",
-                  color: "var(--text-primary)",
-                }}
-              >
-                Pure Light-Mode Minimalist Aesthetic with Lavender Accent
-              </div>
-            </div>
-          </div>
-        </div>
+              <Plus style={{ width: "14px", height: "14px" }} />
+              <span>New Chat</span>
+            </button>
 
-        {/* ── E. UNCERTAINTIES & BLINDSPOTS ── */}
-        <div>
-          <SectionHeader
-            icon={<HelpCircle style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.amber }} />}
-            title="Uncertainties & Inquiries"
-            count="2"
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div
-              style={{
-                padding: "11px 13px",
-                borderRadius: "10px",
-                background: "var(--surface)",
-                border: `1.5px dashed ${COGNITIVE_THEME.amberBorder}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "12px",
-                  lineHeight: "1.45",
-                  color: "var(--text-primary)",
-                  fontWeight: 500,
-                  marginBottom: "4px",
-                }}
-              >
-                How much ambient indexing should happen without active user intervention?
-              </div>
+            {/* Search Filter */}
+            {conversations.length > 3 && (
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  marginTop: "6px",
+                  gap: "6px",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
                 }}
               >
-                <span style={{ fontSize: "10.5px", color: COGNITIVE_THEME.amber, fontWeight: 600 }}>
-                  High Strategic Leverage
-                </span>
+                <Search style={{ width: "12px", height: "12px", color: "var(--text-tertiary)" }} />
+                <input
+                  type="text"
+                  placeholder="Filter chats..."
+                  value={chatSearch}
+                  onChange={(e) => setChatSearch(e.target.value)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    width: "100%",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Chats List */}
+            {isLoadingChats ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
+                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
+                <MessageSquare style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
+                <div>No chats found in this space</div>
                 <button
                   type="button"
-                  onClick={() =>
-                    openAskAi(
-                      "Explore the trade-offs of autonomous ambient knowledge indexing versus explicit user confirmation in MYND."
-                    )
-                  }
+                  onClick={() => router.push("/chat")}
                   style={{
-                    background: "transparent",
-                    border: "none",
-                    fontSize: "10.5px",
-                    color: "var(--text-tertiary)",
+                    marginTop: "10px",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-primary)",
+                    fontSize: "11.5px",
                     cursor: "pointer",
-                    padding: 0,
-                    textDecoration: "underline",
                   }}
                 >
-                  Explore with AI
+                  Start First Conversation
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── F. TENSIONS (Cognitive Dialectics) ── */}
-        <div>
-          <SectionHeader
-            icon={<Scale style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.rose }} />}
-            title="Cognitive Tensions"
-            count="1"
-          />
-          <DialecticTensionItem
-            labelA="Speed of Prototyping"
-            labelB="Architectural Depth"
-            ratio={68}
-            summary="You want rapid experimental velocity, but your architectural beliefs require strict consistency and relational integrity."
-          />
-        </div>
-
-        <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
-
-        {/* ── G. THOUGHT EVOLUTION (Temporal Shifts) ── */}
-        <div>
-          <div
-            onClick={() => setIsEvolutionFolded(!isEvolutionFolded)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-              marginBottom: "10px",
-            }}
-          >
-            <SectionHeader
-              icon={<GitBranch style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.lavender }} />}
-              title="Thought Evolution"
-              count="5 pivots"
-            />
-            {isEvolutionFolded ? (
-              <ChevronDown style={{ width: "13px", height: "13px", color: "var(--text-tertiary)" }} />
             ) : (
-              <ChevronUp style={{ width: "13px", height: "13px", color: "var(--text-tertiary)" }} />
-            )}
-          </div>
-
-          {!isEvolutionFolded && (
-            <div
-              style={{
-                padding: "14px 14px 4px",
-                borderRadius: "12px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <EvolutionStep
-                period="Jan"
-                thesis="I want to build an AI productivity assistant"
-                catalyst="Realized generic assistants are reactive and forget who the user is."
-                isFirst
-              />
-              <EvolutionStep
-                period="Feb"
-                thesis="RAG and vector search alone aren't enough"
-                catalyst="Standard RAG returns facts, but has no concept of what decisions matter."
-              />
-              <EvolutionStep
-                period="Mar"
-                thesis="Persistent cognitive memory is required"
-                catalyst="Needed a system that preserves context across weeks and months."
-              />
-              <EvolutionStep
-                period="Apr"
-                thesis="MYND should understand contextual relationships"
-                catalyst="Shifted from flat document storage to a multi-space knowledge topology."
-              />
-              <EvolutionStep
-                period="Now"
-                thesis="MYND must model decisions and consequences, not just data."
-                catalyst="Current active thesis: A true second brain helps the user think clearly."
-                isCurrent
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ── H. IF THIS CHANGES... (Interactive Ripple Simulator) ── */}
-        <div>
-          <div
-            onClick={() => setIsRipplesFolded(!isRipplesFolded)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-              marginBottom: "10px",
-            }}
-          >
-            <SectionHeader
-              icon={<Zap style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.cyan }} />}
-              title="If This Changes..."
-              count="Interactive"
-            />
-            {isRipplesFolded ? (
-              <ChevronDown style={{ width: "13px", height: "13px", color: "var(--text-tertiary)" }} />
-            ) : (
-              <ChevronUp style={{ width: "13px", height: "13px", color: "var(--text-tertiary)" }} />
-            )}
-          </div>
-
-          {!isRipplesFolded && (
-            <div
-              style={{
-                padding: "14px",
-                borderRadius: "12px",
-                background: `linear-gradient(145deg, ${COGNITIVE_THEME.cyanSoft}, var(--surface))`,
-                border: `1px solid ${COGNITIVE_THEME.cyanBorder}`,
-              }}
-            >
-              {/* Hypothesis Selector Pills */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "6px",
-                  overflowX: "auto",
-                  paddingBottom: "8px",
-                  marginBottom: "10px",
-                }}
-              >
-                {hypothesisPresets.map((hypo, idx) => {
-                  const isSelected = idx === activeHypothesisIndex;
-                  return (
-                    <button
-                      key={hypo.id}
-                      type="button"
-                      onClick={() => setActiveHypothesisIndex(idx)}
-                      style={{
-                        padding: "4px 9px",
-                        borderRadius: "6px",
-                        fontSize: "10.5px",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                        cursor: "pointer",
-                        border: isSelected
-                          ? `1px solid ${COGNITIVE_THEME.cyan}`
-                          : "1px solid var(--border)",
-                        background: isSelected
-                          ? COGNITIVE_THEME.cyanSoft
-                          : "var(--surface)",
-                        color: isSelected
-                          ? COGNITIVE_THEME.cyan
-                          : "var(--text-secondary)",
-                        transition: "all 120ms ease",
-                      }}
-                    >
-                      {hypo.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Inquired Premise */}
-              <div
-                style={{
-                  fontSize: "11.5px",
-                  color: "var(--text-primary)",
-                  fontWeight: 600,
-                  marginBottom: "10px",
-                  lineHeight: "1.4",
-                }}
-              >
-                Hypothesis: {activeHypothesis.premise}
-              </div>
-
-              {/* Cascading Ripples */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {activeHypothesis.ripples.map((rip, i) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {filteredConversations.map((c) => (
                   <div
-                    key={i}
+                    key={c.id}
+                    onClick={() => router.push(`/chat/${c.id}`)}
                     style={{
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      cursor: "pointer",
                       display: "flex",
-                      alignItems: "flex-start",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                       gap: "8px",
-                      fontSize: "11px",
-                      lineHeight: "1.4",
-                      color: "var(--text-secondary)",
+                      transition: "all 150ms ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                      e.currentTarget.style.background = "var(--surface-hover)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.background = "var(--surface)";
                     }}
                   >
-                    <span
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: "12.5px",
+                          fontWeight: 500,
+                          color: "var(--text-primary)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {c.title || "Chat Session"}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                        {formatRelativeTime(c.created_at)}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteConversation(e, c.id)}
+                      title="Delete chat"
                       style={{
-                        fontSize: "9px",
-                        fontWeight: 700,
-                        padding: "1px 5px",
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-tertiary)",
+                        padding: "4px",
+                        cursor: "pointer",
                         borderRadius: "4px",
-                        background: "var(--surface)",
-                        color: COGNITIVE_THEME.cyan,
-                        border: `1px solid ${COGNITIVE_THEME.cyanBorder}`,
-                        flexShrink: 0,
-                        marginTop: "1px",
+                        opacity: 0.6,
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.opacity = "1";
+                        e.currentTarget.style.color = "#EF4444";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.opacity = "0.6";
+                        e.currentTarget.style.color = "var(--text-tertiary)";
                       }}
                     >
-                      {rip.level}
-                    </span>
-                    <span>{rip.desc}</span>
+                      <Trash2 style={{ width: "12px", height: "12px" }} />
+                    </button>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
 
-              {/* Action */}
-              <button
-                type="button"
-                onClick={() =>
-                  openAskAi(
-                    `Simulate consequence chain in MYND: What happens if I make this change: "${activeHypothesis.premise}"? Detail 1st, 2nd, and 3rd order impacts.`
-                  )
+        {/* ========================================================= */}
+        {/* TAB 2: SPACE DOCUMENTS & UPLOAD                          */}
+        {/* ========================================================= */}
+        {activeTab === "docs" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
+            {/* Quick Upload Dropzone / Button */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={(e) => {
+                handleFileUpload(e.target.files);
+                e.target.value = "";
+              }}
+              multiple
+            />
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "16px",
+                borderRadius: "8px",
+                border: "1px dashed var(--border-strong)",
+                background: "var(--surface)",
+                color: "var(--text-secondary)",
+                cursor: isUploading ? "not-allowed" : "pointer",
+                transition: "all 150ms ease",
+              }}
+              onMouseOver={(e) => {
+                if (!isUploading) {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.color = "var(--text-primary)";
                 }
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+            >
+              {isUploading ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
+                  <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                  <span>Indexing document into Qdrant...</span>
+                </div>
+              ) : (
+                <>
+                  <Upload style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
+                    Upload to {spaceName}
+                  </span>
+                  <span style={{ fontSize: "10.5px", color: "var(--text-tertiary)" }}>
+                    PDF, TXT, MD, DOCX, Code files
+                  </span>
+                </>
+              )}
+            </button>
+
+            {uploadError && (
+              <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
                   gap: "6px",
-                  marginTop: "12px",
-                  width: "100%",
-                  padding: "7px 12px",
-                  borderRadius: "8px",
-                  border: `1px solid ${COGNITIVE_THEME.cyanBorder}`,
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  background: "rgba(239, 68, 68, 0.12)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  color: "#EF4444",
+                  fontSize: "11.5px",
+                }}
+              >
+                <AlertCircle style={{ width: "13px", height: "13px", flexShrink: 0 }} />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            {/* Search Filter */}
+            {docsList.length > 3 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
                   background: "var(--surface)",
-                  color: COGNITIVE_THEME.cyan,
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 150ms ease",
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = COGNITIVE_THEME.cyanSoft;
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = "var(--surface)";
-                }}
-              >
-                <span>Simulate Full Ripple with Copilot</span>
-                <ArrowRight style={{ width: "12px", height: "12px" }} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div style={{ height: "1px", background: "var(--border)", margin: "4px 0" }} />
-
-        {/* ── I. MYND UNDERSTANDS (Cognitive State Topology) ── */}
-        <div>
-          <SectionHeader
-            icon={<Hexagon style={{ width: "11px", height: "11px", color: COGNITIVE_THEME.lavender }} />}
-            title="MYND Understands"
-          />
-
-          <div
-            style={{
-              padding: "14px 16px",
-              borderRadius: "12px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {/* Top Stat Row */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <div
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: "8px",
-                  background: "var(--surface-subtle)",
                   border: "1px solid var(--border)",
                 }}
               >
-                <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Coherence</div>
-                <div
+                <Search style={{ width: "12px", height: "12px", color: "var(--text-tertiary)" }} />
+                <input
+                  type="text"
+                  placeholder="Filter documents..."
+                  value={docSearch}
+                  onChange={(e) => setDocSearch(e.target.value)}
                   style={{
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    color: COGNITIVE_THEME.lavender,
-                    marginTop: "2px",
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    width: "100%",
                   }}
-                >
-                  94.2%
-                </div>
+                />
               </div>
+            )}
 
-              <div
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: "8px",
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Stability</div>
-                <div
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    color: COGNITIVE_THEME.emerald,
-                    marginTop: "2px",
-                  }}
-                >
-                  High
-                </div>
+            {/* Documents List */}
+            {isLoadingDocs ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
+                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
               </div>
-            </div>
-
-            {/* Counts Breakdown */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {[
-                { label: "Connected Thoughts", count: localDocs.length + localGoals.length + 18, color: COGNITIVE_THEME.lavender },
-                { label: "Active Decision Forks", count: Math.max(2, activeGoals.length), color: COGNITIVE_THEME.emerald },
-                { label: "Unresolved Uncertainties", count: 2, color: COGNITIVE_THEME.amber },
-                { label: "Evolving Inferred Beliefs", count: 3, color: COGNITIVE_THEME.indigo },
-              ].map((row, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    fontSize: "11px",
-                    color: "var(--text-secondary)",
-                    padding: "3px 0",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span
-                      style={{
-                        width: "5px",
-                        height: "5px",
-                        borderRadius: "50%",
-                        background: row.color,
-                      }}
-                    />
-                    <span>{row.label}</span>
-                  </div>
-                  <span
+            ) : filteredDocs.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
+                <FileText style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
+                <div>No documents in this space yet</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {filteredDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    onClick={() => {
+                      setSelectedObject({
+                        id: doc.id,
+                        title: doc.filename,
+                        type: doc.filename?.split(".").pop() || "doc",
+                        size: doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(2)} MB` : "Document",
+                        summary: doc.summary || "Indexed and vectorized for workspace search.",
+                        spaceId: doc.space_id,
+                      });
+                    }}
                     style={{
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      fontVariantNumeric: "tabular-nums",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                      transition: "all 150ms ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                      e.currentTarget.style.background = "var(--surface-hover)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.background = "var(--surface)";
                     }}
                   >
-                    {row.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                      <FileText style={{ width: "14px", height: "14px", color: "var(--accent)", flexShrink: 0 }} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "12.5px",
+                            fontWeight: 500,
+                            color: "var(--text-primary)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {doc.filename}
+                        </div>
+                        <div style={{ fontSize: "10.5px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                          {doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(2)} MB` : "Ready"} • {formatRelativeTime(doc.created_at)}
+                        </div>
+                      </div>
+                    </div>
 
-      {/* ── Global Styles for Scrollbar & Pulse Animation ── */}
-      <style>{`
-        @keyframes mindPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.4; transform: scale(1.3); }
-        }
-        .mind-state-scroll::-webkit-scrollbar {
-          width: 4px;
-        }
-        .mind-state-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .mind-state-scroll::-webkit-scrollbar-thumb {
-          background: var(--border);
-          border-radius: 4px;
-        }
-        .mind-state-scroll::-webkit-scrollbar-thumb:hover {
-          background: var(--text-tertiary);
-        }
-      `}</style>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteDocument(e, doc.id)}
+                      title="Delete document"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-tertiary)",
+                        padding: "4px",
+                        cursor: "pointer",
+                        borderRadius: "4px",
+                        opacity: 0.6,
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.opacity = "1";
+                        e.currentTarget.style.color = "#EF4444";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.opacity = "0.6";
+                        e.currentTarget.style.color = "var(--text-tertiary)";
+                      }}
+                    >
+                      <Trash2 style={{ width: "12px", height: "12px" }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 3: GOALS & ACTIONABLE TASKS                           */}
+        {/* ========================================================= */}
+        {activeTab === "goals" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
+            {/* Progress Header */}
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-secondary)" }}>
+                  Goal Completion
+                </span>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)" }}>
+                  {goalProgressPercent}%
+                </span>
+              </div>
+              <div
+                style={{
+                  width: "100%",
+                  height: "5px",
+                  borderRadius: "4px",
+                  background: "var(--surface-hover)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${goalProgressPercent}%`,
+                    height: "100%",
+                    background: "var(--accent)",
+                    transition: "width 300ms ease",
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "6px" }}>
+                {completedGoalsCount} of {goals.length} goals achieved
+              </div>
+            </div>
+
+            {/* Quick Add Goal Input */}
+            <form onSubmit={handleAddGoal} style={{ display: "flex", gap: "6px" }}>
+              <input
+                type="text"
+                placeholder="Add new goal or task..."
+                value={newGoalInput}
+                onChange={(e) => setNewGoalInput(e.target.value)}
+                disabled={isAddingGoal}
+                style={{
+                  flex: 1,
+                  padding: "7px 10px",
+                  borderRadius: "6px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  fontSize: "12px",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!newGoalInput.trim() || isAddingGoal}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: "6px",
+                  background: newGoalInput.trim() ? "var(--accent)" : "var(--surface-hover)",
+                  color: newGoalInput.trim() ? "#FFFFFF" : "var(--text-tertiary)",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: newGoalInput.trim() ? "pointer" : "not-allowed",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <Plus style={{ width: "13px", height: "13px" }} />
+                <span>Add</span>
+              </button>
+            </form>
+
+            {/* Goals List */}
+            {isLoadingGoals ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
+                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
+              </div>
+            ) : goals.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
+                <Target style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
+                <div>No active goals yet</div>
+                <div style={{ fontSize: "11px", marginTop: "4px" }}>Add a task above to track your progress</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {goals.map((goal) => {
+                  const isDone = goal.status === "completed";
+                  return (
+                    <div
+                      key={goal.id}
+                      onClick={() => handleToggleGoal(goal.id, goal.status)}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        background: isDone ? "var(--surface-subtle)" : "var(--surface)",
+                        border: "1px solid var(--border)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        transition: "all 150ms ease",
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-strong)";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border)";
+                      }}
+                    >
+                      <button
+                        type="button"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          padding: 0,
+                          cursor: "pointer",
+                          color: isDone ? "#10B981" : "var(--text-tertiary)",
+                          display: "flex",
+                          alignItems: "center",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 style={{ width: "15px", height: "15px" }} />
+                        ) : (
+                          <Circle style={{ width: "15px", height: "15px" }} />
+                        )}
+                      </button>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "12.5px",
+                            fontWeight: 500,
+                            color: isDone ? "var(--text-tertiary)" : "var(--text-primary)",
+                            textDecoration: isDone ? "line-through" : "none",
+                            lineHeight: "1.4",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {goal.description}
+                        </div>
+                        {goal.created_at && (
+                          <div style={{ fontSize: "10px", color: "var(--text-ghost)", marginTop: "4px" }}>
+                            Added {formatRelativeTime(goal.created_at)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }

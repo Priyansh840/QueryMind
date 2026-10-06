@@ -207,9 +207,6 @@ def get_llm(model_name: str = "gemini-3.6-flash", temperature: float = 0.2) -> B
     """
     Returns a configured LangChain ChatModel based on available keys and provider settings.
     """
-    if settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
-        return FallbackGeminiChatModel(google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
-
     if settings.LLM_PROVIDER.lower() == "ollama" and ChatOllama is not None:
         ollama_model = settings.OLLAMA_MODEL or "llama3.2"
         logger.info(f"Initializing local Ollama LLM (Model: {ollama_model})")
@@ -218,6 +215,9 @@ def get_llm(model_name: str = "gemini-3.6-flash", temperature: float = 0.2) -> B
             base_url=settings.OLLAMA_BASE_URL,
             temperature=temperature,
         )
+
+    if settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
+        return FallbackGeminiChatModel(google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
 
     raise ValueError("No valid LLM provider configured. Set GEMINI_API_KEY or install langchain_ollama.")
 

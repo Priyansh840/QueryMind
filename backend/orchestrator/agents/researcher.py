@@ -153,14 +153,21 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
                 else:
                     deduped[content_key] = item
 
+            # Prioritize chunks from documents whose title appears in query or raw_query
+            user_q_lower = (state.get("raw_query") or "").lower()
+            task_q_lower = task["query"].lower()
+            
+            def calc_priority(item):
+                score = item["relevance_score"] if item["relevance_score"] is not None else 0.0
+                doc_title = (item.get("document_title") or "").lower()
+                doc_base = doc_title.replace(".pdf", "").replace(".docx", "").replace(".txt", "").strip()
+                words = [w for w in doc_base.split() if len(w) > 1]
+                matches_target = any(w in user_q_lower or w in task_q_lower for w in words) if words else False
+                # If document title explicitly matched terms in user query, boost ranking
+                return (1 if matches_target else 0, score)
+
             merged_list = list(deduped.values())
-            merged_list.sort(
-                key=lambda x: (
-                    x["relevance_score"] if x["relevance_score"] is not None else -1.0,
-                    x.get("document_title", ""),
-                ),
-                reverse=True,
-            )
+            merged_list.sort(key=calc_priority, reverse=True)
             evidence_list = merged_list[:8]
 
             status = "completed" if evidence_list else "no_evidence"

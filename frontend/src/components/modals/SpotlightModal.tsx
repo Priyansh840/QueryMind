@@ -15,6 +15,7 @@ export default function SpotlightModal() {
   const setRoute = useMyndStore((state) => state.setRoute);
   const toggleTheme = useMyndStore((state) => state.toggleTheme);
   const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
+  const openAskAi = useMyndStore((state) => state.openAskAi);
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -37,13 +38,15 @@ export default function SpotlightModal() {
   const q = query.toLowerCase().trim();
 
   const commands = [
-    { id: "cmd-home", title: "Go to Home", type: "Navigation", action: () => { setRoute("home"); router.push("/dashboard"); } },
+    { id: "cmd-ask-ai", title: "Ask Omni-AI Copilot (Floating Assistant)", type: "AI Copilot", action: () => { openAskAi(); } },
+    { id: "cmd-chat", title: "Open AI Intelligence Reasoning Session (Full Canvas)", type: "Intelligence", action: () => { setRoute("chat"); router.push("/chat"); } },
+    { id: "cmd-home", title: "Go to Home (Executive Dashboard)", type: "Navigation", action: () => { setRoute("home"); router.push("/dashboard"); } },
     { id: "cmd-goals", title: "Go to Strategic Goals & Objectives", type: "Navigation", action: () => { setRoute("goals"); router.push("/goals"); } },
-    { id: "cmd-workspace", title: "View Workspace (All Spaces)", type: "Navigation", action: () => { setRoute("workspace"); router.push("/workspace"); } },
+    { id: "cmd-workspace", title: "View Workspace (All Spaces & Initiatives)", type: "Navigation", action: () => { setRoute("workspace"); router.push("/workspace"); } },
+    { id: "cmd-projects", title: "View Workspace Initiatives & Projects", type: "Navigation", action: () => { setRoute("projects"); router.push("/projects"); } },
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
-    { id: "cmd-chat", title: "Open AI Intelligence Chat", type: "Navigation", action: () => { setRoute("chat"); router.push("/chat"); } },
-    { id: "cmd-intelligence", title: "View Intelligence & Analysis", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/intelligence"); } },
-    { id: "cmd-search", title: "Semantic Search", type: "Search", action: () => setRoute("search") },
+    { id: "cmd-intelligence", title: "View Activity & Intelligence Feed", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
+    { id: "cmd-search", title: "Semantic Knowledge Search", type: "Search", action: () => setRoute("search") },
     { id: "cmd-theme", title: "Toggle Theme (Light / Dark / Zen)", type: "Action", action: () => toggleTheme() },
     { id: "cmd-focus", title: "Toggle Focus Mode", type: "Action", action: () => toggleFocusMode() },
   ];

@@ -71,8 +71,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Cmd/Ctrl + K -> Universal AI Copilot
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      // Cmd/Ctrl + K -> Spotlight Command & Navigation Palette
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K") && !e.altKey) {
+        e.preventDefault();
+        openSpotlight();
+        return;
+      }
+
+      // Alt + K -> Omni-AI Copilot
+      if (e.altKey && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
         openAskAi();
         return;

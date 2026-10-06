@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import KnowledgeMap from "@/components/graph/KnowledgeMap";
 import { useMyndStore } from "@/lib/mynd-store";
+import { queryMindApi, GoalData, ProjectData } from "@/lib/api";
 import {
   FileText,
   FileCode,
@@ -13,6 +14,10 @@ import {
   Sun,
   Sparkles,
   Target,
+  FolderKanban,
+  CheckCircle2,
+  Clock,
+  Compass,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -27,6 +32,35 @@ export default function DashboardPage() {
   const openSettings = useMyndStore((state) => state.openSettings);
   const recentObjects = useMyndStore((state) => state.recentObjects);
   const activityFeed = useMyndStore((state) => state.activityFeed);
+
+  const [activeGoals, setActiveGoals] = useState<GoalData[]>([]);
+  const [activeProjects, setActiveProjects] = useState<ProjectData[]>([]);
+  const [isLoadingWork, setIsLoadingWork] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadWorkspaceData() {
+      setIsLoadingWork(true);
+      try {
+        const [goalsData, projectsData] = await Promise.all([
+          queryMindApi.getGoals().catch(() => []),
+          queryMindApi.getProjects(activeSpaceId || undefined).catch(() => []),
+        ]);
+        if (isMounted) {
+          setActiveGoals(Array.isArray(goalsData) ? goalsData.filter((g) => g.status === "active") : []);
+          setActiveProjects(Array.isArray(projectsData) ? projectsData.filter((p) => p.status === "active") : []);
+        }
+      } catch {
+        // Fallback
+      } finally {
+        if (isMounted) setIsLoadingWork(false);
+      }
+    }
+    loadWorkspaceData();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSpaceId]);
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
@@ -138,6 +172,29 @@ export default function DashboardPage() {
           >
             <Target style={{ width: "14px", height: "14px" }} />
             <span>Goals</span>
+          </Link>
+
+          <Link
+            href="/projects"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 16px",
+              borderRadius: "9999px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              cursor: "pointer",
+              textDecoration: "none",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <FolderKanban style={{ width: "14px", height: "14px" }} />
+            <span>Projects</span>
           </Link>
 
           <button
@@ -342,76 +399,191 @@ export default function DashboardPage() {
         <KnowledgeMap />
       </div>
 
-      {/* 4. Recent Activity Section */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {/* 4. Active Initiatives & Focus Goals */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-            Recent Activity
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Target style={{ width: "16px", height: "16px", color: "var(--text-primary)" }} />
+            <h2 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+              Active Goals & Focus Initiatives
+            </h2>
+          </div>
           <Link
-            href="/activity"
+            href="/goals"
             style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", textDecoration: "underline" }}
           >
-            View all
+            Manage Goals
           </Link>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {activityFeed.length > 0 ? (
-            activityFeed.map((item, idx) => (
-              <div
-                key={`${item.id || "act"}-${idx}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  fontSize: "13px",
-                }}
-              >
-                <div
+        {isLoadingWork ? (
+          <div style={{ padding: "24px", textAlign: "center", fontSize: "13px", color: "var(--text-tertiary)" }}>
+            Loading workspace initiatives...
+          </div>
+        ) : activeGoals.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "14px",
+            }}
+          >
+            {activeGoals.slice(0, 3).map((goal) => {
+              const tasks = goal.tasks || [];
+              const completedTasks = tasks.filter((t) => t.completed).length;
+              const progressPct = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+              return (
+                <Link
+                  key={goal.id}
+                  href="/goals"
                   style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "8px",
-                    background: item.bg || "var(--surface-hover)",
-                    color: item.color || "var(--text-primary)",
+                    background: "var(--surface)",
+                    borderRadius: "16px",
+                    border: "1px solid var(--border)",
+                    padding: "16px",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    flexDirection: "column",
+                    gap: "12px",
+                    textDecoration: "none",
+                    color: "inherit",
+                    transition: "all 0.15s ease",
                   }}
                 >
-                  {item.iconType === "code" ? (
-                    <FileCode style={{ width: "14px", height: "14px" }} />
-                  ) : item.iconType === "sparkles" ? (
-                    <Sparkles style={{ width: "14px", height: "14px" }} />
-                  ) : (
-                    <FileText style={{ width: "14px", height: "14px" }} />
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "8px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10B981",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Target style={{ width: "14px", height: "14px" }} />
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10B981",
+                        }}
+                      >
+                        ACTIVE
+                      </span>
+                    </div>
+
+                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                      {tasks.length > 0 ? `${completedTasks}/${tasks.length} tasks` : "Ongoing"}
+                    </span>
+                  </div>
+
+                  <h3
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      color: "var(--text-primary)",
+                      margin: 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {goal.description}
+                  </h3>
+
+                  {/* Progress Bar */}
+                  {tasks.length > 0 && (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "4px",
+                        borderRadius: "2px",
+                        background: "var(--surface-hover, var(--border))",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${progressPct}%`,
+                          height: "100%",
+                          borderRadius: "2px",
+                          background: "#10B981",
+                        }}
+                      />
+                    </div>
                   )}
-                </div>
-                <span style={{ fontWeight: 600, color: "var(--text-primary)", flex: 1 }}>
-                  {item.title}
-                </span>
-                <span style={{ fontSize: "11px", color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
-                  {item.time} • {item.space}
-                </span>
-              </div>
-            ))
-          ) : (
-            <div
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      fontSize: "11px",
+                      color: "var(--text-tertiary)",
+                      marginTop: "auto",
+                      paddingTop: "6px",
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <span>{goal.category ? goal.category.toUpperCase() : "GENERAL"}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "var(--text-secondary)", fontWeight: 600 }}>
+                      View roadmap ➔
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "24px 20px",
+              borderRadius: "16px",
+              border: "1px dashed var(--border-strong)",
+              background: "var(--surface-subtle)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "16px",
+            }}
+          >
+            <div>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+                No active strategic goals set
+              </p>
+              <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: "4px 0 0 0" }}>
+                Ask QueryMind in chat to generate goals from your documents, or create them manually.
+              </p>
+            </div>
+            <Link
+              href="/goals"
               style={{
-                padding: "16px",
-                borderRadius: "12px",
+                padding: "8px 16px",
+                borderRadius: "9999px",
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
                 fontSize: "12px",
-                color: "var(--text-tertiary)",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
               }}
             >
-              No recent activity yet. Captures and AI queries will appear here.
-            </div>
-          )}
-        </div>
+              <Plus style={{ width: "13px", height: "13px" }} />
+              <span>New Goal</span>
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

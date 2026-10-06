@@ -352,7 +352,7 @@ async def send_message(
                                     yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
                                     yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
 
-                                elif node_name == "planner":
+                                 elif node_name == "planner":
                                     # Planner finished
                                     out = node_state.get("planner_output", {})
                                     workflow_steps_collected.append({"step": "planner", "status": "completed", "output": out})
@@ -366,8 +366,15 @@ async def send_message(
                                         status_msg = f"Executing {task_count} research tasks..."
                                         yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': status_msg}})}\n\n"
                                     else:
-                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
-                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing context...'}})}\n\n"
+                                        # Check if routed straight to synthesizer (fast path)
+                                        raw_q_lower = request.content.lower()
+                                        is_action = any(kw in raw_q_lower for kw in ("create", "make", "add", "set", "update", "delete", "plan", "roadmap"))
+                                        if out.get("is_conversational") or not is_action:
+                                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
+                                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Responding...'}})}\n\n"
+                                        else:
+                                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing context...'}})}\n\n"
                                         
                                 elif node_name == "researcher":
                                     iter_num = node_state.get("workflow_iteration", 1)

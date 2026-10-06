@@ -35,16 +35,17 @@ export default function WorkspaceHeader() {
       ) : (
         <div
           className="workspace-search-capsule"
-          onClick={() => openAskAi()}
+          onClick={() => openSpotlight()}
           style={{ cursor: "pointer" }}
         >
-          <span className="workspace-search-icon" style={{ color: "#a855f7" }}>
+          <span className="workspace-search-icon" style={{ color: "var(--text-tertiary)" }}>
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.2" fill="none">
-              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </span>
           <span className="workspace-search-placeholder" style={{ color: "var(--text-secondary)" }}>
-            Ask Omni-AI Copilot or search workspace...
+            Search workspace, spaces, or jump to...
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span className="kbd">⌘K</span>
