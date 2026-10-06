@@ -5,6 +5,8 @@ import { queryMindApi, authApi } from "./api";
 export interface KnowledgeObject {
   id: string;
   title: string;
+  name?: string;
+  filename?: string;
   type: string;
   updated?: string;
   time?: string;
@@ -180,6 +182,16 @@ export interface MyndState {
   recentObjects: KnowledgeObject[];
   uploadedDocuments: KnowledgeObject[];
   captureQueue: string[];
+
+  // Conversation Date Filter State
+  conversationDateFilter: {
+    preset: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    search: string;
+  };
+  setConversationDateFilter: (filter: Partial<{ preset: string | null; dateFrom: string | null; dateTo: string | null; search: string }>) => void;
+  resetConversationDateFilter: () => void;
 
   // Actions
   setRoute: (route: MyndState["activeRoute"]) => void;
@@ -595,6 +607,26 @@ export const useMyndStore = create<MyndState>()(
       recentObjects: [],
       uploadedDocuments: [],
       captureQueue: [],
+
+      conversationDateFilter: {
+        preset: null,
+        dateFrom: null,
+        dateTo: null,
+        search: "",
+      },
+      setConversationDateFilter: (filter) =>
+        set((state) => ({
+          conversationDateFilter: { ...state.conversationDateFilter, ...filter },
+        })),
+      resetConversationDateFilter: () =>
+        set({
+          conversationDateFilter: {
+            preset: null,
+            dateFrom: null,
+            dateTo: null,
+            search: "",
+          },
+        }),
 
       setRoute: (route) => set({ activeRoute: route }),
       selectSpace: (spaceId, tab) => {

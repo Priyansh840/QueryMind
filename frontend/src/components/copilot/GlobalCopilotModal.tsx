@@ -61,7 +61,7 @@ export default function GlobalCopilotModal() {
     if (pathname === "/vault") return "Knowledge Vault";
     if (pathname === "/workspace") return "Workspace All Spaces";
     if (pathname.startsWith("/chat")) return "Deep Reasoning Session";
-    if (pathname === "/activity") return "Intelligence & Activity";
+    if (pathname === "/activity" || pathname.startsWith("/intelligence")) return "Intelligence & Analysis";
     if (pathname === "/dashboard" || pathname === "/") return "Executive Overview";
     return "QueryMind Workspace";
   }, [pathname, activeGoal]);
@@ -80,6 +80,13 @@ export default function GlobalCopilotModal() {
         "Summarize all indexed documents",
         "What key decisions are documented here?",
         "Find knowledge gaps across my vault",
+      ];
+    }
+    if (pathname === "/activity" || pathname.startsWith("/intelligence")) {
+      return [
+        "Analyze trends and patterns across all documents",
+        "Identify contradictory claims between sources",
+        "Compare top strategic priorities from analyzed files",
       ];
     }
     return [

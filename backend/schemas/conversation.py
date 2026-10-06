@@ -42,3 +42,10 @@ class ConversationResponse(BaseModel):
 
 class ConversationWithMessagesResponse(ConversationResponse):
     messages: List[MessageResponse] = []
+
+class ConversationListResponse(BaseModel):
+    items: List[ConversationResponse]
+    total: int
+    limit: int
+    offset: int
+

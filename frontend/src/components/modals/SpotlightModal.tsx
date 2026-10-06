@@ -42,7 +42,7 @@ export default function SpotlightModal() {
     { id: "cmd-workspace", title: "View Workspace (All Spaces)", type: "Navigation", action: () => { setRoute("workspace"); router.push("/workspace"); } },
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
     { id: "cmd-chat", title: "Open AI Intelligence Chat", type: "Navigation", action: () => { setRoute("chat"); router.push("/chat"); } },
-    { id: "cmd-intelligence", title: "View Intelligence & Activity", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
+    { id: "cmd-intelligence", title: "View Intelligence & Analysis", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/intelligence"); } },
     { id: "cmd-search", title: "Semantic Search", type: "Search", action: () => setRoute("search") },
     { id: "cmd-theme", title: "Toggle Theme (Light / Dark / Zen)", type: "Action", action: () => toggleTheme() },
     { id: "cmd-focus", title: "Toggle Focus Mode", type: "Action", action: () => toggleFocusMode() },

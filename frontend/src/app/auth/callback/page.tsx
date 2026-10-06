@@ -94,7 +94,10 @@ function AuthCallbackContent() {
             // 5. Sync user profile and ensure default Space exists in Postgres
             setStatusText("Syncing neural workspace...");
             try {
-              await api.post(
+              const syncRes = await api.post<{
+                token?: string;
+                user?: { id: string; email: string; display_name?: string | null };
+              }>(
                 "/auth/sync",
                 {
                   email: u.email || "",
@@ -105,6 +108,17 @@ function AuthCallbackContent() {
                   headers: { Authorization: `Bearer ${accessToken}` },
                 }
               );
+              if (syncRes.data?.token) {
+                setAuthToken(syncRes.data.token);
+                localStorage.setItem("mynd_token", syncRes.data.token);
+              }
+              if (syncRes.data?.user) {
+                setStoredUser({
+                  id: syncRes.data.user.id,
+                  email: syncRes.data.user.email,
+                  display_name: syncRes.data.user.display_name || displayName,
+                });
+              }
             } catch (syncErr) {
               console.warn("Backend /auth/sync warning:", syncErr);
             }
@@ -127,7 +141,10 @@ function AuthCallbackContent() {
         }
       } catch (err: any) {
         console.error("Auth callback processing failed:", err);
-        if (isMounted) {
+        const existingToken = typeof window !== "undefined" ? localStorage.getItem("querymind_token") || localStorage.getItem("mynd_token") : null;
+        if (existingToken && isMounted) {
+          window.location.replace("/dashboard");
+        } else if (isMounted) {
           router.replace("/login");
         }
       }

@@ -279,7 +279,7 @@ async def login_user(request: LoginRequest):
 # POST /sync  (backward-compatible Supabase OAuth flow)
 # ---------------------------------------------------------------------------
 
-@router.post("/sync", response_model=UserResponse)
+@router.post("/sync", response_model=AuthResponse)
 async def sync_user(
     request: UserSyncRequest,
     payload: dict = Depends(get_current_supabase_user),
@@ -288,6 +288,7 @@ async def sync_user(
     """
     Syncs a Supabase authenticated user with our local database.
     Identity comes strictly from the validated JWT 'sub' claim.
+    Returns AuthResponse with native backend JWT token and user info.
     """
     sub_str = payload.get("sub")
     if not sub_str:
@@ -298,18 +299,25 @@ async def sync_user(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid sub UUID format in token")
 
-    # Check if user already exists by canonical id (matching auth.users.id)
+    email = payload.get("email") or request.email
+
+    # 1. Check if user already exists by canonical id
     stmt = select(User).where(User.id == user_uuid)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    # Determine email, display_name, and avatar_url
-    email = payload.get("email") or request.email
+    # 2. If not found by UUID, check by email to prevent duplicate key violations
+    if not user and email:
+        stmt_email = select(User).where(User.email == email)
+        res_email = await db.execute(stmt_email)
+        user = res_email.scalar_one_or_none()
+
     user_meta = payload.get("user_metadata") or {}
     display_name = (
         request.display_name
         or user_meta.get("full_name")
         or user_meta.get("display_name")
+        or (email.split("@")[0] if email else "User")
     )
     avatar_url = request.avatar_url or user_meta.get("avatar_url")
 
@@ -366,11 +374,16 @@ async def sync_user(
     await db.commit()
     await db.refresh(user)
 
-    return UserResponse(
-        id=str(user.id),
-        email=user.email,
-        display_name=user.display_name,
-        avatar_url=user.avatar_url,
+    native_token = _create_jwt(str(user.id), user.email)
+
+    return AuthResponse(
+        token=native_token,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            display_name=user.display_name,
+            avatar_url=user.avatar_url,
+        ),
     )
 
 

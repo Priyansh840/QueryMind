@@ -1,13 +1,13 @@
 import uuid
 import logging
 import asyncio
-from typing import List, Optional
+from typing import List, Optional, Union
 import json
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 
 from api.deps import get_db, get_current_user
 from core.config import settings
@@ -19,10 +19,12 @@ from schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
     ConversationWithMessagesResponse,
+    ConversationListResponse,
     MessageCreate,
     MessageResponse
 )
 from datetime import datetime, timezone
+from utils.date_helpers import resolve_date_preset
 from orchestrator.schemas import DecisionAnalysis, ActionProposal
 from orchestrator.graph import get_orchestrator
 from repositories.action_proposals import ActionProposalRepository
@@ -86,31 +88,89 @@ async def create_conversation(
     return ConversationResponse.model_validate(new_conv)
 
 
-@router.get("", response_model=List[ConversationResponse])
-@router.get("/", response_model=List[ConversationResponse])
+@router.get("", response_model=Union[ConversationListResponse, List[ConversationResponse]])
+@router.get("/", response_model=Union[ConversationListResponse, List[ConversationResponse]])
 async def list_conversations(
+    response: Response,
     space_id: Optional[str] = Query(None, description="Filter by Space ID"),
+    date_from: Optional[datetime] = Query(None, description="Start date filter (inclusive, ISO 8601)"),
+    date_to: Optional[datetime] = Query(None, description="End date filter (inclusive, ISO 8601)"),
+    date_preset: Optional[str] = Query(None, description="Preset date range: today, yesterday, this_week, last_7_days, last_30_days, this_month, last_month"),
+    search: Optional[str] = Query(None, description="Filter conversations by title substring"),
+    limit: int = Query(50, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    as_paged: bool = Query(False, description="Return ConversationListResponse wrapper when True, otherwise standard list"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    filters = []
+
     if space_id:
         from api.deps import get_space_membership
         try:
             space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
             if not space:
+                if as_paged:
+                    return ConversationListResponse(items=[], total=0, limit=limit, offset=offset)
                 return []
-            stmt = select(Conversation).where(Conversation.space_id == space.id).order_by(Conversation.created_at.desc())
+            filters.append(Conversation.space_id == space.id)
         except Exception:
             # Space doesn't exist in DB yet or no access, return empty list gracefully
+            if as_paged:
+                return ConversationListResponse(items=[], total=0, limit=limit, offset=offset)
             return []
     else:
         # If no space filter, return user conversations
-        stmt = select(Conversation).where(Conversation.user_id == current_user.id).order_by(Conversation.created_at.desc())
+        filters.append(Conversation.user_id == current_user.id)
 
+    # Date preset resolution (if date_from/date_to not explicitly provided)
+    if date_preset and not (date_from or date_to):
+        try:
+            preset_start, preset_end = resolve_date_preset(date_preset)
+            if preset_start:
+                date_from = preset_start
+            if preset_end:
+                date_to = preset_end
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+
+    if date_from:
+        filters.append(Conversation.created_at >= date_from)
+    if date_to:
+        filters.append(Conversation.created_at <= date_to)
+
+    if search and search.strip():
+        filters.append(Conversation.title.ilike(f"%{search.strip()}%"))
+
+    # Count total matching records
+    count_stmt = select(func.count(Conversation.id)).where(and_(*filters))
+    total_count = (await db.execute(count_stmt)).scalar() or 0
+
+    # Retrieve paginated items
+    stmt = (
+        select(Conversation)
+        .where(and_(*filters))
+        .order_by(Conversation.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await db.execute(stmt)
     conversations = result.scalars().all()
+    items = [ConversationResponse.model_validate(c) for c in conversations]
 
-    return [ConversationResponse.model_validate(c) for c in conversations]
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Limit"] = str(limit)
+    response.headers["X-Offset"] = str(offset)
+
+    if as_paged:
+        return ConversationListResponse(
+            items=items,
+            total=total_count,
+            limit=limit,
+            offset=offset,
+        )
+
+    return items
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)

@@ -1,16 +1,39 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Upload, FileText, Grid3X3, List, FolderOpen, CheckCircle, AlertCircle, Trash2, RefreshCw } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  Grid3X3,
+  List,
+  FolderOpen,
+  CheckCircle,
+  AlertCircle,
+  Trash2,
+  RefreshCw,
+  Download,
+  CheckSquare,
+  Square,
+  Sparkles,
+  ChevronDown,
+} from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
-import { queryMindApi } from "@/lib/api";
+import { queryMindApi, downloadBlob } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function VaultPage() {
+  const router = useRouter();
   const [view, setView] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
+
+  // Bulk and single export state
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
@@ -98,23 +121,14 @@ export default function VaultPage() {
         summary: `Local file ${selectedFile.name} added to workspace vault.`,
       });
 
-      const errorMsg = err instanceof Error ? err.message : "Error reaching server";
       setUploadStatus({
         type: "error",
-        message: `File saved locally in workspace vault. (Backend notice: ${errorMsg})`,
+        message: `Saved locally. Backend vector indexing was unreachable: ${
+          err instanceof Error ? err.message : "Network error"
+        }`,
       });
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const handleDelete = async (docId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    deleteDocument(docId);
-    try {
-      await queryMindApi.deleteDocument(docId);
-    } catch {
-      // Fallback
     }
   };
 
@@ -124,6 +138,74 @@ export default function VaultPage() {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileUpload(e.dataTransfer.files[0]);
     }
+  };
+
+  const handleDelete = async (docId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await queryMindApi.deleteDocument(docId);
+    } catch {
+      // Continue and remove locally
+    }
+    deleteDocument(docId);
+    setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
+  };
+
+  const handleDownloadSingle = async (docId: string, docTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloadingDocId(docId);
+    try {
+      const blob = await queryMindApi.downloadDocument(docId);
+      downloadBlob(blob, docTitle || "document");
+    } catch (err: any) {
+      alert(`Download failed: ${err.message || err}`);
+    } finally {
+      setDownloadingDocId(null);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedDocIds.length === 0) return;
+    setIsBulkDownloading(true);
+    try {
+      const blob = await queryMindApi.bulkDownloadDocuments(selectedDocIds);
+      downloadBlob(blob, `querymind_documents_${Date.now()}.zip`);
+    } catch (err: any) {
+      alert(`Bulk download failed: ${err.message || err}`);
+    } finally {
+      setIsBulkDownloading(false);
+    }
+  };
+
+  const handleExportKnowledge = async (fmt: "csv" | "json" | "markdown") => {
+    setIsExportMenuOpen(false);
+    try {
+      const blob = await queryMindApi.exportKnowledge(activeSpaceId || undefined, fmt);
+      const ext = fmt === "markdown" ? "md" : fmt;
+      downloadBlob(blob, `knowledge_vault_${fmt}_${Date.now()}.${ext}`);
+    } catch (err: any) {
+      alert(`Knowledge export failed: ${err.message || err}`);
+    }
+  };
+
+  const toggleSelectDoc = (docId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedDocIds((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedDocIds.length === filteredFiles.length) {
+      setSelectedDocIds([]);
+    } else {
+      setSelectedDocIds(filteredFiles.map((f) => f.id));
+    }
+  };
+
+  const handleCrossDocumentAnalysis = () => {
+    if (selectedDocIds.length === 0) return;
+    router.push(`/intelligence?analyzeDocs=${selectedDocIds.join(",")}`);
   };
 
   const filteredFiles = useMemo(() => {
@@ -139,13 +221,114 @@ export default function VaultPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8 stagger">
-      <div>
-        <h1 style={{ fontSize: "var(--t-display)", fontWeight: "var(--w-bold)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-          Knowledge Vault
-        </h1>
-        <p style={{ color: "var(--text-secondary)", marginTop: "6px" }}>
-          Upload documents to automatically parse, chunk, embed, and index into PostgreSQL and your Qdrant vector database.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 style={{ fontSize: "var(--t-display)", fontWeight: "var(--w-bold)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+            Knowledge Vault
+          </h1>
+          <p style={{ color: "var(--text-secondary)", marginTop: "6px" }}>
+            Upload documents to automatically parse, chunk, embed, and index into PostgreSQL and your Qdrant vector database.
+          </p>
+        </div>
+
+        {/* Knowledge Export Dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setIsExportMenuOpen((prev) => !prev)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "8px 14px",
+              borderRadius: "10px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 120ms ease",
+            }}
+          >
+            <Download style={{ width: "14px", height: "14px" }} />
+            <span>Export Vault</span>
+            <ChevronDown style={{ width: "12px", height: "12px" }} />
+          </button>
+
+          {isExportMenuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "100%",
+                marginTop: "6px",
+                background: "#121318",
+                border: "1px solid var(--border-strong)",
+                borderRadius: "12px",
+                boxShadow: "var(--shadow-lg)",
+                padding: "6px",
+                zIndex: 50,
+                minWidth: "180px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => handleExportKnowledge("csv")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--text-primary)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                className="hover:bg-[var(--surface-hover)]"
+              >
+                Export as CSV (.csv)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportKnowledge("json")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--text-primary)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                className="hover:bg-[var(--surface-hover)]"
+              >
+                Export as JSON (.json)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportKnowledge("markdown")}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "var(--text-primary)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                className="hover:bg-[var(--surface-hover)]"
+              >
+                Export as Markdown (.md)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Upload Zone */}
@@ -179,12 +362,13 @@ export default function VaultPage() {
             }
           }}
         />
+
         <div
           style={{
-            width: "48px",
-            height: "48px",
-            borderRadius: "50%",
-            background: "var(--surface-subtle)",
+            width: "56px",
+            height: "56px",
+            borderRadius: "16px",
+            background: "var(--accent-soft)",
             color: "var(--accent)",
             display: "flex",
             alignItems: "center",
@@ -192,10 +376,15 @@ export default function VaultPage() {
             margin: "0 auto 16px auto",
           }}
         >
-          {isUploading ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+          {isUploading ? (
+            <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
+          ) : (
+            <Upload className="w-6 h-6 text-[var(--accent)]" />
+          )}
         </div>
+
         <h3 style={{ fontSize: "16px", fontWeight: "var(--w-semibold)", color: "var(--text-primary)" }}>
-          {isUploading ? "Uploading, Chunking & Embedding into Qdrant..." : "Drop your files here, or browse"}
+          {isUploading ? "Uploading & indexing into Qdrant..." : "Click or drag files to upload"}
         </h3>
         <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginTop: "6px" }}>
           Supports PDF, DOCX, TXT, Markdown. Vectors are stored in Qdrant with BGE-small embeddings.
@@ -222,15 +411,127 @@ export default function VaultPage() {
         </div>
       )}
 
+      {/* Bulk Selection Floating Bar */}
+      {selectedDocIds.length > 0 && (
+        <div
+          style={{
+            padding: "12px 18px",
+            borderRadius: "12px",
+            background: "#161821",
+            border: "1px solid var(--accent)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "var(--text-primary)" }}>
+            <span style={{ fontWeight: 600, color: "var(--accent)" }}>{selectedDocIds.length}</span> documents selected
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={handleBulkDownload}
+              disabled={isBulkDownloading}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                background: "var(--accent)",
+                color: "#FFFFFF",
+                fontSize: "12px",
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              {isBulkDownloading ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>Download ZIP ({selectedDocIds.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCrossDocumentAnalysis}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                background: "var(--surface-subtle)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+                fontSize: "12px",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
+              <span>Analyze Trends</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedDocIds([])}
+              style={{
+                padding: "6px 10px",
+                borderRadius: "8px",
+                background: "transparent",
+                color: "var(--text-tertiary)",
+                border: "none",
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Vault Files Header & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-[var(--border)]">
-        <div>
-          <h2 style={{ fontSize: "var(--t-title)", fontWeight: "var(--w-bold)", color: "var(--text-primary)" }}>
-            Stored Documents ({filteredFiles.length})
-          </h2>
-          <p style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-            Real-time documents indexed in your personal knowledge base.
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {filteredFiles.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              title={selectedDocIds.length === filteredFiles.length ? "Deselect All" : "Select All"}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "12px",
+              }}
+            >
+              {selectedDocIds.length === filteredFiles.length && filteredFiles.length > 0 ? (
+                <CheckSquare className="w-4 h-4 text-[var(--accent)]" />
+              ) : (
+                <Square className="w-4 h-4 text-[var(--text-tertiary)]" />
+              )}
+              <span>Select All</span>
+            </button>
+          )}
+
+          <div>
+            <h2 style={{ fontSize: "var(--t-title)", fontWeight: "var(--w-bold)", color: "var(--text-primary)" }}>
+              Stored Documents ({filteredFiles.length})
+            </h2>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+              Real-time documents indexed in your personal knowledge base.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -302,122 +603,210 @@ export default function VaultPage() {
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredFiles.map((doc, idx) => (
-            <div
-              key={`vault-grid-${doc.id}-${idx}`}
-              onClick={() => openObjectModal(doc)}
-              className="card-interactive"
-              style={{
-                padding: "16px",
-                borderRadius: "12px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                cursor: "pointer",
-                position: "relative",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div
+          {filteredFiles.map((doc, idx) => {
+            const isSelected = selectedDocIds.includes(doc.id);
+            const isDownloading = downloadingDocId === doc.id;
+            return (
+              <div
+                key={`vault-grid-${doc.id}-${idx}`}
+                onClick={() => openObjectModal(doc)}
+                className="card-interactive"
+                style={{
+                  padding: "16px",
+                  borderRadius: "12px",
+                  background: "var(--surface)",
+                  border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  cursor: "pointer",
+                  position: "relative",
+                  transition: "all 120ms ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    {/* Checkbox */}
+                    <button
+                      type="button"
+                      onClick={(e) => toggleSelectDoc(doc.id, e)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "2px",
+                        color: isSelected ? "var(--accent)" : "var(--text-tertiary)",
+                      }}
+                    >
+                      {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
+
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "8px",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                        {doc.title}
+                      </h4>
+                      <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                        {doc.fileSize || "PDF Document"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    {/* Download single doc */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDownloadSingle(doc.id, doc.title, e)}
+                      disabled={isDownloading}
+                      title="Download Document"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--text-tertiary)",
+                        padding: "4px",
+                      }}
+                    >
+                      {isDownloading ? (
+                        <RefreshCw className="w-4 h-4 animate-spin text-[var(--accent)]" />
+                      ) : (
+                        <Download className="w-4 h-4 hover:text-[var(--text-primary)] transition-colors" />
+                      )}
+                    </button>
+
+                    {/* Delete doc */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(doc.id, e)}
+                      title="Delete Document"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--text-tertiary)",
+                        padding: "4px",
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 hover:text-red-500 transition-colors" />
+                    </button>
+                  </div>
+                </div>
+
+                {doc.summary && (
+                  <p style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }} className="line-clamp-2">
+                    {doc.summary}
+                  </p>
+                )}
+
+                <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
+                  <span className="kbd" style={{ fontSize: "10px" }}>
+                    {doc.chunks || 1} chunks
+                  </span>
+                  <span className="kbd" style={{ fontSize: "10px", color: "var(--accent)" }}>
+                    Qdrant Vector Indexed
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
+          {filteredFiles.map((doc, idx) => {
+            const isSelected = selectedDocIds.includes(doc.id);
+            const isDownloading = downloadingDocId === doc.id;
+            return (
+              <div
+                key={`vault-list-${doc.id}-${idx}`}
+                onClick={() => openObjectModal(doc)}
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                  background: isSelected ? "var(--surface-hover)" : "transparent",
+                }}
+                className="hover:bg-[var(--surface-subtle)] transition-colors"
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={(e) => toggleSelectDoc(doc.id, e)}
                     style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "8px",
-                      background: "var(--accent-soft)",
-                      color: "var(--accent)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "2px",
+                      color: isSelected ? "var(--accent)" : "var(--text-tertiary)",
                     }}
                   >
-                    <FileText className="w-5 h-5" />
-                  </div>
+                    {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  </button>
+
+                  <FileText className="w-5 h-5 text-[var(--accent)]" />
                   <div>
                     <h4 style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
                       {doc.title}
                     </h4>
                     <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                      {doc.fileSize || "PDF Document"}
+                      {doc.fileSize || "PDF"} • {doc.chunks || 1} chunks
                     </span>
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => handleDelete(doc.id, e)}
-                  title="Delete Document"
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-tertiary)",
-                    padding: "4px",
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 hover:text-red-500 transition-colors" />
-                </button>
-              </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDownloadSingle(doc.id, doc.title, e)}
+                    disabled={isDownloading}
+                    title="Download Document"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-tertiary)",
+                      padding: "4px",
+                    }}
+                  >
+                    {isDownloading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-[var(--accent)]" />
+                    ) : (
+                      <Download className="w-4 h-4 hover:text-[var(--text-primary)] transition-colors" />
+                    )}
+                  </button>
 
-              {doc.summary && (
-                <p style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }} className="line-clamp-2">
-                  {doc.summary}
-                </p>
-              )}
-
-              <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
-                <span className="kbd" style={{ fontSize: "10px" }}>
-                  {doc.chunks || 1} chunks
-                </span>
-                <span className="kbd" style={{ fontSize: "10px", color: "var(--accent)" }}>
-                  Qdrant Vector Indexed
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden" }}>
-          {filteredFiles.map((doc, idx) => (
-            <div
-              key={`vault-list-${doc.id}-${idx}`}
-              onClick={() => openObjectModal(doc)}
-              style={{
-                padding: "14px 18px",
-                borderBottom: "1px solid var(--border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                cursor: "pointer",
-              }}
-              className="hover:bg-[var(--surface-subtle)] transition-colors"
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <FileText className="w-5 h-5 text-[var(--accent)]" />
-                <div>
-                  <h4 style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {doc.title}
-                  </h4>
-                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                    {doc.fileSize || "PDF"} • {doc.chunks || 1} chunks
-                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(doc.id, e)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-tertiary)",
+                      padding: "4px",
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 hover:text-red-500 transition-colors" />
+                  </button>
                 </div>
               </div>
-
-              <button
-                onClick={(e) => handleDelete(doc.id, e)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                <Trash2 className="w-4 h-4 hover:text-red-500 transition-colors" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

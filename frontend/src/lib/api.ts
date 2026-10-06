@@ -58,8 +58,9 @@ api.interceptors.response.use(
       if (typeof window !== "undefined") {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
-        // Redirect to login if we're on an authenticated page
-        if (!window.location.pathname.includes("/login")) {
+        // Redirect to login only if we're on an authenticated page and not in auth callback
+        const path = window.location.pathname;
+        if (!path.includes("/login") && !path.includes("/auth/callback")) {
           window.location.href = "/login";
         }
       }
@@ -475,8 +476,33 @@ export const queryMindApi = {
     return res.data;
   },
 
-  getConversations: async (spaceId?: string) => {
-    const res = await api.get(`/conversations${spaceId ? `?space_id=${spaceId}` : ""}`);
+  getConversations: async (
+    spaceIdOrParams?: string | {
+      spaceId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      datePreset?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+      asPaged?: boolean;
+    }
+  ) => {
+    let params: Record<string, any> = {};
+    if (typeof spaceIdOrParams === "string") {
+      if (spaceIdOrParams) params.space_id = spaceIdOrParams;
+    } else if (spaceIdOrParams && typeof spaceIdOrParams === "object") {
+      if (spaceIdOrParams.spaceId) params.space_id = spaceIdOrParams.spaceId;
+      if (spaceIdOrParams.dateFrom) params.date_from = spaceIdOrParams.dateFrom;
+      if (spaceIdOrParams.dateTo) params.date_to = spaceIdOrParams.dateTo;
+      if (spaceIdOrParams.datePreset) params.date_preset = spaceIdOrParams.datePreset;
+      if (spaceIdOrParams.search) params.search = spaceIdOrParams.search;
+      if (spaceIdOrParams.limit !== undefined) params.limit = spaceIdOrParams.limit;
+      if (spaceIdOrParams.offset !== undefined) params.offset = spaceIdOrParams.offset;
+      if (spaceIdOrParams.asPaged !== undefined) params.as_paged = spaceIdOrParams.asPaged;
+    }
+
+    const res = await api.get("/conversations", { params });
     return res.data;
   },
 
@@ -577,6 +603,128 @@ export const queryMindApi = {
     const res = await api.post(`/actions/${proposalId}/reject`);
     return res.data;
   },
+
+  // File Exports & Downloads
+  exportConversation: async (
+    conversationId: string,
+    format: "markdown" | "json" | "pdf" = "markdown",
+    includeCitations = true
+  ) => {
+    const res = await api.get(`/exports/conversations/${conversationId}`, {
+      params: { format, include_citations: includeCitations },
+      responseType: "blob",
+    });
+    return res.data as Blob;
+  },
+
+  bulkExportConversations: async (
+    conversationIds: string[],
+    format: "markdown" | "json" | "pdf" | "zip" = "zip",
+    includeCitations = true
+  ) => {
+    const res = await api.post(
+      "/exports/conversations/bulk",
+      {
+        conversation_ids: conversationIds,
+        format,
+        include_citations: includeCitations,
+      },
+      { responseType: "blob" }
+    );
+    return res.data as Blob;
+  },
+
+  downloadDocument: async (documentId: string) => {
+    const res = await api.get(`/exports/documents/${documentId}`, {
+      responseType: "blob",
+    });
+    return res.data as Blob;
+  },
+
+  bulkDownloadDocuments: async (documentIds: string[]) => {
+    const res = await api.post(
+      "/exports/documents/bulk",
+      { document_ids: documentIds },
+      { responseType: "blob" }
+    );
+    return res.data as Blob;
+  },
+
+  exportKnowledge: async (
+    spaceId?: string,
+    format: "csv" | "json" | "markdown" = "json"
+  ) => {
+    const res = await api.get("/exports/knowledge", {
+      params: { space_id: spaceId || undefined, format },
+      responseType: "blob",
+    });
+    return res.data as Blob;
+  },
+
+  exportAnalysisReport: async (
+    analysisData: any,
+    format: "markdown" | "pdf" | "json" = "markdown",
+    title = "Cross-Document Analysis Report"
+  ) => {
+    const res = await api.post(
+      "/exports/analysis",
+      { analysis_data: analysisData, format, title },
+      { responseType: "blob" }
+    );
+    return res.data as Blob;
+  },
+
+  generateCustomDocument: async (
+    title: string,
+    content: string,
+    format: "pdf" | "markdown" | "json" = "pdf",
+    author?: string
+  ) => {
+    const res = await api.post(
+      "/exports/generate",
+      { title, content, format, author },
+      { responseType: "blob" }
+    );
+    return res.data as Blob;
+  },
+
+  // Cross-Document Analysis
+  analyzeDocuments: async (request: {
+    document_ids: string[];
+    space_id?: string;
+    focus_areas?: string[];
+    user_query?: string;
+  }) => {
+    const res = await api.post("/analysis/analyze", request);
+    return res.data;
+  },
+
+  compareDocuments: async (docIdA: string, docIdB: string, aspects?: string[]) => {
+    const res = await api.post("/analysis/compare", {
+      doc_id_a: docIdA,
+      doc_id_b: docIdB,
+      aspects,
+    });
+    return res.data;
+  },
 };
 
+export function downloadBlob(blob: Blob, filename: string) {
+  if (typeof window === "undefined") return;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+    if (a.parentNode) {
+      a.parentNode.removeChild(a);
+    }
+  }, 150);
+}
+
 export default api;
+

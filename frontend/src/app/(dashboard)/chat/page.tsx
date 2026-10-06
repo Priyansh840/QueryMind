@@ -27,6 +27,7 @@ import {
   MicOff,
   Headphones,
   Radio,
+  Calendar,
 } from "lucide-react";
 import { queryMindApi } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -178,14 +179,19 @@ export default function ChatPage() {
     }
   }, [activeSpaceId]);
 
+  const [historyDatePreset, setHistoryDatePreset] = useState<string>("all");
+
   // Load past conversations for history drawer
-  const loadConversations = async () => {
+  const loadConversations = async (preset = historyDatePreset, search = searchHistory) => {
     setIsLoadingHistory(true);
     try {
-      const data = await queryMindApi.getConversations(activeSpaceId || undefined);
-      if (Array.isArray(data)) {
-        setConversations(data);
-      }
+      const data = await queryMindApi.getConversations({
+        spaceId: activeSpaceId || undefined,
+        datePreset: preset !== "all" ? preset : undefined,
+        search: search.trim() || undefined,
+      });
+      const items = Array.isArray(data) ? data : data?.items || [];
+      setConversations(items);
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
     } finally {
@@ -194,14 +200,43 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    loadConversations();
-  }, [activeSpaceId]);
+    loadConversations(historyDatePreset, searchHistory);
+  }, [activeSpaceId, historyDatePreset]);
 
   const filteredConversations = useMemo(() => {
     if (!searchHistory.trim()) return conversations;
     const q = searchHistory.toLowerCase();
     return conversations.filter((c) => (c.title || "").toLowerCase().includes(q));
   }, [conversations, searchHistory]);
+
+  const groupedConversations = useMemo(() => {
+    const groups: { [key: string]: typeof filteredConversations } = {
+      Today: [],
+      Yesterday: [],
+      "Previous 7 Days": [],
+      Older: [],
+    };
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 86400000;
+    const lastWeekStart = todayStart - 7 * 86400000;
+
+    filteredConversations.forEach((c) => {
+      const time = new Date(c.created_at).getTime();
+      if (time >= todayStart) {
+        groups.Today.push(c);
+      } else if (time >= yesterdayStart) {
+        groups.Yesterday.push(c);
+      } else if (time >= lastWeekStart) {
+        groups["Previous 7 Days"].push(c);
+      } else {
+        groups.Older.push(c);
+      }
+    });
+
+    return groups;
+  }, [filteredConversations]);
 
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -1043,7 +1078,7 @@ export default function ChatPage() {
             </div>
 
             {/* Search Input */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ padding: "12px 16px 8px", borderBottom: "none" }}>
               <div
                 style={{
                   display: "flex",
@@ -1073,6 +1108,49 @@ export default function ChatPage() {
               </div>
             </div>
 
+            {/* Date Preset Filter Pills */}
+            <div
+              style={{
+                padding: "4px 16px 10px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                gap: "6px",
+                overflowX: "auto",
+                scrollbarWidth: "none",
+              }}
+            >
+              {[
+                { id: "all", label: "All" },
+                { id: "today", label: "Today" },
+                { id: "yesterday", label: "Yesterday" },
+                { id: "this_week", label: "This Week" },
+                { id: "last_30_days", label: "Last 30d" },
+              ].map((p) => {
+                const isSelected = historyDatePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setHistoryDatePreset(p.id)}
+                    style={{
+                      padding: "3px 10px",
+                      borderRadius: "14px",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                      background: isSelected ? "var(--accent)" : "var(--surface-subtle)",
+                      color: isSelected ? "#FFFFFF" : "var(--text-secondary)",
+                      border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                      transition: "all 120ms var(--ease)",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Conversation List */}
             <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
               {isLoadingHistory ? (
@@ -1081,66 +1159,88 @@ export default function ChatPage() {
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12px" }}>
-                  {searchHistory ? "No matching conversations found." : "No saved conversations yet. Start chatting above!"}
+                  {searchHistory || historyDatePreset !== "all"
+                    ? "No matching conversations found."
+                    : "No saved conversations yet. Start chatting above!"}
                 </div>
               ) : (
-                filteredConversations.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      setIsHistoryOpen(false);
-                      router.push(`/chat/${c.id}`);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "10px 12px",
-                      borderRadius: "var(--r-md)",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: "var(--text-secondary)",
-                      transition: "all 120ms var(--ease)",
-                      marginBottom: "4px",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = "var(--surface-hover)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, paddingRight: "8px" }}>
-                      <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {c.title || "Untitled Session"}
-                      </span>
-                      <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
-                        {formatRelativeTime(c.created_at)}
-                      </span>
+                Object.entries(groupedConversations).map(([groupTitle, items]) => {
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <div key={groupTitle} style={{ marginBottom: "14px" }}>
+                      <div
+                        style={{
+                          fontSize: "10.5px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          color: "var(--text-tertiary)",
+                          padding: "4px 8px",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {groupTitle} ({items.length})
+                      </div>
+                      {items.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setIsHistoryOpen(false);
+                            router.push(`/chat/${c.id}`);
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "9px 12px",
+                            borderRadius: "var(--r-md)",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: "var(--text-secondary)",
+                            transition: "all 120ms var(--ease)",
+                            marginBottom: "2px",
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = "var(--surface-hover)";
+                            e.currentTarget.style.color = "var(--text-primary)";
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                          }}
+                        >
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, paddingRight: "8px" }}>
+                            <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {c.title || "Untitled Session"}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
+                              {formatRelativeTime(c.created_at)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            title="Delete conversation"
+                            onClick={(e) => handleDeleteConversation(e, c.id)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: "6px",
+                              cursor: "pointer",
+                              color: "var(--text-ghost)",
+                              borderRadius: "var(--r-sm)",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
+                            onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
+                          >
+                            <Trash2 style={{ width: "13px", height: "13px" }} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <button
-                      type="button"
-                      title="Delete conversation"
-                      onClick={(e) => handleDeleteConversation(e, c.id)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        padding: "6px",
-                        cursor: "pointer",
-                        color: "var(--text-ghost)",
-                        borderRadius: "var(--r-sm)",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
-                      onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
-                    >
-                      <Trash2 style={{ width: "13px", height: "13px" }} />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

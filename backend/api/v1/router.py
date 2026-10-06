@@ -31,7 +31,7 @@ async def api_health():
 from api.v1 import objectives
 api_router.include_router(objectives.router, prefix="/objectives", tags=["Objectives"])
 
-from api.v1 import projects, goals, memories, conversations, actions, search, workflows, space_members, outcomes, reflections
+from api.v1 import projects, goals, memories, conversations, actions, search, workflows, space_members, outcomes, reflections, exports, analysis
 
 api_router.include_router(space_members.router, tags=["Space Members"])
 api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
@@ -43,4 +43,8 @@ api_router.include_router(outcomes.router, prefix="/outcomes", tags=["Outcomes"]
 api_router.include_router(reflections.router, prefix="/reflections", tags=["Reflections"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(workflows.router, prefix="/workflows", tags=["Workflows"])
+api_router.include_router(exports.router, prefix="/exports", tags=["Exports"])
+api_router.include_router(analysis.router, prefix="/analysis", tags=["Analysis"])
+
+
 

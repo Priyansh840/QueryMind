@@ -1,0 +1,3 @@
+"""
+QueryMind Utilities Package
+"""

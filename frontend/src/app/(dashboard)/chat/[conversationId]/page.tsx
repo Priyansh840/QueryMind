@@ -39,8 +39,11 @@ import {
   Headphones,
   Square,
   Radio,
+  Calendar,
+  Download,
+  ChevronDown,
 } from "lucide-react";
-import { queryMindApi, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
+import { queryMindApi, downloadBlob, TraceEvent, ObjectiveTraceData, getAuthToken } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import AgentWorkflowStepper, { WorkflowStepData } from "@/components/chat/AgentWorkflowStepper";
@@ -386,6 +389,10 @@ export default function ConversationPage() {
   const [searchHistory, setSearchHistory] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // File Export State
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
 
 
   // File Attachments State
@@ -537,14 +544,19 @@ export default function ConversationPage() {
     }
   }, [searchParams, conversationId]);
 
+  const [historyDatePreset, setHistoryDatePreset] = useState<string>("all");
+
   // Load history drawer conversations
-  const loadConversations = async () => {
+  const loadConversations = async (preset = historyDatePreset, search = searchHistory) => {
     setIsLoadingHistory(true);
     try {
-      const data = await queryMindApi.getConversations(activeSpaceId || undefined);
-      if (Array.isArray(data)) {
-        setConversations(data);
-      }
+      const data = await queryMindApi.getConversations({
+        spaceId: activeSpaceId || undefined,
+        datePreset: preset !== "all" ? preset : undefined,
+        search: search.trim() || undefined,
+      });
+      const items = Array.isArray(data) ? data : data?.items || [];
+      setConversations(items);
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
     } finally {
@@ -553,14 +565,43 @@ export default function ConversationPage() {
   };
 
   useEffect(() => {
-    loadConversations();
-  }, [activeSpaceId]);
+    loadConversations(historyDatePreset, searchHistory);
+  }, [activeSpaceId, historyDatePreset]);
 
   const filteredConversations = useMemo(() => {
     if (!searchHistory.trim()) return conversations;
     const q = searchHistory.toLowerCase();
     return conversations.filter((c) => (c.title || "").toLowerCase().includes(q));
   }, [conversations, searchHistory]);
+
+  const groupedConversations = useMemo(() => {
+    const groups: { [key: string]: typeof filteredConversations } = {
+      Today: [],
+      Yesterday: [],
+      "Previous 7 Days": [],
+      Older: [],
+    };
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 86400000;
+    const lastWeekStart = todayStart - 7 * 86400000;
+
+    filteredConversations.forEach((c) => {
+      const time = new Date(c.created_at).getTime();
+      if (time >= todayStart) {
+        groups.Today.push(c);
+      } else if (time >= yesterdayStart) {
+        groups.Yesterday.push(c);
+      } else if (time >= lastWeekStart) {
+        groups["Previous 7 Days"].push(c);
+      } else {
+        groups.Older.push(c);
+      }
+    });
+
+    return groups;
+  }, [filteredConversations]);
 
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -625,6 +666,21 @@ export default function ConversationPage() {
     navigator.clipboard.writeText(text);
     setCopiedMessageId(id);
     setTimeout(() => setCopiedMessageId(null), 2000);
+  };
+
+  const handleExportChat = async (format: "markdown" | "json" | "pdf") => {
+    setIsExportDropdownOpen(false);
+    setIsExporting(true);
+    try {
+      const blob = await queryMindApi.exportConversation(conversationId, format);
+      const ext = format === "markdown" ? "md" : format;
+      const cleanTitle = (conversationTitle || "chat").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      downloadBlob(blob, `${cleanTitle}_${Date.now()}.${ext}`);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message || err}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   /* ─── retry a failed message ──────────────────────────────── */
@@ -1096,6 +1152,118 @@ export default function ConversationPage() {
             <Plus style={{ width: "13px", height: "13px" }} />
             <span>New Chat</span>
           </button>
+
+          {/* Export Chat Dropdown */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setIsExportDropdownOpen((prev) => !prev)}
+              disabled={isExporting}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 12px",
+                borderRadius: "var(--r-md)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+                fontSize: "12px",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 150ms var(--ease)",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+            >
+              {isExporting ? (
+                <RefreshCw className="w-3 h-3 animate-spin text-[var(--accent)]" />
+              ) : (
+                <Download style={{ width: "13px", height: "13px" }} />
+              )}
+              <span>Export</span>
+              <ChevronDown style={{ width: "11px", height: "11px" }} />
+            </button>
+
+            {isExportDropdownOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "100%",
+                  marginTop: "6px",
+                  background: "#121318",
+                  border: "1px solid var(--border-strong)",
+                  borderRadius: "10px",
+                  boxShadow: "var(--shadow-lg)",
+                  padding: "4px",
+                  zIndex: 50,
+                  minWidth: "160px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleExportChat("markdown")}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "7px 10px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  className="hover:bg-[var(--surface-hover)]"
+                >
+                  Markdown (.md)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportChat("json")}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "7px 10px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  className="hover:bg-[var(--surface-hover)]"
+                >
+                  JSON (.json)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportChat("pdf")}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "7px 10px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  className="hover:bg-[var(--surface-hover)]"
+                >
+                  PDF Document (.pdf)
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
@@ -2510,7 +2678,7 @@ export default function ConversationPage() {
             </div>
 
             {/* Search Input */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ padding: "12px 16px 8px", borderBottom: "none" }}>
               <div
                 style={{
                   display: "flex",
@@ -2540,6 +2708,49 @@ export default function ConversationPage() {
               </div>
             </div>
 
+            {/* Date Preset Filter Pills */}
+            <div
+              style={{
+                padding: "4px 16px 10px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                gap: "6px",
+                overflowX: "auto",
+                scrollbarWidth: "none",
+              }}
+            >
+              {[
+                { id: "all", label: "All" },
+                { id: "today", label: "Today" },
+                { id: "yesterday", label: "Yesterday" },
+                { id: "this_week", label: "This Week" },
+                { id: "last_30_days", label: "Last 30d" },
+              ].map((p) => {
+                const isSelected = historyDatePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setHistoryDatePreset(p.id)}
+                    style={{
+                      padding: "3px 10px",
+                      borderRadius: "14px",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                      background: isSelected ? "var(--accent)" : "var(--surface-subtle)",
+                      color: isSelected ? "#FFFFFF" : "var(--text-secondary)",
+                      border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
+                      transition: "all 120ms var(--ease)",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Conversation List */}
             <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
               {isLoadingHistory ? (
@@ -2548,72 +2759,94 @@ export default function ConversationPage() {
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12px" }}>
-                  {searchHistory ? "No matching conversations found." : "No saved conversations yet."}
+                  {searchHistory || historyDatePreset !== "all"
+                    ? "No matching conversations found."
+                    : "No saved conversations yet."}
                 </div>
               ) : (
-                filteredConversations.map((c) => {
-                  const isCurrent = c.id === conversationId;
+                Object.entries(groupedConversations).map(([groupTitle, items]) => {
+                  if (!items || items.length === 0) return null;
                   return (
-                    <div
-                      key={c.id}
-                      onClick={() => {
-                        setIsHistoryOpen(false);
-                        if (!isCurrent) router.push(`/chat/${c.id}`);
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "10px 12px",
-                        borderRadius: "var(--r-md)",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                        background: isCurrent ? "var(--surface-hover)" : "transparent",
-                        border: isCurrent ? "1px solid var(--border-strong)" : "1px solid transparent",
-                        color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
-                        transition: "all 120ms var(--ease)",
-                        marginBottom: "4px",
-                      }}
-                      onMouseOver={(e) => {
-                        if (!isCurrent) {
-                          e.currentTarget.style.background = "var(--surface-hover)";
-                          e.currentTarget.style.color = "var(--text-primary)";
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (!isCurrent) {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "var(--text-secondary)";
-                        }
-                      }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, paddingRight: "8px" }}>
-                        <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {c.title || "Untitled Session"}
-                        </span>
-                        <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
-                          {formatRelativeTime(c.created_at)}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        title="Delete conversation"
-                        onClick={(e) => handleDeleteConversation(e, c.id)}
+                    <div key={groupTitle} style={{ marginBottom: "14px" }}>
+                      <div
                         style={{
-                          background: "transparent",
-                          border: "none",
-                          padding: "6px",
-                          cursor: "pointer",
-                          color: "var(--text-ghost)",
-                          borderRadius: "var(--r-sm)",
-                          display: "flex",
-                          alignItems: "center",
+                          fontSize: "10.5px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          color: "var(--text-tertiary)",
+                          padding: "4px 8px",
+                          marginBottom: "4px",
                         }}
-                        onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
-                        onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
                       >
-                        <Trash2 style={{ width: "13px", height: "13px" }} />
-                      </button>
+                        {groupTitle} ({items.length})
+                      </div>
+                      {items.map((c) => {
+                        const isCurrent = c.id === conversationId;
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setIsHistoryOpen(false);
+                              if (!isCurrent) router.push(`/chat/${c.id}`);
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "9px 12px",
+                              borderRadius: "var(--r-md)",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              background: isCurrent ? "var(--surface-hover)" : "transparent",
+                              border: isCurrent ? "1px solid var(--border-strong)" : "1px solid transparent",
+                              color: isCurrent ? "var(--text-primary)" : "var(--text-secondary)",
+                              transition: "all 120ms var(--ease)",
+                              marginBottom: "2px",
+                            }}
+                            onMouseOver={(e) => {
+                              if (!isCurrent) {
+                                e.currentTarget.style.background = "var(--surface-hover)";
+                                e.currentTarget.style.color = "var(--text-primary)";
+                              }
+                            }}
+                            onMouseOut={(e) => {
+                              if (!isCurrent) {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "var(--text-secondary)";
+                              }
+                            }}
+                          >
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, paddingRight: "8px" }}>
+                              <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {c.title || "Untitled Session"}
+                              </span>
+                              <span style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
+                                {formatRelativeTime(c.created_at)}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              title="Delete conversation"
+                              onClick={(e) => handleDeleteConversation(e, c.id)}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                padding: "6px",
+                                cursor: "pointer",
+                                color: "var(--text-ghost)",
+                                borderRadius: "var(--r-sm)",
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                              onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
+                              onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
+                            >
+                              <Trash2 style={{ width: "13px", height: "13px" }} />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })
