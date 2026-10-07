@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Clock,
   Compass,
+  Zap,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -47,7 +48,9 @@ export default function DashboardPage() {
           queryMindApi.getProjects(activeSpaceId || undefined).catch(() => []),
         ]);
         if (isMounted) {
-          setActiveGoals(Array.isArray(goalsData) ? goalsData.filter((g) => g.status === "active") : []);
+          const list = Array.isArray(goalsData) ? goalsData : [];
+          // Include goals that are active or in_progress (not completed)
+          setActiveGoals(list.filter((g) => g.status !== "completed"));
           setActiveProjects(Array.isArray(projectsData) ? projectsData.filter((p) => p.status === "active") : []);
         }
       } catch {
@@ -61,6 +64,59 @@ export default function DashboardPage() {
       isMounted = false;
     };
   }, [activeSpaceId]);
+
+  // Executive Strategic Briefing metrics calculation
+  const executiveBriefing = React.useMemo(() => {
+    let pendingCount = 0;
+    let highPriorityCount = 0;
+    let sharedLeverageCount = 0;
+    let topLeverageTask: { title: string; goalTitle: string } | null = null;
+
+    const allPendingTasks: Array<{ title: string; priority: string; goalTitle: string }> = [];
+
+    activeGoals.forEach((g: any) => {
+      const tasks = g.tasks || g.milestones || [];
+      tasks.forEach((t: any) => {
+        if (!t.completed) {
+          pendingCount++;
+          if (t.priority === "high") highPriorityCount++;
+          allPendingTasks.push({ title: t.title, priority: t.priority || "medium", goalTitle: g.description });
+        }
+      });
+    });
+
+    // Check for high-leverage concept tasks shared across goals
+    for (let i = 0; i < allPendingTasks.length; i++) {
+      const a = allPendingTasks[i];
+      for (let j = i + 1; j < allPendingTasks.length; j++) {
+        const b = allPendingTasks[j];
+        if (a.goalTitle !== b.goalTitle) {
+          const tA = a.title.toLowerCase();
+          const tB = b.title.toLowerCase();
+          const keywords = ["structures", "algorithms", "operating", "systems", "networks", "database", "dbms", "design"];
+          if (keywords.some((kw) => tA.includes(kw) && tB.includes(kw))) {
+            sharedLeverageCount++;
+            if (!topLeverageTask) {
+              topLeverageTask = { title: a.title, goalTitle: `${a.goalTitle} & ${b.goalTitle}` };
+            }
+          }
+        }
+      }
+    }
+
+    if (!topLeverageTask && allPendingTasks.length > 0) {
+      const highTask = allPendingTasks.find((t) => t.priority === "high") || allPendingTasks[0];
+      topLeverageTask = { title: highTask.title, goalTitle: highTask.goalTitle };
+    }
+
+    return {
+      activeGoalsCount: activeGoals.length,
+      pendingCount,
+      highPriorityCount,
+      sharedLeverageCount,
+      topLeverageTask,
+    };
+  }, [activeGoals]);
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
@@ -227,6 +283,159 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* 1.5 Executive Strategic Briefing Widget */}
+      {executiveBriefing.activeGoalsCount > 0 && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%)",
+            border: "1px solid rgba(99, 102, 241, 0.2)",
+            borderRadius: "20px",
+            padding: "20px 24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            boxShadow: "0 4px 20px -4px rgba(99, 102, 241, 0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#FFFFFF",
+                }}
+              >
+                <Sparkles style={{ width: "18px", height: "18px" }} />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                    Strategic Daily Briefing
+                  </h2>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "12px",
+                      background: "rgba(99, 102, 241, 0.15)",
+                      color: "#818CF8",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    AI Executive Dispatch
+                  </span>
+                </div>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: "2px 0 0 0" }}>
+                  {executiveBriefing.activeGoalsCount} active strategic goals &bull; {executiveBriefing.pendingCount} pending milestones &bull; {executiveBriefing.highPriorityCount} high-priority
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Link
+                href="/goals"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  textDecoration: "none",
+                  transition: "all 150ms ease",
+                }}
+              >
+                <span>View All Goals</span>
+                <ArrowRight style={{ width: "12px", height: "12px" }} />
+              </Link>
+            </div>
+          </div>
+
+          {/* High-Leverage Recommended Action */}
+          {executiveBriefing.topLeverageTask && (
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid rgba(139, 92, 246, 0.25)",
+                borderRadius: "12px",
+                padding: "14px 18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "14px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: "280px", flex: 1 }}>
+                <div
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "8px",
+                    background: "rgba(139, 92, 246, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <Zap style={{ width: "14px", height: "14px", color: "#A78BFA" }} />
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                      Highest Leverage Action Today:
+                    </span>
+                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                      ({executiveBriefing.topLeverageTask.goalTitle})
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                    {executiveBriefing.topLeverageTask.title}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Link
+                  href={`/chat?q=${encodeURIComponent(
+                    `Conduct a focused 30-minute high-yield practice sprint on "${executiveBriefing.topLeverageTask.title}". Provide core conceptual questions, common interview/exam traps, and ground your answers in my uploaded documents.`
+                  )}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+                  }}
+                >
+                  <Sparkles style={{ width: "13px", height: "13px" }} />
+                  <span>Start Practice Sprint</span>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. Continue where you left off */}
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

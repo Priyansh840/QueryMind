@@ -69,6 +69,7 @@ class RecommendTasksRequest(BaseModel):
 
 class RecommendedTaskItem(BaseModel):
     title: str
+    sub_goal: Optional[str] = Field("Core Objectives", description="Name of the specific sub-goal/module this task belongs to")
     priority: str = Field("medium", description="high, medium, or low")
     reasoning: Optional[str] = None
 
@@ -515,36 +516,45 @@ async def recommend_goal_tasks(
                 timeout=3.5,
             )
             for r in results:
-                if "content" in r:
-                    context_snippets.append(r["content"][:300])
-                elif "text" in r:
-                    context_snippets.append(r["text"][:300])
+                # Only include snippets with high semantic relevance (score >= 0.60)
+                # Low scores (< 0.60) indicate noisy or unrelated space documents
+                if r.get("score", 0.0) >= 0.60:
+                    text_content = r.get("content") or r.get("text") or ""
+                    if text_content.strip():
+                        context_snippets.append(f"[{r.get('document_title', 'Document')}]: {text_content[:350]}")
         except Exception as e:
             logger.warning(f"Failed or timed out retrieving RAG context for goal recommendation: {e}")
 
-    rag_context = "\n---\n".join(context_snippets) if context_snippets else "No specific space documents matched."
+    rag_context = "\n---\n".join(context_snippets) if context_snippets else "No directly matching workspace documents found for this goal."
 
     system_prompt = (
-        "You are an executive AI strategic planner for QueryMind. Your job is to break down a high-level goal "
-        "into a structured set of 3 to 6 concrete, actionable tasks/milestones required to achieve the goal.\n"
-        "Each task MUST have:\n"
-        "- title: Clear, concise action title.\n"
-        "- priority: 'high', 'medium', or 'low' indicating how critical it is to the core objective.\n"
-        "- reasoning: 1 brief sentence explaining why this task is crucial.\n\n"
-        "Return ONLY a valid JSON object matching this exact schema:\n"
-        "{\n"
-        '  "tasks": [\n'
-        '    {"title": "...", "priority": "high"|"medium"|"low", "reasoning": "..."}\n'
-        "  ]\n"
-        "}\n"
-        "Do not include any Markdown formatting around the JSON."
+        "You are an elite strategic curriculum architect and technical mentor for QueryMind.\n"
+        "Your task is to decompose a high-level goal statement into 3 to 4 tightly-scoped, 100% reasonable SUB-GOALS (Modules/Topics), "
+        "and assign 2 to 3 bite-sized, specific actionable tasks strictly related to each sub-goal.\n\n"
+        "STRICT SUB-GOAL & TASK SCOPING RULES:\n"
+        "1. PERFECT COHESION (ZERO TOPIC LEAKAGE):\n"
+        "   - Tasks inside a sub-goal MUST exclusively belong to that sub-goal's concept.\n"
+        "   - Example: If the Sub-Goal is 'Arrays & Strings', tasks must ONLY cover Array/String techniques (e.g. 'Two-Pointer Technique', 'Sliding Window', 'Prefix Sums'). NEVER mention Linked Lists, Trees, or Graphs in an Array sub-goal!\n"
+        "   - Example: If the Sub-Goal is 'Search Algorithms', tasks must ONLY cover search algorithms (e.g. 'Uninformed BFS & DFS Traversals', 'A* Search with Admissible Heuristics', 'Minimax with Alpha-Beta Pruning').\n"
+        "2. CONCRETE & ACTIONABLE (NO ESSAYS, NO RUN-ON SENTENCES):\n"
+        "   - Keep task titles concise, concrete, and high-impact (3 to 8 words). Focus on key patterns, mechanics, or deliverables.\n"
+        "3. NO REDUNDANT/DUPLICATE TASKS:\n"
+        "   - Do NOT create multiple tasks that mean the same thing (e.g., 'Master AI' and 'Define AI' and 'Explore AI'). Give each task a unique, crisp focus.\n"
+        "4. STRUCTURED SCHEMA:\n"
+        "   Return ONLY a valid JSON object matching this schema:\n"
+        "   {\n"
+        '     "tasks": [\n'
+        '       {"sub_goal": "Sub-Goal Name (e.g. Arrays & Strings)", "title": "Bite-sized Actionable Task Title", "priority": "high"|"medium"|"low", "reasoning": "Crisp 1-sentence value explanation"}\n'
+        "     ]\n"
+        "   }\n"
+        "   Do NOT wrap in markdown formatting or code blocks."
     )
 
     user_prompt = (
-        f"Goal: {request.goal_description}\n"
-        f"Category: {request.category or 'General'}\n\n"
-        f"Relevant Knowledge Base Context:\n{rag_context}\n\n"
-        "Generate the breakdown of recommended tasks."
+        f"Goal Objective: {request.goal_description}\n"
+        f"Domain Category: {request.category or 'General'}\n\n"
+        f"Relevant Knowledge Base Context from User Workspace:\n{rag_context}\n\n"
+        "Generate the structured, high-yield task breakdown with strict sub-goal scoping in the specified JSON format."
     )
 
     suggested_tasks: List[RecommendedTaskItem] = []
@@ -596,6 +606,7 @@ async def recommend_goal_tasks(
                 suggested_tasks.append(
                     RecommendedTaskItem(
                         title=t.get("title", "Action Item"),
+                        sub_goal=t.get("sub_goal") or "Core Objectives",
                         priority=prio,
                         reasoning=t.get("reasoning"),
                     )
@@ -626,6 +637,7 @@ async def recommend_goal_tasks(
                     suggested_tasks.append(
                         RecommendedTaskItem(
                             title=t.get("title", "Action Item"),
+                            sub_goal=t.get("sub_goal") or "Core Objectives",
                             priority=prio,
                             reasoning=t.get("reasoning"),
                         )

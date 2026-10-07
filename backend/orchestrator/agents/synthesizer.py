@@ -135,6 +135,19 @@ async def synthesis_node(state: AgentState, config: RunnableConfig) -> AgentStat
             user_ctx = personalization.get("userContext")
             if user_ctx:
                 system_prompt += f"\nUSER BACKGROUND: {user_ctx}"
+
+        # Cognitive Memory Evolution Profile (Strengths & Growth Areas)
+        ws_memories = (state.get("workspace_context") or {}).get("memories") or []
+        user_strengths = [m["content"] for m in ws_memories if m.get("memory_type") == "strength"]
+        user_growth_areas = [m["content"] for m in ws_memories if m.get("memory_type") in ("weak_concept", "growth_area")]
+        if user_strengths or user_growth_areas:
+            system_prompt += "\n\nACTIVE COGNITIVE LEARNER PROFILE (ADAPTIVE TUTORING):"
+            if user_strengths:
+                system_prompt += "\n- Confirmed Strengths: " + "; ".join(user_strengths[:5])
+                system_prompt += "\n  (You can use these concepts as intuitive analogies and avoid over-explaining basics here.)"
+            if user_growth_areas:
+                system_prompt += "\n- Identified Growth Areas / Frequent Bottlenecks: " + "; ".join(user_growth_areas[:5])
+                system_prompt += "\n  (When these topics arise, provide extra intuitive clarity, verify step-by-step understanding, and proactively address known edge-case traps.)"
         
         planner_out = state.get("planner_output", {})
         results = state.get("research_results", [])

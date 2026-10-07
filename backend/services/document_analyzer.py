@@ -173,16 +173,23 @@ class CrossDocumentAnalyzer:
         db: AsyncSession,
         aspects: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Produces a structured head-to-head comparison between two documents."""
+        """Produces a structured, domain-aware comparison between two documents."""
         doc_contexts = await cls.load_document_contexts([doc_id_a, doc_id_b], db)
         if len(doc_contexts) != 2:
             raise ValueError("Exactly 2 documents are required for pairwise comparison")
 
         doc_a, doc_b = doc_contexts[0], doc_contexts[1]
-        aspects_str = ", ".join(aspects) if aspects else "objectives, methodology, findings, differences, and agreements"
 
-        prompt = f"""
-Compare the following two documents side-by-side focusing on: {aspects_str}.
+        prompt = f"""You are an elite academic curriculum and technical documentation analyst.
+Compare the following two documents thoroughly at a macro conceptual level.
+
+CRITICAL INSTRUCTIONS:
+1. DO NOT pair arbitrary individual test questions together just because they appear in the same position or share superficial words like 'First' or 'Define'.
+2. Identify the true subject domain of Document A and Document B (e.g., Compiler Design vs Artificial Intelligence & Expert Systems).
+3. If the two documents cover different subjects, state that clearly and explain their core differences in scope, purpose, and foundational theories.
+4. If there are genuine thematic overlaps (e.g., formal grammars, logic representation, tree search vs parsing trees), highlight them under shared_themes. If there is little to no overlap, state that they are distinct specialized domains with different engineering goals.
+5. In "key_differences", provide high-level, meaningful dimensions (such as "Core Domain & Purpose", "Primary Algorithmic Focus", "Theoretical Foundations", "Practical Applications"). Explain Document A's perspective vs Document B's perspective.
+6. Provide "unique_to_a" (key topics exclusive to Document A) and "unique_to_b" (key topics exclusive to Document B).
 
 DOCUMENT A: "{doc_a['title']}"
 {doc_a['text'][:4000]}
@@ -190,17 +197,30 @@ DOCUMENT A: "{doc_a['title']}"
 DOCUMENT B: "{doc_b['title']}"
 {doc_b['text'][:4000]}
 
-Provide your output as a JSON object with:
-- "document_a_title": string
-- "document_b_title": string
-- "shared_themes": list of strings
-- "key_differences": list of objects {{"aspect": string, "document_a_view": string, "document_b_view": string}}
-- "agreements": list of strings
-- "verdict_or_summary": string
-"""
+Return purely valid JSON matching this schema:
+{{
+  "document_a_title": "{doc_a['title']}",
+  "document_b_title": "{doc_b['title']}",
+  "document_a_domain": "string (e.g. Compiler Design & Language Processing)",
+  "document_b_domain": "string (e.g. Artificial Intelligence & Knowledge Systems)",
+  "relationship_nature": "string (e.g. Distinct Computer Science disciplines / Complementary subjects / Direct revision)",
+  "shared_themes": ["string"],
+  "unique_to_a": ["string"],
+  "unique_to_b": ["string"],
+  "key_differences": [
+    {{
+      "aspect": "string (e.g. Core Objective & Scope)",
+      "document_a_view": "string",
+      "document_b_view": "string"
+    }}
+  ],
+  "agreements": ["string"],
+  "verdict_or_summary": "Thorough analytical synthesis summarizing how these two documents relate, their distinct purposes, and how a student or engineer should approach both."
+}}"""
+
         llm = get_llm(temperature=0.2)
         resp = await llm.ainvoke([
-            SystemMessage(content="You are an expert analytical research engine comparing complex documents. Return purely valid JSON."),
+            SystemMessage(content="You are an expert technical curriculum and systems analyst. Return ONLY a valid JSON object."),
             HumanMessage(content=prompt),
         ])
 
@@ -217,7 +237,12 @@ Provide your output as a JSON object with:
             return {
                 "document_a_title": doc_a["title"],
                 "document_b_title": doc_b["title"],
-                "shared_themes": ["Unable to parse exact JSON comparison"],
+                "document_a_domain": "Technical Document",
+                "document_b_domain": "Technical Document",
+                "relationship_nature": "Comparative Review",
+                "shared_themes": [],
+                "unique_to_a": [],
+                "unique_to_b": [],
                 "key_differences": [],
                 "agreements": [],
                 "verdict_or_summary": raw_str,
@@ -252,7 +277,7 @@ Be precise, objective, and ground all claims in the provided source texts."""
         parts.append("\n--- BEGIN DOCUMENTS CONTEXT ---\n")
         for idx, doc in enumerate(doc_contexts, 1):
             parts.append(f"### Document {idx}: \"{doc['title']}\" (ID: {doc['id']})")
-            parts.append(f"{doc['text'][:4500]}\n")
+            parts.append(f"{doc['text'][:2500]}\n")
             parts.append("----------------------------\n")
         parts.append("--- END DOCUMENTS CONTEXT ---\n")
 

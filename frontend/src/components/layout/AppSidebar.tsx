@@ -147,22 +147,6 @@ export default function AppSidebar() {
           </Link>
 
           <Link
-            href="/workspace"
-            className={`nav-item ${isActive("/workspace") ? "active" : ""}`}
-            onClick={() => setRoute("workspace")}
-          >
-            <div className="nav-item-left">
-              <span className="nav-item-icon">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
-                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                </svg>
-              </span>
-              <span>Workspace</span>
-            </div>
-          </Link>
-
-          <Link
             href="/vault"
             className={`nav-item ${isActive("/vault") ? "active" : ""}`}
             onClick={() => setRoute("vault")}

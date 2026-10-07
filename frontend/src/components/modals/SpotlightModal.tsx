@@ -42,7 +42,7 @@ export default function SpotlightModal() {
     { id: "cmd-chat", title: "Open AI Intelligence Reasoning Session (Full Canvas)", type: "Intelligence", action: () => { setRoute("chat"); router.push("/chat"); } },
     { id: "cmd-home", title: "Go to Home (Executive Dashboard)", type: "Navigation", action: () => { setRoute("home"); router.push("/dashboard"); } },
     { id: "cmd-goals", title: "Go to Strategic Goals & Objectives", type: "Navigation", action: () => { setRoute("goals"); router.push("/goals"); } },
-    { id: "cmd-workspace", title: "View Workspace (All Spaces & Initiatives)", type: "Navigation", action: () => { setRoute("workspace"); router.push("/workspace"); } },
+    { id: "cmd-workspace", title: "View Spaces Directory (Knowledge Hub)", type: "Navigation", action: () => { setRoute("spaces"); router.push("/spaces"); } },
     { id: "cmd-projects", title: "View Workspace Initiatives & Projects", type: "Navigation", action: () => { setRoute("projects"); router.push("/projects"); } },
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
     { id: "cmd-intelligence", title: "View Activity & Intelligence Feed", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },

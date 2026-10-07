@@ -21,10 +21,12 @@ import { queryMindApi, MemoryData } from "@/lib/api";
 
 const categories = [
   { label: "All", type: "all", icon: Brain, color: "#FFFFFF" },
+  { label: "Strengths", type: "strength", icon: Sparkles, color: "#10B981" },
+  { label: "Growth Areas", type: "weak_concept", icon: Target, color: "#EF4444" },
   { label: "Facts", type: "fact", icon: Lightbulb, color: "#F59E0B" },
-  { label: "Skills", type: "skill", icon: Target, color: "#10B981" },
+  { label: "Skills", type: "skill", icon: CheckCircle2, color: "#8B5CF6" },
   { label: "Goals", type: "goal", icon: BookOpen, color: "#3B82F6" },
-  { label: "Interests", type: "interest", icon: Heart, color: "#EC4899" },
+  { label: "Patterns", type: "study_pattern", icon: Heart, color: "#EC4899" },
 ];
 
 export default function MemoryPage() {
@@ -149,6 +151,24 @@ export default function MemoryPage() {
               <Plus className="w-3.5 h-3.5" />
               <span>Add Memory</span>
             </button>
+          </div>
+        </div>
+
+        {/* Cognitive Learner Intelligence Summary Banner */}
+        <div className="p-4 rounded-xl border border-white/10 bg-gradient-to-r from-emerald-500/10 via-purple-500/10 to-transparent flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Cognitive Learner Evolution</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">Active Neural Profile</span>
+              </div>
+              <p className="text-xs text-[#9CA3AF] mt-0.5">
+                QueryMind continuously tracks concepts you excel at and identifies conceptual bottlenecks during chat and goal sprints to customize future explanations.
+              </p>
+            </div>
           </div>
         </div>
 

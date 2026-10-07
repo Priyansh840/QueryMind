@@ -352,7 +352,7 @@ async def send_message(
                                     yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'planner', 'iteration': 1}})}\n\n"
                                     yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'planner', 'status': 'Analyzing request...'}})}\n\n"
 
-                                 elif node_name == "planner":
+                                elif node_name == "planner":
                                     # Planner finished
                                     out = node_state.get("planner_output", {})
                                     workflow_steps_collected.append({"step": "planner", "status": "completed", "output": out})

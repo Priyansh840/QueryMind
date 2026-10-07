@@ -30,6 +30,7 @@ function IntelligencePageContent() {
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
+  const addDocument = useMyndStore((state) => state.addDocument);
   const activityFeed = useMyndStore((state) => state.activityFeed);
 
   // Analysis state
@@ -51,6 +52,39 @@ function IntelligencePageContent() {
   // Activity filter state
   const [activityFilter, setActivityFilter] = useState("all");
 
+  // Auto-fetch documents from backend on mount and whenever active space changes
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDocs = async () => {
+      try {
+        const docs = await queryMindApi.listDocuments(activeSpaceId || undefined);
+        if (isMounted && Array.isArray(docs) && docs.length > 0) {
+          const currentUploaded = useMyndStore.getState().uploadedDocuments;
+          docs.forEach((d: { id: string; title: string; file_type?: string; file_size?: number }) => {
+            const exists = currentUploaded.some((u) => u.id === d.id || u.title === d.title);
+            if (!exists) {
+              addDocument({
+                id: d.id,
+                name: d.title,
+                type: d.file_type || "pdf",
+                size: d.file_size ? `${Math.round(d.file_size / 1024)} KB` : "1.2 MB",
+                chunks: 1,
+                spaceId: activeSpaceId || undefined,
+                summary: `Ingested document in Workspace.`,
+              });
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to fetch documents for intelligence page:", err);
+      }
+    };
+    fetchDocs();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSpaceId, addDocument]);
+
   // Auto-populate from URL search params if redirected from Vault (e.g. ?analyzeDocs=id1,id2)
   useEffect(() => {
     const docsParam = searchParams.get("analyzeDocs");
@@ -63,20 +97,24 @@ function IntelligencePageContent() {
     }
   }, [searchParams]);
 
-  // Ensure documents are loaded
+  // Ensure documents are pre-selected once loaded
   useEffect(() => {
-    if (uploadedDocuments.length > 0 && selectedDocIds.length === 0) {
-      // Default select the first 2 documents if available
-      if (uploadedDocuments.length >= 2) {
-        setSelectedDocIds([uploadedDocuments[0].id, uploadedDocuments[1].id]);
-        setCompareDocA(uploadedDocuments[0].id);
-        setCompareDocB(uploadedDocuments[1].id);
-      } else if (uploadedDocuments.length === 1) {
-        setSelectedDocIds([uploadedDocuments[0].id]);
+    if (uploadedDocuments.length > 0) {
+      if (selectedDocIds.length === 0) {
+        if (uploadedDocuments.length >= 2) {
+          setSelectedDocIds([uploadedDocuments[0].id, uploadedDocuments[1].id]);
+        } else if (uploadedDocuments.length === 1) {
+          setSelectedDocIds([uploadedDocuments[0].id]);
+        }
+      }
+      if (!compareDocA && uploadedDocuments.length > 0) {
         setCompareDocA(uploadedDocuments[0].id);
       }
+      if (!compareDocB && uploadedDocuments.length > 1) {
+        setCompareDocB(uploadedDocuments[1].id);
+      }
     }
-  }, [uploadedDocuments]);
+  }, [uploadedDocuments, selectedDocIds.length, compareDocA, compareDocB]);
 
   // Toggle document selection for multi-doc analysis
   const toggleDocSelection = (id: string) => {
@@ -916,38 +954,112 @@ function IntelligencePageContent() {
               }}
             >
               <div>
-                <span className="kbd" style={{ fontSize: "10px", color: "var(--accent)", textTransform: "uppercase" }}>
-                  PAIRWISE COMPARISON
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
+                  <span className="kbd" style={{ fontSize: "10px", color: "var(--accent)", textTransform: "uppercase" }}>
+                    PAIRWISE COMPARISON
+                  </span>
+                  {comparisonResult.relationship_nature && (
+                    <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "12px", background: "var(--accent-soft)", color: "var(--accent)" }}>
+                      {comparisonResult.relationship_nature}
+                    </span>
+                  )}
+                </div>
                 <h3 style={{ fontSize: "17px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
                   "{comparisonResult.document_a_title}" vs "{comparisonResult.document_b_title}"
                 </h3>
+
+                {/* Domain Badges */}
+                {(comparisonResult.document_a_domain || comparisonResult.document_b_domain) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    <div style={{ padding: "8px 12px", borderRadius: "8px", background: "var(--surface-subtle)", border: "1px solid var(--border)", fontSize: "12px" }}>
+                      <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>Subject A Domain: </span>
+                      <strong style={{ color: "var(--text-primary)" }}>{comparisonResult.document_a_domain || "Computer Science"}</strong>
+                    </div>
+                    <div style={{ padding: "8px 12px", borderRadius: "8px", background: "var(--surface-subtle)", border: "1px solid var(--border)", fontSize: "12px" }}>
+                      <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>Subject B Domain: </span>
+                      <strong style={{ color: "var(--text-primary)" }}>{comparisonResult.document_b_domain || "Computer Science"}</strong>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {comparisonResult.verdict_or_summary && (
-                <div style={{ padding: "14px", borderRadius: "10px", background: "var(--surface-subtle)", fontSize: "13px", lineHeight: 1.5, color: "var(--text-secondary)" }}>
-                  <strong>Comparative Verdict:</strong> {comparisonResult.verdict_or_summary}
+                <div style={{ padding: "14px 16px", borderRadius: "10px", background: "var(--surface-subtle)", border: "1px solid var(--border)", fontSize: "13px", lineHeight: 1.6, color: "var(--text-secondary)" }}>
+                  <strong style={{ color: "var(--text-primary)" }}>Macro Synthesis:</strong> {comparisonResult.verdict_or_summary}
                 </div>
               )}
 
-              {/* Key Differences */}
+              {/* Exclusive Focus / Core Topics */}
+              {((comparisonResult.unique_to_a && comparisonResult.unique_to_a.length > 0) || (comparisonResult.unique_to_b && comparisonResult.unique_to_b.length > 0)) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {comparisonResult.unique_to_a && comparisonResult.unique_to_a.length > 0 && (
+                    <div style={{ padding: "14px", borderRadius: "10px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
+                        Unique to {comparisonResult.document_a_title}
+                      </h4>
+                      <ul style={{ listStyle: "disc", paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                        {comparisonResult.unique_to_a.map((item: string, uIdx: number) => (
+                          <li key={uIdx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {comparisonResult.unique_to_b && comparisonResult.unique_to_b.length > 0 && (
+                    <div style={{ padding: "14px", borderRadius: "10px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <h4 style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px" }}>
+                        Unique to {comparisonResult.document_b_title}
+                      </h4>
+                      <ul style={{ listStyle: "disc", paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                        {comparisonResult.unique_to_b.map((item: string, uIdx: number) => (
+                          <li key={uIdx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Shared Themes / Genuine Overlap */}
+              {comparisonResult.shared_themes && comparisonResult.shared_themes.length > 0 && (
+                <div style={{ padding: "12px 14px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", marginBottom: "6px" }}>
+                    Genuine Conceptual Intersections & Overlap
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {comparisonResult.shared_themes.map((theme: string, sIdx: number) => (
+                      <span key={sIdx} className="kbd" style={{ fontSize: "11px" }}>
+                        ⚡ {theme}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Key Structural Divergences */}
               {comparisonResult.key_differences && comparisonResult.key_differences.length > 0 && (
                 <div>
                   <h4 style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "10px" }}>
-                    Key Divergences
+                    Core Structural & Theoretical Divergences
                   </h4>
                   <div className="space-y-3">
                     {comparisonResult.key_differences.map((diff: any, idx: number) => (
-                      <div key={idx} style={{ padding: "12px", borderRadius: "8px", border: "1px solid var(--border)" }}>
-                        <div style={{ fontWeight: 600, fontSize: "12.5px", color: "var(--accent)", marginBottom: "6px" }}>
-                          Aspect: {diff.aspect}
+                      <div key={idx} style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--border)", background: "var(--surface)" }}>
+                        <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--accent)", marginBottom: "8px" }}>
+                          Dimension: {diff.aspect}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                          <div style={{ color: "var(--text-secondary)" }}>
-                            <strong>{comparisonResult.document_a_title}:</strong> {diff.document_a_view}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs" style={{ lineHeight: "1.5" }}>
+                          <div style={{ padding: "10px", borderRadius: "6px", background: "var(--surface-subtle)" }}>
+                            <strong style={{ color: "var(--text-primary)", display: "block", marginBottom: "4px" }}>
+                              {comparisonResult.document_a_title}:
+                            </strong>
+                            <span style={{ color: "var(--text-secondary)" }}>{diff.document_a_view}</span>
                           </div>
-                          <div style={{ color: "var(--text-secondary)" }}>
-                            <strong>{comparisonResult.document_b_title}:</strong> {diff.document_b_view}
+                          <div style={{ padding: "10px", borderRadius: "6px", background: "var(--surface-subtle)" }}>
+                            <strong style={{ color: "var(--text-primary)", display: "block", marginBottom: "4px" }}>
+                              {comparisonResult.document_b_title}:
+                            </strong>
+                            <span style={{ color: "var(--text-secondary)" }}>{diff.document_b_view}</span>
                           </div>
                         </div>
                       </div>

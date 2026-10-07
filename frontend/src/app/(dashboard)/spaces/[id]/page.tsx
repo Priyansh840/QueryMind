@@ -236,7 +236,7 @@ export default function SpaceDetailPage({
 
         {/* Breadcrumb Navigation */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--text-tertiary)", marginBottom: "16px" }}>
-          <Link href="/workspace" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Workspace</Link>
+          <Link href="/dashboard" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Home</Link>
           <span>/</span>
           <Link href="/spaces" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Spaces</Link>
           <span>/</span>

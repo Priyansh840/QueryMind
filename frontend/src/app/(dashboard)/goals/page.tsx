@@ -34,6 +34,7 @@ interface GoalTask {
   id: string;
   title: string;
   completed: boolean;
+  sub_goal?: string;
   priority?: "high" | "medium" | "low";
 }
 
@@ -49,7 +50,57 @@ interface EnrichedGoal extends GoalData {
   space_ids?: string[];
 }
 
-// Normalize task title to identify identical/similar tasks across different goals
+// Common stop words to ignore during task comparison
+const STOP_WORDS = new Set([
+  "and", "or", "the", "a", "an", "in", "on", "at", "to", "for", "of", "with", "by",
+  "master", "execute", "conquer", "dominate", "perform", "timed", "foundational",
+  "core", "advanced", "fundamentals", "mechanics", "drills", "pillars", "sprints",
+  "simulation", "foundations", "synthesis", "engineering"
+]);
+
+// Extract significant technical topic tokens from a task title
+export const extractSignificantTokens = (title: string): string[] => {
+  return title
+    .toLowerCase()
+    .replace(/[(),:/\-_&]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+};
+
+// Check if two task titles represent the same or strongly overlapping skill area
+export const areTasksSemanticallyShared = (titleA: string, titleB: string): boolean => {
+  const normA = normalizeTaskTitle(titleA);
+  const normB = normalizeTaskTitle(titleB);
+  if (normA === normB) return true;
+
+  const tokensA = extractSignificantTokens(titleA);
+  const tokensB = extractSignificantTokens(titleB);
+
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const setB = new Set(tokensB);
+  const common = tokensA.filter((t) => setB.has(t));
+
+  // High-value concept anchors that trigger shared synergy immediately
+  const HIGH_IMPACT_ANCHORS = [
+    "structures", "algorithms", "dsa", "operating", "systems", "networks",
+    "databases", "dbms", "compiler", "compilers", "automata", "discrete",
+    "mathematics", "linear", "algebra", "sql", "concurrency", "star", "mock"
+  ];
+  const hasAnchorMatch = common.some((t) => HIGH_IMPACT_ANCHORS.includes(t));
+
+  // If they share 2+ meaningful tokens OR share a primary technical anchor with at least 1 overlapping token
+  if (common.length >= 2 || (hasAnchorMatch && common.length >= 1)) {
+    return true;
+  }
+
+  // Jaccard similarity threshold >= 0.25
+  const unionSize = new Set([...tokensA, ...tokensB]).size;
+  return unionSize > 0 && (common.length / unionSize) >= 0.25;
+};
+
+// Normalize task title
 export const normalizeTaskTitle = (title: string): string => {
   return title
     .toLowerCase()
@@ -149,7 +200,8 @@ export default function GoalsPage() {
   const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([]);
   const [taskInput, setTaskInput] = useState("");
   const [taskPriorityInput, setTaskPriorityInput] = useState<"high" | "medium" | "low">("medium");
-  const [stagedTasks, setStagedTasks] = useState<Array<{ title: string; priority: "high" | "medium" | "low"; reasoning?: string }>>([]);
+  const [taskSubGoalInput, setTaskSubGoalInput] = useState("");
+  const [stagedTasks, setStagedTasks] = useState<Array<{ title: string; sub_goal?: string; priority: "high" | "medium" | "low"; reasoning?: string }>>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   // AI Recommendation State
@@ -158,7 +210,9 @@ export default function GoalsPage() {
 
   // Modal Task Creation State
   const [modalTaskInput, setModalTaskInput] = useState("");
+  const [modalTaskSubGoal, setModalTaskSubGoal] = useState("");
   const [modalTaskPriority, setModalTaskPriority] = useState<"high" | "medium" | "low">("medium");
+  const [collapsedSubGoals, setCollapsedSubGoals] = useState<Record<string, boolean>>({});
   const [isModalAiRecommending, setIsModalAiRecommending] = useState(false);
 
   // Modal Tab & Goal Chat State
@@ -282,9 +336,14 @@ export default function GoalsPage() {
     if (!taskInput.trim()) return;
     setStagedTasks((prev) => [
       ...prev,
-      { title: taskInput.trim(), priority: taskPriorityInput },
+      {
+        title: taskInput.trim(),
+        sub_goal: taskSubGoalInput.trim() || "Core Objectives",
+        priority: taskPriorityInput,
+      },
     ]);
     setTaskInput("");
+    setTaskSubGoalInput("");
   };
 
   const handleRemoveStagedTask = (index: number) => {
@@ -339,6 +398,7 @@ export default function GoalsPage() {
           .map((st, idx) => ({
             id: `t-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`,
             title: st.title,
+            sub_goal: st.sub_goal || "Core Objectives",
             completed: false,
             priority: st.priority,
           }));
@@ -395,6 +455,7 @@ export default function GoalsPage() {
     const initialTasks: GoalTask[] = stagedTasks.map((t, idx) => ({
       id: `t-${Date.now()}-${idx}`,
       title: t.title,
+      sub_goal: t.sub_goal || "Core Objectives",
       completed: false,
       priority: t.priority,
     }));
@@ -496,15 +557,29 @@ export default function GoalsPage() {
     }
   };
 
+  // State for Multi-Goal Ripple Completion Prompt Modal
+  const [ripplePrompt, setRipplePrompt] = useState<{
+    toggledTaskTitle: string;
+    sourceGoalId: string;
+    matchingTargets: Array<{ goalId: string; goalTitle: string; taskId: string; taskTitle: string }>;
+  } | null>(null);
+
   const handleToggleTask = (goalId: string, taskId: string) => {
-    let updatedTasksToPersist: GoalTask[] = [];
+    let targetTaskTitle = "";
+    let isNowCompleted = false;
+
     const nextGoals = goals.map((g) => {
       if (g.id === goalId) {
         const currentTasks = g.tasks || g.milestones || [];
-        const updatedTasks = currentTasks.map((t) =>
-          t.id === taskId ? { ...t, completed: !t.completed } : t
-        );
-        updatedTasksToPersist = updatedTasks;
+        const updatedTasks = currentTasks.map((t) => {
+          if (t.id === taskId) {
+            isNowCompleted = !t.completed;
+            targetTaskTitle = t.title;
+            return { ...t, completed: !t.completed };
+          }
+          return t;
+        });
+
         const calcProgress = computeGoalProgress(updatedTasks);
         const isAllDone = updatedTasks.length > 0 && updatedTasks.every((t) => t.completed);
 
@@ -525,11 +600,134 @@ export default function GoalsPage() {
       setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
     }
     
-    // Sync to backend DB asynchronously
-    if (updatedTasksToPersist.length > 0) {
-      queryMindApi.updateGoal(goalId, { tasks: updatedTasksToPersist }).catch((err) => {
+    // Sync source goal update to backend DB asynchronously
+    const targetGoalObj = nextGoals.find((g) => g.id === goalId);
+    if (targetGoalObj) {
+      queryMindApi.updateGoal(goalId, { tasks: targetGoalObj.tasks }).catch((err) => {
         console.warn("Could not sync tasks to backend:", err);
       });
+    }
+
+    // Check for Multi-Goal Ripple Synergy if task was just marked COMPLETED
+    if (isNowCompleted && targetTaskTitle) {
+      const otherMatches: Array<{ goalId: string; goalTitle: string; taskId: string; taskTitle: string }> = [];
+      goals.forEach((otherGoal) => {
+        if (otherGoal.id === goalId) return;
+        const otherTasks = otherGoal.tasks || otherGoal.milestones || [];
+        otherTasks.forEach((ot) => {
+          if (!ot.completed && areTasksSemanticallyShared(targetTaskTitle, ot.title)) {
+            otherMatches.push({
+              goalId: otherGoal.id,
+              goalTitle: otherGoal.description,
+              taskId: ot.id,
+              taskTitle: ot.title,
+            });
+          }
+        });
+      });
+
+      if (otherMatches.length > 0) {
+        setRipplePrompt({
+          toggledTaskTitle: targetTaskTitle,
+          sourceGoalId: goalId,
+          matchingTargets: otherMatches,
+        });
+      }
+    }
+  };
+
+  // Execute ripple completion across all matched goals
+  const handleExecuteRipple = async () => {
+    if (!ripplePrompt) return;
+    const { matchingTargets } = ripplePrompt;
+
+    const nextGoals = goals.map((g) => {
+      const match = matchingTargets.find((m) => m.goalId === g.id);
+      if (match) {
+        const currentTasks = g.tasks || g.milestones || [];
+        const updatedTasks = currentTasks.map((t) =>
+          t.id === match.taskId ? { ...t, completed: true } : t
+        );
+        const calcProgress = computeGoalProgress(updatedTasks);
+        const isAllDone = updatedTasks.length > 0 && updatedTasks.every((t) => t.completed);
+
+        // Async sync each goal to backend
+        queryMindApi.updateGoal(g.id, { tasks: updatedTasks }).catch(() => {});
+
+        return {
+          ...g,
+          tasks: updatedTasks,
+          milestones: updatedTasks,
+          progress: calcProgress,
+          status: isAllDone ? "completed" : "in_progress",
+        };
+      }
+      return g;
+    });
+
+    setGoals(nextGoals);
+    saveGoalsMeta(nextGoals);
+    if (selectedGoal) {
+      setSelectedGoal(nextGoals.find((x) => x.id === selectedGoal.id) || null);
+    }
+    setRipplePrompt(null);
+  };
+
+  // Clean Up & Consolidate Tasks (Deduplicate repetitive AI generated items)
+  const [isConsolidating, setIsConsolidating] = useState(false);
+  const handleConsolidateGoalTasks = (goalId: string) => {
+    setIsConsolidating(true);
+    try {
+      const targetGoal = goals.find((g) => g.id === goalId);
+      if (!targetGoal) return;
+
+      const rawTasks = targetGoal.tasks || targetGoal.milestones || [];
+      if (rawTasks.length <= 3) return;
+
+      // Group together tasks that are semantically redundant
+      const consolidated: GoalTask[] = [];
+
+      rawTasks.forEach((task) => {
+        const cleanTitle = task.title.trim();
+        // Check if an existing consolidated task already covers this topic
+        const existing = consolidated.find((c) =>
+          areTasksSemanticallyShared(c.title, cleanTitle)
+        );
+
+        if (existing) {
+          // If the redundant copy was completed, keep completed true
+          if (task.completed) existing.completed = true;
+          // Keep highest priority
+          if (task.priority === "high") existing.priority = "high";
+        } else {
+          consolidated.push({ ...task });
+        }
+      });
+
+      const nextGoals = goals.map((g) => {
+        if (g.id === goalId) {
+          const calcProgress = computeGoalProgress(consolidated);
+          const isAllDone = consolidated.length > 0 && consolidated.every((t) => t.completed);
+          return {
+            ...g,
+            tasks: consolidated,
+            milestones: consolidated,
+            progress: calcProgress,
+            status: isAllDone ? "completed" : "in_progress",
+          };
+        }
+        return g;
+      });
+
+      setGoals(nextGoals);
+      saveGoalsMeta(nextGoals);
+      if (selectedGoal?.id === goalId) {
+        setSelectedGoal(nextGoals.find((x) => x.id === goalId) || null);
+      }
+
+      queryMindApi.updateGoal(goalId, { tasks: consolidated }).catch(() => {});
+    } finally {
+      setIsConsolidating(false);
     }
   };
 
@@ -538,6 +736,7 @@ export default function GoalsPage() {
     const newTask: GoalTask = {
       id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       title: modalTaskInput.trim(),
+      sub_goal: modalTaskSubGoal.trim() || "Core Objectives",
       completed: false,
       priority: modalTaskPriority,
     };
@@ -708,26 +907,97 @@ export default function GoalsPage() {
     return goals.filter((g) => g.category === selectedFilter);
   }, [goals, selectedFilter]);
 
-  // Map each normalized task title to the goals that reference it (Cross-Goal Synergy)
+  // Map each task to the goals that reference it (Cross-Goal Semantic Synergy)
   const taskGoalFrequencyMap = useMemo(() => {
     const map = new Map<string, { count: number; goalTitles: string[]; goalIds: string[] }>();
-    goals.forEach((g) => {
-      const tasks = g.tasks || g.milestones || [];
-      const seenInGoal = new Set<string>();
-      tasks.forEach((t) => {
-        const norm = normalizeTaskTitle(t.title);
-        if (!norm || seenInGoal.has(norm)) return;
-        seenInGoal.add(norm);
+    
+    // For every goal and its tasks, check how many other distinct goals share this concept
+    goals.forEach((currentGoal) => {
+      const currentTasks = currentGoal.tasks || currentGoal.milestones || [];
+      currentTasks.forEach((currentTask) => {
+        const norm = normalizeTaskTitle(currentTask.title);
+        if (!norm) return;
 
-        const current = map.get(norm) || { count: 0, goalTitles: [], goalIds: [] };
-        current.count += 1;
-        current.goalTitles.push(g.description);
-        current.goalIds.push(g.id);
-        map.set(norm, current);
+        const matchedGoalTitles = new Set<string>([currentGoal.description]);
+        const matchedGoalIds = new Set<string>([currentGoal.id]);
+
+        // Scan other goals for semantic overlap
+        goals.forEach((otherGoal) => {
+          if (otherGoal.id === currentGoal.id) return;
+          const otherTasks = otherGoal.tasks || otherGoal.milestones || [];
+          const hasMatch = otherTasks.some((otherTask) =>
+            areTasksSemanticallyShared(currentTask.title, otherTask.title)
+          );
+          if (hasMatch) {
+            matchedGoalTitles.add(otherGoal.description);
+            matchedGoalIds.add(otherGoal.id);
+          }
+        });
+
+        map.set(norm, {
+          count: matchedGoalIds.size,
+          goalTitles: Array.from(matchedGoalTitles),
+          goalIds: Array.from(matchedGoalIds),
+        });
       });
     });
     return map;
   }, [goals]);
+
+  // Extract distinct high-leverage cross-goal bottleneck tasks for the Synergy Matrix
+  const topSynergies = useMemo(() => {
+    const list: Array<{
+      title: string;
+      count: number;
+      goalTitles: string[];
+      completedAcross: number;
+      totalAcross: number;
+      sampleTaskObj: GoalTask;
+      goalId: string;
+    }> = [];
+
+    const seenConcepts = new Set<string>();
+
+    goals.forEach((g) => {
+      const tasks = g.tasks || g.milestones || [];
+      tasks.forEach((t) => {
+        const norm = normalizeTaskTitle(t.title);
+        const matchData = taskGoalFrequencyMap.get(norm);
+        if (!matchData || matchData.count < 2) return;
+
+        // Group together tasks that are semantically shared
+        const alreadyGrouped = list.find((item) =>
+          areTasksSemanticallyShared(item.title, t.title)
+        );
+
+        if (!alreadyGrouped) {
+          // Calculate how many goals have completed this task
+          let completedAcross = 0;
+          let totalAcross = matchData.goalIds.length;
+
+          goals.forEach((searchGoal) => {
+            if (matchData.goalIds.includes(searchGoal.id)) {
+              const subTasks = searchGoal.tasks || searchGoal.milestones || [];
+              const found = subTasks.find((st) => areTasksSemanticallyShared(t.title, st.title));
+              if (found?.completed) completedAcross++;
+            }
+          });
+
+          list.push({
+            title: t.title,
+            count: matchData.count,
+            goalTitles: matchData.goalTitles,
+            completedAcross,
+            totalAcross,
+            sampleTaskObj: t,
+            goalId: g.id,
+          });
+        }
+      });
+    });
+
+    return list.sort((a, b) => b.count - a.count);
+  }, [goals, taskGoalFrequencyMap]);
 
   // ───────────────────────────────────────────────────────────
   // A. GOAL-SPECIFIC SCREEN (In-place workspace screen replacement)
@@ -1099,214 +1369,282 @@ export default function GoalsPage() {
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleModalAutoRecommendTasks(selectedGoal)}
-                disabled={isModalAiRecommending}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--accent)",
-                  background: "var(--accent-soft)",
-                  color: "var(--accent)",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: isModalAiRecommending ? "not-allowed" : "pointer",
-                  opacity: isModalAiRecommending ? 0.6 : 1,
-                  transition: "all 150ms ease",
-                }}
-              >
-                <Sparkles style={{ width: "13px", height: "13px" }} />
-                <span>{isModalAiRecommending ? "Generating Tasks..." : "AI Auto-Suggest Tasks"}</span>
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {(selectedGoal.tasks || selectedGoal.milestones || []).length > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => handleConsolidateGoalTasks(selectedGoal.id)}
+                    disabled={isConsolidating}
+                    title="Merge and deduplicate repetitive milestones into a clean focused roadmap"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(139, 92, 246, 0.4)",
+                      background: "rgba(139, 92, 246, 0.1)",
+                      color: "#C4B5FD",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: isConsolidating ? "not-allowed" : "pointer",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    <Sparkles style={{ width: "13px", height: "13px" }} />
+                    <span>{isConsolidating ? "Cleaning..." : "Clean & Merge Duplicates"}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleModalAutoRecommendTasks(selectedGoal)}
+                  disabled={isModalAiRecommending}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: isModalAiRecommending ? "not-allowed" : "pointer",
+                    opacity: isModalAiRecommending ? 0.6 : 1,
+                    transition: "all 150ms ease",
+                  }}
+                >
+                  <Sparkles style={{ width: "13px", height: "13px" }} />
+                  <span>{isModalAiRecommending ? "Generating Tasks..." : "+ AI Suggest"}</span>
+                </button>
+              </div>
             </div>
 
-            {/* Cross-Goal Synergy Information Pill */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                background: "rgba(139, 92, 246, 0.08)",
-                border: "1px solid rgba(139, 92, 246, 0.2)",
-                fontSize: "12px",
-                color: "#C4B5FD",
-              }}
-            >
-              <Zap style={{ width: "14px", height: "14px", color: "#A78BFA", flexShrink: 0 }} />
-              <span>
-                <strong>Cross-Goal Priority Booster Active:</strong> Tasks shared across 2 or more strategic goals automatically escalate to High Priority with enhanced completion weight.
-              </span>
-            </div>
-
-            {/* Task List Items */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {/* Task List Items Grouped by Sub-Goal */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
               {(selectedGoal.tasks || selectedGoal.milestones || []).length === 0 ? (
                 <div style={{ padding: "24px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "13px" }}>
                   No tasks configured yet. Add high-impact tasks below or click &ldquo;AI Auto-Suggest Tasks&rdquo; to draft them instantly.
                 </div>
               ) : (
-                (selectedGoal.tasks || selectedGoal.milestones || []).map((t) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      borderRadius: "10px",
-                      background: t.completed ? "var(--surface-subtle)" : "var(--surface)",
-                      border: "1px solid var(--border)",
-                      transition: "all 150ms ease",
-                    }}
-                  >
-                    <div
-                      onClick={() => handleToggleTask(selectedGoal.id, t.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        flex: 1,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <button
-                        type="button"
+                (() => {
+                  const allTasks = selectedGoal.tasks || selectedGoal.milestones || [];
+                  // Group tasks by sub_goal
+                  const grouped = allTasks.reduce((acc, t) => {
+                    const group = t.sub_goal?.trim() || "Core Objectives";
+                    if (!acc[group]) acc[group] = [];
+                    acc[group].push(t);
+                    return acc;
+                  }, {} as Record<string, GoalTask[]>);
+
+                  return Object.entries(grouped).map(([groupTitle, groupTasks]) => {
+                    const isCollapsed = !!collapsedSubGoals[groupTitle];
+                    const completedInGroup = groupTasks.filter((t) => t.completed).length;
+                    const groupPct = Math.round((completedInGroup / groupTasks.length) * 100);
+
+                    return (
+                      <div
+                        key={groupTitle}
                         style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          color: t.completed ? "#10B981" : "var(--text-tertiary)",
+                          borderRadius: "10px",
+                          border: "1px solid var(--border)",
+                          background: "var(--surface-subtle)",
+                          overflow: "hidden",
                         }}
                       >
-                        {t.completed ? (
-                          <CheckCircle2 style={{ width: "18px", height: "18px" }} />
-                        ) : (
-                          <Circle style={{ width: "18px", height: "18px" }} />
-                        )}
-                      </button>
-
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: t.completed ? "var(--text-tertiary)" : "var(--text-primary)",
-                          textDecoration: t.completed ? "line-through" : "none",
-                        }}
-                      >
-                        {t.title}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {(() => {
-                        const norm = normalizeTaskTitle(t.title);
-                        const matchData = taskGoalFrequencyMap.get(norm);
-                        const sharedCount = matchData ? matchData.count : 1;
-                        const { effectivePriority, isBoosted, weightMultiplier } = getEffectiveTaskPriority(
-                          t.priority || "medium",
-                          sharedCount
-                        );
-
-                        return (
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            {/* Shared Across Multiple Goals Synergy Tag */}
-                            {isBoosted && (
-                              <span
-                                title={`Shared across ${sharedCount} goals: ${matchData?.goalTitles.join(" • ")}`}
-                                style={{
-                                  fontSize: "10px",
-                                  fontWeight: 700,
-                                  padding: "2px 7px",
-                                  borderRadius: "4px",
-                                  background: "rgba(139, 92, 246, 0.15)",
-                                  color: "#A78BFA",
-                                  border: "1px solid rgba(139, 92, 246, 0.3)",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "3px",
-                                  letterSpacing: "0.02em",
-                                }}
-                              >
-                                <Zap style={{ width: "10px", height: "10px", color: "#A78BFA" }} />
-                                <span>{sharedCount} Goals ({weightMultiplier}x Boost)</span>
-                              </span>
-                            )}
-
-                            {/* Priority Badge */}
+                        {/* Sub-goal section header */}
+                        <div
+                          onClick={() =>
+                            setCollapsedSubGoals((prev) => ({
+                              ...prev,
+                              [groupTitle]: !prev[groupTitle],
+                            }))
+                          }
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            background: "var(--surface)",
+                            borderBottom: isCollapsed ? "none" : "1px solid var(--border)",
+                            userSelect: "none",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                              {isCollapsed ? "▶" : "▼"}
+                            </span>
+                            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                              {groupTitle}
+                            </span>
                             <span
                               style={{
-                                fontSize: "10px",
-                                fontWeight: 700,
-                                padding: "2px 7px",
+                                fontSize: "11px",
+                                padding: "1px 6px",
                                 borderRadius: "4px",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                background:
-                                  effectivePriority === "high"
-                                    ? "rgba(239, 68, 68, 0.15)"
-                                    : effectivePriority === "medium"
-                                    ? "rgba(245, 158, 11, 0.15)"
-                                    : "rgba(16, 185, 129, 0.15)",
-                                color:
-                                  effectivePriority === "high"
-                                    ? "#EF4444"
-                                    : effectivePriority === "medium"
-                                    ? "#F59E0B"
-                                    : "#10B981",
-                                border: isBoosted
-                                  ? "1px solid rgba(239, 68, 68, 0.4)"
-                                  : "1px solid transparent",
+                                background: "var(--surface-hover)",
+                                color: "var(--text-secondary)",
                               }}
                             >
-                              {effectivePriority === "high"
-                                ? `High (${weightMultiplier}x)`
-                                : effectivePriority === "medium"
-                                ? `Med (${weightMultiplier}x)`
-                                : `Low (${weightMultiplier}x)`}
+                              {completedInGroup}/{groupTasks.length}
                             </span>
                           </div>
-                        );
-                      })()}
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: groupPct === 100 ? "#10B981" : "var(--text-tertiary)" }}>
+                              {groupPct}%
+                            </span>
+                          </div>
+                        </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveModalTask(selectedGoal.id, t.id);
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          padding: "4px",
-                          cursor: "pointer",
-                          color: "var(--text-ghost)",
-                          borderRadius: "4px",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#EF4444")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
-                      >
-                        <Trash2 style={{ width: "14px", height: "14px" }} />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                        {/* Sub-goal task items */}
+                        {!isCollapsed && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px" }}>
+                            {groupTasks.map((t) => (
+                              <div
+                                key={t.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: "12px",
+                                  padding: "9px 12px",
+                                  borderRadius: "8px",
+                                  background: t.completed ? "transparent" : "var(--surface)",
+                                  border: "1px solid var(--border)",
+                                  transition: "all 150ms ease",
+                                }}
+                              >
+                                <div
+                                  onClick={() => handleToggleTask(selectedGoal.id, t.id)}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "10px",
+                                    flex: 1,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      padding: 0,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      color: t.completed ? "#10B981" : "var(--text-tertiary)",
+                                    }}
+                                  >
+                                    {t.completed ? (
+                                      <CheckCircle2 style={{ width: "17px", height: "17px" }} />
+                                    ) : (
+                                      <Circle style={{ width: "17px", height: "17px" }} />
+                                    )}
+                                  </button>
+
+                                  <span
+                                    style={{
+                                      fontSize: "13px",
+                                      fontWeight: 500,
+                                      color: t.completed ? "var(--text-tertiary)" : "var(--text-primary)",
+                                      textDecoration: t.completed ? "line-through" : "none",
+                                      lineHeight: 1.4,
+                                    }}
+                                  >
+                                    {t.title}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                                  {(() => {
+                                    const norm = normalizeTaskTitle(t.title);
+                                    const matchData = taskGoalFrequencyMap.get(norm);
+                                    const sharedCount = matchData ? matchData.count : 1;
+                                    const isShared = sharedCount > 1;
+
+                                    return (
+                                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                        {isShared && (
+                                          <span
+                                            title={`High-leverage milestone shared across ${sharedCount} goals: ${matchData?.goalTitles.join(" • ")}`}
+                                            style={{
+                                              fontSize: "11px",
+                                              fontWeight: 600,
+                                              padding: "2px 7px",
+                                              borderRadius: "6px",
+                                              background: "rgba(139, 92, 246, 0.12)",
+                                              color: "#A78BFA",
+                                              border: "1px solid rgba(139, 92, 246, 0.25)",
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: "4px",
+                                            }}
+                                          >
+                                            <Zap style={{ width: "11px", height: "11px", color: "#A78BFA" }} />
+                                            <span>{sharedCount} Goals</span>
+                                          </span>
+                                        )}
+
+                                        {(t.priority === "high" || isShared) && (
+                                          <span
+                                            style={{
+                                              fontSize: "10px",
+                                              fontWeight: 700,
+                                              padding: "2px 6px",
+                                              borderRadius: "4px",
+                                              textTransform: "uppercase",
+                                              letterSpacing: "0.03em",
+                                              background: "rgba(239, 68, 68, 0.12)",
+                                              color: "#F87171",
+                                              border: "1px solid rgba(239, 68, 68, 0.25)",
+                                            }}
+                                          >
+                                            High
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveModalTask(selectedGoal.id, t.id);
+                                    }}
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      padding: "4px",
+                                      cursor: "pointer",
+                                      color: "var(--text-ghost)",
+                                      borderRadius: "4px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = "#EF4444")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-ghost)")}
+                                  >
+                                    <Trash2 style={{ width: "13px", height: "13px" }} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()
               )}
             </div>
 
             {/* Add Task Input Row */}
-            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+            <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
               <input
                 type="text"
                 placeholder="Enter next strategic task..."
@@ -1320,7 +1658,8 @@ export default function GoalsPage() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 14px",
+                  minWidth: "200px",
+                  padding: "9px 12px",
                   borderRadius: "8px",
                   border: "1px solid var(--border)",
                   background: "var(--surface-subtle)",
@@ -1330,11 +1669,28 @@ export default function GoalsPage() {
                 }}
               />
 
+              <input
+                type="text"
+                placeholder="Sub-Goal (e.g. Phase 1)"
+                value={modalTaskSubGoal}
+                onChange={(e) => setModalTaskSubGoal(e.target.value)}
+                style={{
+                  width: "160px",
+                  padding: "9px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-subtle)",
+                  color: "var(--text-primary)",
+                  fontSize: "12px",
+                  outline: "none",
+                }}
+              />
+
               <select
                 value={modalTaskPriority}
                 onChange={(e) => setModalTaskPriority(e.target.value as any)}
                 style={{
-                  padding: "0 12px",
+                  padding: "0 10px",
                   borderRadius: "8px",
                   border: "1px solid var(--border)",
                   background: "var(--surface)",
@@ -1352,12 +1708,12 @@ export default function GoalsPage() {
                 type="button"
                 onClick={() => handleAddModalTask(selectedGoal.id)}
                 style={{
-                  padding: "10px 18px",
+                  padding: "9px 16px",
                   borderRadius: "8px",
                   border: "none",
                   background: "var(--accent)",
                   color: "var(--accent-contrast)",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -1436,6 +1792,239 @@ export default function GoalsPage() {
           </div>
         </div>
       </div>
+
+      {/* 2.5 Cross-Goal Synergy Matrix / Strategic Leverage Hub */}
+      {topSynergies.length > 0 && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)",
+            border: "1px solid rgba(139, 92, 246, 0.25)",
+            borderRadius: "var(--r-xl)",
+            padding: "20px 24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+            boxShadow: "0 4px 20px -4px rgba(139, 92, 246, 0.1)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(139, 92, 246, 0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap style={{ width: "16px", height: "16px", color: "#A78BFA" }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                  Strategic Synergy Matrix
+                </h3>
+                <p style={{ fontSize: "11px", color: "var(--text-secondary)", margin: 0 }}>
+                  High-leverage bottleneck tasks shared across multiple active goals. Complete one to accelerate both!
+                </p>
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: "20px",
+                background: "rgba(139, 92, 246, 0.2)",
+                color: "#C4B5FD",
+                border: "1px solid rgba(139, 92, 246, 0.35)",
+              }}
+            >
+              {topSynergies.length} Common Bottlenecks Detected
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+            {topSynergies.map((syn, sIdx) => {
+              const isAllDone = syn.completedAcross === syn.totalAcross;
+              const sourceGoal = goals.find((g) => g.id === syn.goalId);
+
+              return (
+                <div
+                  key={sIdx}
+                  onClick={() => sourceGoal && handleSelectGoal(sourceGoal)}
+                  style={{
+                    background: "var(--surface)",
+                    border: isAllDone ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    cursor: "pointer",
+                    transition: "transform 150ms ease, border-color 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.borderColor = "var(--accent)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.borderColor = isAllDone ? "rgba(16, 185, 129, 0.4)" : "var(--border)";
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          padding: "2px 7px",
+                          borderRadius: "4px",
+                          background: "rgba(139, 92, 246, 0.15)",
+                          color: "#A78BFA",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                        }}
+                      >
+                        <Zap style={{ width: "10px", height: "10px" }} />
+                        {syn.count} Goals Linked
+                      </span>
+
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: isAllDone ? "#10B981" : "var(--text-tertiary)" }}>
+                        {syn.completedAcross}/{syn.totalAcross} Done
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.4, margin: "0 0 6px 0" }}>
+                      {syn.title}
+                    </h4>
+
+                    <div style={{ fontSize: "11px", color: "var(--text-secondary)", lineHeight: 1.3 }}>
+                      Impacts: <strong>{syn.goalTitles.join(" • ")}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ width: "100%", height: "4px", background: "var(--surface-subtle)", borderRadius: "2px", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${(syn.completedAcross / syn.totalAcross) * 100}%`,
+                        height: "100%",
+                        background: isAllDone ? "#10B981" : "#A78BFA",
+                        transition: "width 300ms ease",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Ripple Completion Prompt Modal */}
+      {ripplePrompt && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              border: "1px solid rgba(139, 92, 246, 0.4)",
+              borderRadius: "16px",
+              padding: "24px",
+              maxWidth: "480px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.5)",
+              animation: "fadeIn 150ms ease-out",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(139, 92, 246, 0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap style={{ width: "20px", height: "20px", color: "#A78BFA" }} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                  Multi-Goal Ripple Completion
+                </h3>
+                <p style={{ fontSize: "12px", color: "#A78BFA", fontWeight: 600, margin: 0 }}>
+                  High-Leverage Synergy Action Detected
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "13px", lineHeight: 1.5, color: "var(--text-secondary)", margin: 0 }}>
+              You just finished: <strong>&ldquo;{ripplePrompt.toggledTaskTitle}&rdquo;</strong>.
+              <br />
+              This same core skill is also required in:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "var(--surface-subtle)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border)" }}>
+              {ripplePrompt.matchingTargets.map((m, idx) => (
+                <div key={idx} style={{ fontSize: "12px" }}>
+                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>🎯 {m.goalTitle}</div>
+                  <div style={{ color: "var(--text-tertiary)", paddingLeft: "18px" }}>↳ {m.taskTitle}</div>
+                </div>
+              ))}
+            </div>
+
+            <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: 0 }}>
+              Would you like to auto-complete this milestone across both goals and boost their progress together?
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setRipplePrompt(null)}
+                style={{
+                  padding: "9px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                No, Keep Separate
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteRipple}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
+                  color: "#FFFFFF",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+                }}
+              >
+                <Zap style={{ width: "14px", height: "14px" }} />
+                <span>Yes, Ripple Complete (Sync Progress)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Define Goal Form Panel (Collapsible / Expandable) */}
       {isFormOpen && (
@@ -1644,7 +2233,15 @@ export default function GoalsPage() {
                   }
                 }}
                 placeholder="e.g. Implement Raft Leader Election simulator module"
-                style={{ flex: 1, minWidth: "220px", height: "38px", padding: "0 12px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}
+                style={{ flex: 1, minWidth: "200px", height: "38px", padding: "0 12px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}
+              />
+
+              <input
+                type="text"
+                value={taskSubGoalInput}
+                onChange={(e) => setTaskSubGoalInput(e.target.value)}
+                placeholder="Sub-Goal (e.g. Phase 1)"
+                style={{ width: "160px", height: "38px", padding: "0 10px", background: "var(--surface-subtle)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", color: "var(--text-primary)", fontSize: "12px", outline: "none" }}
               />
 
               <select
@@ -1673,6 +2270,21 @@ export default function GoalsPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ fontSize: "11px", color: "var(--text-tertiary)", fontFamily: "var(--mono)" }}>#{idx + 1}</span>
                       <span>{t.title}</span>
+                      {t.sub_goal && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            padding: "1px 6px",
+                            borderRadius: "4px",
+                            background: "rgba(99, 102, 241, 0.12)",
+                            color: "#818CF8",
+                            border: "1px solid rgba(99, 102, 241, 0.25)",
+                          }}
+                        >
+                          {t.sub_goal}
+                        </span>
+                      )}
                       <span
                         style={{
                           fontSize: "10px",

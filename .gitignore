@@ -73,3 +73,7 @@ htmlcov/
 backend/dummy.pdf
 backend/dummy.txt
 uploads/
+
+# ----- Antigravity Plugins & Skills -----
+.agents/plugins/
+plugins/

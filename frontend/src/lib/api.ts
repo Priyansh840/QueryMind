@@ -12,7 +12,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 45000,
+  timeout: 120000,
 });
 
 // Request interceptor — prefer localStorage native JWT, then Supabase session
@@ -252,7 +252,7 @@ export interface GoalData {
   project_id?: string;
   description: string;
   status: string;
-  tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+  tasks?: Array<{ id: string; title: string; completed: boolean; sub_goal?: string; priority?: "high" | "medium" | "low" }>;
   category?: string;
   priority?: "high" | "medium" | "low";
   target_date?: string;
@@ -382,7 +382,7 @@ export const queryMindApi = {
     category?: string;
   }): Promise<{
     goal: string;
-    suggested_tasks: Array<{ title: string; priority: "high" | "medium" | "low"; reasoning?: string }>;
+    suggested_tasks: Array<{ title: string; sub_goal?: string; priority: "high" | "medium" | "low"; reasoning?: string }>;
     context_used?: string;
   }> => {
     const res = await api.post("/goals/recommend-tasks", data);

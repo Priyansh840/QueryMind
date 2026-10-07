@@ -204,9 +204,9 @@ export default function SpacesDirectoryPage() {
 
           {/* Quick Breadcrumbs */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-tertiary)" }}>
-            <Link href="/workspace" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Workspace</Link>
+            <Link href="/dashboard" style={{ color: "var(--text-secondary)", textDecoration: "none" }}>Home</Link>
             <span>/</span>
-            <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>Spaces Gallery</span>
+            <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>Spaces Directory</span>
           </div>
         </div>
 

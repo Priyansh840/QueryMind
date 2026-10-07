@@ -136,7 +136,14 @@ function ChatPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Check URL query parameters for goal-specific prefill
+  // High-Leverage Daily Sprint State
+  const [dailySprint, setDailySprint] = useState<{
+    taskTitle: string;
+    goalTitles: string[];
+    prompt: string;
+  } | null>(null);
+
+  // Check URL query parameters for goal-specific prefill & detect cross-goal sprint opportunities
   useEffect(() => {
     const qParam = searchParams.get("q");
     const goalIdParam = searchParams.get("goalId");
@@ -158,6 +165,54 @@ function ChatPageContent() {
         }).catch(() => {});
       }
     }
+
+    // Inspect active goals to extract highest-leverage cross-goal synergy for today's sprint
+    queryMindApi.getGoals().then((loadedGoals) => {
+      if (Array.isArray(loadedGoals) && loadedGoals.length >= 2) {
+        // Collect all pending tasks
+        const pendingTasks: Array<{ title: string; goalTitle: string }> = [];
+        loadedGoals.forEach((g: any) => {
+          const tasks = g.tasks || [];
+          tasks.forEach((t: any) => {
+            if (!t.completed && t.title) {
+              pendingTasks.push({ title: t.title, goalTitle: g.description });
+            }
+          });
+        });
+
+        // Find candidate tasks that appear across at least 2 active goals
+        for (let i = 0; i < pendingTasks.length; i++) {
+          const itemA = pendingTasks[i];
+          const matchedGoalTitles = new Set<string>([itemA.goalTitle]);
+
+          for (let j = 0; j < pendingTasks.length; j++) {
+            if (i === j) continue;
+            const itemB = pendingTasks[j];
+            if (itemA.goalTitle !== itemB.goalTitle) {
+              // Word overlap check for key CS concepts
+              const tA = itemA.title.toLowerCase();
+              const tB = itemB.title.toLowerCase();
+              const keywords = ["data structures", "algorithms", "operating system", "networks", "database", "dbms", "system design"];
+              const hasSharedKeyword = keywords.some((kw) => tA.includes(kw) && tB.includes(kw));
+
+              if (hasSharedKeyword || tA === tB) {
+                matchedGoalTitles.add(itemB.goalTitle);
+              }
+            }
+          }
+
+          if (matchedGoalTitles.size >= 2) {
+            const goalsList = Array.from(matchedGoalTitles);
+            setDailySprint({
+              taskTitle: itemA.title,
+              goalTitles: goalsList,
+              prompt: `Conduct a focused 30-minute high-yield practice sprint on "${itemA.title}". Provide core conceptual questions, common interview/exam traps, and ground your answers in my uploaded documents.`,
+            });
+            break;
+          }
+        }
+      }
+    }).catch(() => {});
   }, [searchParams]);
 
   // Auto-resize textarea
@@ -595,6 +650,55 @@ function ChatPageContent() {
                   title="Clear goal focus"
                 >
                   <X style={{ width: "12px", height: "12px" }} />
+                </button>
+              </div>
+            )}
+
+            {/* Today's High-Yield Sprint Recommendation (Cross-Goal Synergy) */}
+            {!focusedGoalDesc && dailySprint && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  padding: "5px 14px",
+                  borderRadius: "20px",
+                  background: "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%)",
+                  border: "1px solid rgba(139, 92, 246, 0.35)",
+                  color: "var(--text-primary)",
+                  fontSize: "12px",
+                  marginBottom: "14px",
+                  boxShadow: "0 2px 10px rgba(139, 92, 246, 0.15)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#A78BFA", fontWeight: 700 }}>
+                  <Zap style={{ width: "13px", height: "13px" }} />
+                  <span>High-Yield Synergy Sprint:</span>
+                </div>
+                <span style={{ color: "var(--text-secondary)", maxWidth: "340px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {dailySprint.taskTitle}
+                </span>
+                <span style={{ fontSize: "11px", color: "#A78BFA", fontWeight: 600 }}>
+                  ({dailySprint.goalTitles.length} Goals Waiting)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSend(dailySprint.prompt)}
+                  style={{
+                    background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
+                    border: "none",
+                    color: "#FFFFFF",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "3px 10px",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    marginLeft: "4px",
+                    boxShadow: "0 1px 4px rgba(139, 92, 246, 0.3)",
+                  }}
+                >
+                  Start Sprint ⚡
                 </button>
               </div>
             )}
