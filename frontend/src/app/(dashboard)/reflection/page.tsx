@@ -41,10 +41,10 @@ export default function ReflectionPage() {
   const totalSpaces = spaces.length;
 
   const weeklyStats = [
-    { label: "Documents Indexed", value: totalDocuments, icon: FileText, color: "#00f0ff" },
-    { label: "Active Spaces", value: totalSpaces, icon: FolderOpen, color: "#a855f7" },
-    { label: "Memories Formed", value: memoryCount, icon: Brain, color: "#22d3ee" },
-    { label: "Skills Registered", value: (userProfile.skills || []).length, icon: Sparkles, color: "#f472b6" },
+    { label: "Documents Indexed", value: totalDocuments, icon: FileText, color: "#60A5FA" },
+    { label: "Active Spaces", value: totalSpaces, icon: FolderOpen, color: "#8B5CF6" },
+    { label: "Memories Formed", value: memoryCount, icon: Brain, color: "#C084FC" },
+    { label: "Skills Registered", value: (userProfile.skills || []).length, icon: Sparkles, color: "#F472B6" },
   ];
 
   const handleGenerateReflection = async () => {
@@ -95,7 +95,13 @@ Provide a concise, 3-point personalized cognitive synthesis on my knowledge prog
             type="button"
             onClick={handleGenerateReflection}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:opacity-90 transition-all disabled:opacity-50 shadow-sm"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #FFFFFF",
+              color: "#000000",
+              boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-xs hover:opacity-90 transition-all disabled:opacity-50"
           >
             <Sparkles className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`} />
             <span>{isGenerating ? "Analyzing Workspace..." : "Generate AI Reflection"}</span>

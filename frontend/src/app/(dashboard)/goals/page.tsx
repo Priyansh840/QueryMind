@@ -178,10 +178,10 @@ export const computeGoalProgress = (
 
 const PRESET_CATEGORIES = [
   { id: "all", label: "All Goals" },
-  { id: "career", label: "Career & Projects", color: "#6366F1" },
-  { id: "knowledge", label: "Learning & Research", color: "#10B981" },
-  { id: "architecture", label: "System & Architecture", color: "#F59E0B" },
-  { id: "personal", label: "Personal Growth", color: "#EC4899" },
+  { id: "career", label: "Career & Projects", color: "#8B5CF6" },
+  { id: "knowledge", label: "Learning & Research", color: "#60A5FA" },
+  { id: "architecture", label: "System & Architecture", color: "#C084FC" },
+  { id: "personal", label: "Personal Growth", color: "#F472B6" },
 ];
 
 export default function GoalsPage() {
@@ -2438,7 +2438,7 @@ export default function GoalsPage() {
                     background: isDone
                       ? "#10B981"
                       : progress > 60
-                      ? "#6366F1"
+                      ? "#8B5CF6"
                       : progress > 25
                       ? "#F59E0B"
                       : "var(--border-strong)",

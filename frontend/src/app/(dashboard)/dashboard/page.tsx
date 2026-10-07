@@ -213,17 +213,26 @@ export default function DashboardPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "8px",
-              padding: "8px 16px",
+              padding: "7px 15px",
               borderRadius: "9999px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              fontSize: "13px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              fontSize: "12.5px",
               fontWeight: 600,
-              color: "var(--text-primary)",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              color: "var(--text-secondary)",
               cursor: "pointer",
               textDecoration: "none",
               transition: "all 0.15s ease",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+              e.currentTarget.style.color = "var(--text-primary)";
+              e.currentTarget.style.background = "var(--surface-hover)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
             }}
           >
             <Target style={{ width: "14px", height: "14px" }} />
@@ -236,17 +245,26 @@ export default function DashboardPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "8px",
-              padding: "8px 16px",
+              padding: "7px 15px",
               borderRadius: "9999px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              fontSize: "13px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.12)",
+              fontSize: "12.5px",
               fontWeight: 600,
-              color: "var(--text-primary)",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              color: "var(--text-secondary)",
               cursor: "pointer",
               textDecoration: "none",
               transition: "all 0.15s ease",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+              e.currentTarget.style.color = "var(--text-primary)";
+              e.currentTarget.style.background = "var(--surface-hover)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
             }}
           >
             <FolderKanban style={{ width: "14px", height: "14px" }} />
@@ -259,24 +277,25 @@ export default function DashboardPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "8px",
-              padding: "8px 16px",
+              padding: "7px 15px",
               borderRadius: "9999px",
-              background: isFocusMode ? "#FFFFFF" : "var(--surface)",
-              border: isFocusMode ? "1px solid #FFFFFF" : "1px solid var(--border)",
-              fontSize: "13px",
+              background: isFocusMode ? "#FFFFFF" : "rgba(255, 255, 255, 0.05)",
+              border: isFocusMode ? "1px solid #FFFFFF" : "1px solid rgba(255, 255, 255, 0.12)",
+              fontSize: "12.5px",
               fontWeight: 600,
-              color: isFocusMode ? "#000000" : "var(--text-primary)",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              color: isFocusMode ? "#000000" : "var(--text-secondary)",
+              boxShadow: isFocusMode ? "0 2px 10px rgba(255, 255, 255, 0.2)" : "none",
               cursor: "pointer",
               transition: "all 0.15s ease",
             }}
           >
             <span
               style={{
-                width: "8px",
-                height: "8px",
+                width: "7px",
+                height: "7px",
                 borderRadius: "50%",
-                background: isFocusMode ? "#000000" : "#737373",
+                background: isFocusMode ? "#10B981" : "#737373",
+                boxShadow: isFocusMode ? "0 0 6px #10B981" : "none",
               }}
             />
             <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
@@ -454,11 +473,11 @@ export default function DashboardPage() {
             recentObjects.slice(0, 4).map((obj) => {
               const icon =
                 obj.type === "Code" ? (
-                  <FileCode style={{ width: "18px", height: "18px" }} />
+                  <FileCode style={{ width: "16px", height: "16px" }} />
                 ) : obj.type === "Notes" ? (
-                  <BookOpen style={{ width: "18px", height: "18px" }} />
+                  <BookOpen style={{ width: "16px", height: "16px" }} />
                 ) : (
-                  <FileText style={{ width: "18px", height: "18px" }} />
+                  <FileText style={{ width: "16px", height: "16px" }} />
                 );
 
               return (
@@ -467,7 +486,7 @@ export default function DashboardPage() {
                   onClick={() => openObjectModal(obj)}
                   style={{
                     background: "var(--surface)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     border: "1px solid var(--border)",
                     boxShadow: "var(--shadow-xs)",
                     padding: "16px",
@@ -475,15 +494,25 @@ export default function DashboardPage() {
                     flexDirection: "column",
                     gap: "14px",
                     cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.transform = "translateY(0)";
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div
                       style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
+                        width: "34px",
+                        height: "34px",
+                        borderRadius: "8px",
                         background: "var(--surface-hover)",
+                        border: "1px solid var(--border)",
                         color: "var(--text-primary)",
                         display: "flex",
                         alignItems: "center",
@@ -518,7 +547,7 @@ export default function DashboardPage() {
                       width: "100%",
                       height: "4px",
                       borderRadius: "2px",
-                      background: "var(--surface-hover, var(--border))",
+                      background: "rgba(255, 255, 255, 0.08)",
                       overflow: "hidden",
                     }}
                   >
@@ -527,7 +556,7 @@ export default function DashboardPage() {
                         width: `${obj.progress || 0}%`,
                         height: "100%",
                         borderRadius: "2px",
-                        background: "var(--text-primary)",
+                        background: "#10B981",
                       }}
                     />
                   </div>
@@ -539,9 +568,9 @@ export default function DashboardPage() {
               style={{
                 gridColumn: "1 / -1",
                 padding: "24px 20px",
-                borderRadius: "16px",
-                border: "1px dashed var(--border-strong)",
-                background: "var(--surface-subtle)",
+                borderRadius: "14px",
+                border: "1px dashed rgba(255, 255, 255, 0.15)",
+                background: "rgba(255, 255, 255, 0.02)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -558,9 +587,8 @@ export default function DashboardPage() {
               </div>
               <Link
                 href="/vault"
-                className="btn btn-secondary"
                 style={{
-                  padding: "8px 14px",
+                  padding: "7px 14px",
                   fontSize: "12px",
                   fontWeight: 600,
                   display: "inline-flex",
@@ -568,6 +596,10 @@ export default function DashboardPage() {
                   gap: "6px",
                   whiteSpace: "nowrap",
                   textDecoration: "none",
+                  borderRadius: "8px",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  color: "var(--text-secondary)",
                 }}
               >
                 <Plus style={{ width: "14px", height: "14px" }} />
@@ -581,9 +613,9 @@ export default function DashboardPage() {
             <Link
               href="/vault"
               style={{
-                background: "var(--surface-subtle)",
-                borderRadius: "16px",
-                border: "1px dashed var(--border-strong)",
+                background: "rgba(255, 255, 255, 0.02)",
+                borderRadius: "14px",
+                border: "1px dashed rgba(255, 255, 255, 0.15)",
                 padding: "16px",
                 display: "flex",
                 flexDirection: "column",
@@ -592,6 +624,15 @@ export default function DashboardPage() {
                 gap: "8px",
                 textDecoration: "none",
                 cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.4)";
+                e.currentTarget.style.background = "rgba(139, 92, 246, 0.06)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)";
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)";
               }}
             >
               <Plus style={{ width: "20px", height: "20px", color: "var(--text-tertiary)" }} />
@@ -619,9 +660,9 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/goals"
-            style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", textDecoration: "underline" }}
+            style={{ fontSize: "12px", fontWeight: 500, color: "#60A5FA", textDecoration: "none" }}
           >
-            Manage Goals
+            Manage Goals →
           </Link>
         </div>
 
@@ -648,7 +689,7 @@ export default function DashboardPage() {
                   href="/goals"
                   style={{
                     background: "var(--surface)",
-                    borderRadius: "16px",
+                    borderRadius: "14px",
                     border: "1px solid var(--border)",
                     padding: "16px",
                     display: "flex",
@@ -658,16 +699,26 @@ export default function DashboardPage() {
                     color: "inherit",
                     transition: "all 0.15s ease",
                   }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
                 >
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <div
                         style={{
-                          width: "28px",
-                          height: "28px",
-                          borderRadius: "8px",
-                          background: "rgba(16, 185, 129, 0.12)",
-                          color: "#10B981",
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          background: "#0F172A",
+                          border: "1.5px solid #10B981",
+                          boxShadow: "0 0 10px rgba(16, 185, 129, 0.25)",
+                          color: "#34D399",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -678,12 +729,13 @@ export default function DashboardPage() {
                       </div>
                       <span
                         style={{
-                          fontSize: "11px",
+                          fontSize: "10.5px",
                           fontWeight: 700,
                           padding: "2px 8px",
-                          borderRadius: "10px",
+                          borderRadius: "9999px",
                           background: "rgba(16, 185, 129, 0.12)",
                           color: "#10B981",
+                          border: "1px solid rgba(16, 185, 129, 0.25)",
                         }}
                       >
                         ACTIVE
@@ -714,7 +766,7 @@ export default function DashboardPage() {
                         width: "100%",
                         height: "4px",
                         borderRadius: "2px",
-                        background: "var(--surface-hover, var(--border))",
+                        background: "rgba(255, 255, 255, 0.08)",
                         overflow: "hidden",
                       }}
                     >
@@ -723,7 +775,7 @@ export default function DashboardPage() {
                           width: `${progressPct}%`,
                           height: "100%",
                           borderRadius: "2px",
-                          background: "#10B981",
+                          background: "linear-gradient(90deg, #10B981, #059669)",
                         }}
                       />
                     </div>
@@ -742,7 +794,7 @@ export default function DashboardPage() {
                     }}
                   >
                     <span>{goal.category ? goal.category.toUpperCase() : "GENERAL"}</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "var(--text-secondary)", fontWeight: 600 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "#60A5FA", fontWeight: 500 }}>
                       View roadmap ➔
                     </span>
                   </div>
@@ -754,9 +806,9 @@ export default function DashboardPage() {
           <div
             style={{
               padding: "24px 20px",
-              borderRadius: "16px",
-              border: "1px dashed var(--border-strong)",
-              background: "var(--surface-subtle)",
+              borderRadius: "14px",
+              border: "1px dashed rgba(255, 255, 255, 0.15)",
+              background: "rgba(255, 255, 255, 0.02)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -774,18 +826,29 @@ export default function DashboardPage() {
             <Link
               href="/goals"
               style={{
-                padding: "8px 16px",
+                padding: "7px 15px",
                 borderRadius: "9999px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                fontSize: "12px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                fontSize: "12.5px",
                 fontWeight: 600,
-                color: "var(--text-primary)",
+                color: "var(--text-secondary)",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
+                transition: "all 0.15s ease",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+                e.currentTarget.style.color = "var(--text-primary)";
+                e.currentTarget.style.background = "var(--surface-hover)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
               }}
             >
               <Plus style={{ width: "13px", height: "13px" }} />

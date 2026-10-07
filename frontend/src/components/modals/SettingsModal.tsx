@@ -162,10 +162,11 @@ export default function SettingsModal() {
   ];
 
   const accentPresets = [
-    { name: "White", color: "#FFFFFF" },
+    { name: "Monochrome (Signature)", color: "#FFFFFF" },
     { name: "Emerald", color: "#10B981" },
-    { name: "Blue", color: "#3B82F6" },
-    { name: "Purple", color: "#A855F7" },
+    { name: "Violet", color: "#8B5CF6" },
+    { name: "Indigo", color: "#4F46E5" },
+    { name: "Blue", color: "#60A5FA" },
     { name: "Amber", color: "#F59E0B" },
     { name: "Rose", color: "#F43F5E" },
   ];

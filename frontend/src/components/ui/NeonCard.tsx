@@ -23,8 +23,8 @@ export default function NeonCard({
       whileHover={hover ? { y: -2 } : undefined}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-lg shadow-sm p-6",
-        hover && "hover:shadow-md transition-shadow",
+        "bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 text-[var(--text-primary)] transition-all duration-200",
+        hover && "hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
         onClick && "cursor-pointer",
         className
       )}

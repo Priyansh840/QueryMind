@@ -8,13 +8,13 @@ interface NavbarProps {
 
 export default function Navbar({ title }: NavbarProps) {
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-gray-200 bg-white sticky top-0 z-30">
+    <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--border)] bg-[var(--bg)] sticky top-0 z-30">
       {/* Left — page title */}
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-medium text-gray-900 tracking-tight">
+        <h1 className="text-base font-bold text-[var(--text-primary)] tracking-tight">
           {title || "Dashboard"}
         </h1>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 uppercase font-medium">
+        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[rgba(16,185,129,0.12)] text-[#10B981] border border-[rgba(16,185,129,0.25)] uppercase font-semibold font-mono tracking-wider">
           ONLINE
         </span>
       </div>
@@ -22,18 +22,18 @@ export default function Navbar({ title }: NavbarProps) {
       {/* Right — search + notifications */}
       <div className="flex items-center gap-3">
         {/* Quick search */}
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 text-xs hover:border-gray-300 hover:text-gray-900 transition-colors">
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] text-xs hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors">
           <Search className="w-3.5 h-3.5" />
           <span>Search...</span>
-          <kbd className="ml-4 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white text-[10px] border border-gray-200">
+          <kbd className="ml-4 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.06)] text-[10px] text-[var(--text-tertiary)] border border-[var(--border)]">
             <Command className="w-2.5 h-2.5" />K
           </kbd>
         </button>
 
         {/* Notification bell */}
-        <button className="relative p-2 rounded-md hover:bg-gray-100 transition-colors">
-          <Bell className="w-4 h-4 text-gray-500" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-gray-900 rounded-full border border-white" />
+        <button className="relative p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors">
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#10B981] rounded-full shadow-[0_0_6px_#10B981]" />
         </button>
       </div>
     </header>

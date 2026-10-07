@@ -88,9 +88,8 @@ export default function SpacesDirectoryPage() {
         >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <span className="alive-dot" />
-              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent)" }}>
-                Domain Memory Partitions
+              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981" }}>
+                # DOMAIN MEMORY PARTITIONS
               </span>
             </div>
             <h1

@@ -137,7 +137,7 @@ export default function MemoryPage() {
               type="button"
               onClick={fetchMemories}
               disabled={isRefreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1F1F1F] border border-white/10 text-xs text-white/80 hover:text-white hover:border-white/20 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.12)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[rgba(255,255,255,0.25)] hover:bg-[var(--surface-hover)] transition-all"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
               <span>Refresh</span>
@@ -146,7 +146,7 @@ export default function MemoryPage() {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white text-black font-semibold text-xs hover:opacity-90 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#FFFFFF] text-[#000000] font-semibold text-xs shadow-[0_2px_10px_rgba(255,255,255,0.15)] hover:bg-[#E5E5E5] transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Memory</span>
@@ -187,8 +187,8 @@ export default function MemoryPage() {
                 onClick={() => setActiveCategory(cat.type)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                   isActive
-                    ? "bg-white text-black border-white"
-                    : "bg-[#171717] border-white/10 text-[#9CA3AF] hover:text-white hover:border-white/20"
+                    ? "bg-[rgba(139,92,246,0.15)] text-[#C084FC] border-[rgba(139,92,246,0.3)] shadow-[0_0_8px_rgba(139,92,246,0.2)]"
+                    : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[rgba(255,255,255,0.2)]"
                 }`}
               >
                 <cat.icon className="w-3.5 h-3.5" />
@@ -271,7 +271,7 @@ export default function MemoryPage() {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-black font-semibold text-xs hover:opacity-90 transition-all shadow-sm mt-2"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#FFFFFF] text-[#000000] font-semibold text-xs shadow-[0_2px_10px_rgba(255,255,255,0.15)] hover:bg-[#E5E5E5] transition-all mt-2"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Your First Memory</span>
@@ -283,7 +283,7 @@ export default function MemoryPage() {
         <AnimatePresence>
           {showAddModal && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) setShowAddModal(false);
               }}
@@ -292,17 +292,17 @@ export default function MemoryPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="w-full max-w-md bg-[#212121] border border-white/15 rounded-2xl p-6 text-white shadow-2xl space-y-5"
+                className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 text-white shadow-2xl space-y-5"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <Sparkles className="w-4 h-4 text-purple-400" />
                     <span>Create Knowledge Memory</span>
                   </h3>
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="text-white/60 hover:text-white"
+                    className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -311,7 +311,7 @@ export default function MemoryPage() {
                 <form onSubmit={handleCreateMemory} className="space-y-4">
                   {/* Category Type */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#9CA3AF] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
                       Memory Type
                     </label>
                     <div className="grid grid-cols-4 gap-2">
@@ -327,8 +327,8 @@ export default function MemoryPage() {
                           onClick={() => setNewType(t.id)}
                           className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
                             newType === t.id
-                              ? "bg-white text-black border-white"
-                              : "bg-[#171717] border-white/10 text-white/70 hover:border-white/30"
+                              ? "bg-[rgba(139,92,246,0.2)] text-[#C084FC] border-[rgba(139,92,246,0.4)] shadow-[0_0_8px_rgba(139,92,246,0.25)]"
+                              : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-[var(--text-secondary)] hover:border-[rgba(255,255,255,0.2)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           {t.label}
@@ -339,7 +339,7 @@ export default function MemoryPage() {
 
                   {/* Content */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#9CA3AF] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
                       Memory Content
                     </label>
                     <textarea
@@ -347,20 +347,20 @@ export default function MemoryPage() {
                       value={newContent}
                       onChange={(e) => setNewContent(e.target.value)}
                       placeholder="e.g., Prefers async FastAPI over synchronous Flask for high-concurrency microservices."
-                      className="w-full bg-[#171717] border border-white/10 rounded-xl p-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/40 resize-none"
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-[rgba(139,92,246,0.5)] resize-none"
                       required
                     />
                   </div>
 
                   {/* Priority */}
                   <div>
-                    <label className="block text-xs font-semibold text-[#9CA3AF] mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
                       Importance Level
                     </label>
                     <select
                       value={newImportance}
                       onChange={(e) => setNewImportance(e.target.value)}
-                      className="w-full bg-[#171717] border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-white/40"
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl p-2.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[rgba(139,92,246,0.5)]"
                     >
                       <option value="high">High — Always reference in reasoning</option>
                       <option value="medium">Medium — Contextual reference</option>
@@ -373,14 +373,14 @@ export default function MemoryPage() {
                     <button
                       type="button"
                       onClick={() => setShowAddModal(false)}
-                      className="px-4 py-2 rounded-full text-xs font-semibold bg-[#2F2F2F] text-white hover:bg-[#3D3D3D] transition-all"
+                      className="px-4 py-2 rounded-full text-xs font-semibold bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.12)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-white transition-all"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting || !newContent.trim()}
-                      className="px-5 py-2 rounded-full text-xs font-semibold bg-white text-black hover:opacity-90 transition-all disabled:opacity-50 shadow-sm"
+                      className="px-5 py-2 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#000000] shadow-[0_2px_10px_rgba(255,255,255,0.15)] hover:bg-[#E5E5E5] transition-all disabled:opacity-50"
                     >
                       {isSubmitting ? "Saving..." : "Save Memory"}
                     </button>

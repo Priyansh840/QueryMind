@@ -162,8 +162,8 @@ export default function LoginPage() {
     <div 
       className="min-h-screen flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden"
       style={{
-        backgroundColor: "#000000",
-        color: "#EDEDED",
+        backgroundColor: "#09090B",
+        color: "#F4F4F5",
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
@@ -173,7 +173,7 @@ export default function LoginPage() {
         style={{
           width: "600px",
           height: "600px",
-          background: "radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)",
           filter: "blur(140px)",
           opacity: 0.8,
         }}
@@ -183,7 +183,7 @@ export default function LoginPage() {
       <div 
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)`,
+          backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px)`,
           backgroundSize: "32px 32px",
           opacity: 0.4,
         }}
@@ -194,10 +194,10 @@ export default function LoginPage() {
         className="relative z-10 w-full"
         style={{
           maxWidth: "420px",
-          background: "#121212",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
+          background: "#121215",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
           borderRadius: "22px",
-          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(99, 102, 241, 0.08)",
           backdropFilter: "blur(20px)",
           padding: "32px 28px",
         }}
@@ -210,15 +210,15 @@ export default function LoginPage() {
                 width: "52px",
                 height: "52px",
                 borderRadius: "14px",
-                background: "#171717",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
+                background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+                border: "1px solid rgba(139, 92, 246, 0.35)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 6px 18px rgba(0, 0, 0, 0.6)",
+                boxShadow: "0 0 20px rgba(139, 92, 246, 0.25)",
               }}
             >
-              <Brain style={{ width: "26px", height: "26px", color: "#FFFFFF" }} />
+              <Brain style={{ width: "26px", height: "26px", color: "#A78BFA" }} />
             </div>
             <span 
               style={{
@@ -228,7 +228,8 @@ export default function LoginPage() {
                 width: "12px",
                 height: "12px",
                 backgroundColor: "#10B981",
-                border: "2px solid #121212",
+                boxShadow: "0 0 6px #10B981",
+                border: "2px solid #121215",
                 borderRadius: "50%",
               }}
             />
@@ -278,7 +279,7 @@ export default function LoginPage() {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: "#10B981",
+                backgroundColor: "#6366F1",
               }}
             />
             STEP 1 OF 3 • AUTHENTICATION
@@ -289,8 +290,8 @@ export default function LoginPage() {
         <div 
           style={{
             marginTop: "22px",
-            background: "#0A0A0A",
-            border: "1px solid rgba(255, 255, 255, 0.07)",
+            background: "#0D0D10",
+            border: "1px solid rgba(255, 255, 255, 0.06)",
             borderRadius: "12px",
             padding: "4px",
             display: "flex",
@@ -309,9 +310,9 @@ export default function LoginPage() {
               fontSize: "12px",
               fontWeight: 600,
               borderRadius: "8px",
-              border: mode === "signin" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
-              background: mode === "signin" ? "#212121" : "transparent",
-              color: mode === "signin" ? "#FFFFFF" : "#A3A3A3",
+              border: mode === "signin" ? "1px solid rgba(139, 92, 246, 0.35)" : "1px solid transparent",
+              background: mode === "signin" ? "rgba(139, 92, 246, 0.15)" : "transparent",
+              color: mode === "signin" ? "#C084FC" : "#71717A",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",
@@ -325,7 +326,7 @@ export default function LoginPage() {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: mode === "signin" ? "#FFFFFF" : "transparent",
+                backgroundColor: mode === "signin" ? "#C084FC" : "transparent",
               }}
             />
             Sign In
@@ -342,9 +343,9 @@ export default function LoginPage() {
               fontSize: "12px",
               fontWeight: 600,
               borderRadius: "8px",
-              border: mode === "signup" ? "1px solid rgba(255, 255, 255, 0.14)" : "1px solid transparent",
-              background: mode === "signup" ? "#212121" : "transparent",
-              color: mode === "signup" ? "#FFFFFF" : "#A3A3A3",
+              border: mode === "signup" ? "1px solid rgba(139, 92, 246, 0.35)" : "1px solid transparent",
+              background: mode === "signup" ? "rgba(139, 92, 246, 0.15)" : "transparent",
+              color: mode === "signup" ? "#C084FC" : "#71717A",
               cursor: "pointer",
               transition: "all 150ms ease",
               display: "flex",
@@ -358,7 +359,7 @@ export default function LoginPage() {
                 width: "5px",
                 height: "5px",
                 borderRadius: "50%",
-                backgroundColor: mode === "signup" ? "#FFFFFF" : "transparent",
+                backgroundColor: mode === "signup" ? "#C084FC" : "transparent",
               }}
             />
             Create Space
@@ -787,7 +788,7 @@ export default function LoginPage() {
                 width: "36px",
                 height: "20px",
                 borderRadius: "9999px",
-                background: biometricEnabled ? "#FFFFFF" : "#262626",
+                background: biometricEnabled ? "#10B981" : "#262626",
                 border: "1px solid rgba(255, 255, 255, 0.12)",
                 cursor: "pointer",
                 position: "relative",
@@ -819,7 +820,7 @@ export default function LoginPage() {
               height: "44px",
               borderRadius: "10px",
               background: "#FFFFFF",
-              border: "none",
+              border: "1px solid #FFFFFF",
               color: "#000000",
               fontSize: "13px",
               fontWeight: 600,
@@ -828,24 +829,26 @@ export default function LoginPage() {
               justifyContent: "center",
               gap: "8px",
               cursor: "pointer",
-              boxShadow: "0 4px 16px rgba(255, 255, 255, 0.15)",
+              boxShadow: "0 2px 12px rgba(255, 255, 255, 0.15)",
               transition: "all 150ms ease",
               opacity: loading ? 0.7 : 1,
             }}
             onMouseEnter={(e) => {
               if (!loading) {
-                e.currentTarget.style.background = "#E5E5E5";
+                e.currentTarget.style.boxShadow = "0 4px 18px rgba(124, 58, 237, 0.5)";
+                e.currentTarget.style.filter = "brightness(1.08)";
                 e.currentTarget.style.transform = "translateY(-1px)";
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#FFFFFF";
+              e.currentTarget.style.boxShadow = "0 2px 12px rgba(124, 58, 237, 0.35)";
+              e.currentTarget.style.filter = "none";
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
             {loading ? (
               <>
-                <Loader2 style={{ width: "15px", height: "15px", color: "#000000" }} className="animate-spin" />
+                <Loader2 style={{ width: "15px", height: "15px", color: "#FFFFFF" }} className="animate-spin" />
                 <span>Authenticating...</span>
               </>
             ) : (

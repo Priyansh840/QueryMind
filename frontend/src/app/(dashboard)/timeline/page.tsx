@@ -46,7 +46,7 @@ export default function TimelinePage() {
           id: `act-${act.id || idx}`,
           text: `${act.title}: ${act.text}`,
           icon: act.iconType === "document" ? FileText : Sparkles,
-          color: act.color || "#00f0ff",
+          color: act.color || "#8B5CF6",
           time: act.time || "Recently",
           timestamp: Date.now() - (idx + 1) * 1800000,
         });
@@ -61,7 +61,7 @@ export default function TimelinePage() {
               id: `mem-${mem.id}`,
               text: `Memory recorded (${mem.memory_type}): "${mem.content.slice(0, 60)}${mem.content.length > 60 ? "..." : ""}"`,
               icon: Brain,
-              color: "#3B82F6",
+              color: "#818CF8",
               time: new Date(mem.created_at || Date.now()).toLocaleDateString(),
               timestamp: new Date(mem.created_at || Date.now()).getTime(),
             });

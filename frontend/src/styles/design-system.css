@@ -11,7 +11,7 @@
   --surface: #141414;
   --surface-subtle: #1C1C1C;
   --surface-hover: #262626;
-  --sidebar-bg: #0D0D0D;
+  --sidebar-bg: #000000;
   --border: rgba(255, 255, 255, 0.14);
   --border-strong: rgba(255, 255, 255, 0.24);
   --divider: rgba(255, 255, 255, 0.12);
@@ -309,4 +309,57 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 6px;
   line-height: 1.2;
+}
+
+/* ==========================================================================
+   SIGNATURE RIGHT-SIDEBAR UI UTILITIES (Global Consistency)
+   ========================================================================== */
+.btn-primary {
+  background: #FFFFFF !important;
+  border: 1px solid #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.12) !important;
+  color: #000000 !important;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 150ms ease;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: #E5E5E5 !important;
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2) !important;
+}
+
+.btn-secondary {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 150ms ease;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.badge-violet {
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.badge-live {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-pod {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }

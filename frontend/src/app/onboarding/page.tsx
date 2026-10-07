@@ -82,7 +82,7 @@ export default function OnboardingPage() {
     <div 
       className="min-h-screen text-slate-100 flex flex-col justify-between items-center px-4 py-10 relative overflow-x-hidden"
       style={{
-        backgroundColor: "#000000",
+        backgroundColor: "#09090B",
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
@@ -92,9 +92,9 @@ export default function OnboardingPage() {
         style={{
           width: "800px",
           height: "800px",
-          background: "radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)",
           filter: "blur(140px)",
-          opacity: 0.7,
+          opacity: 0.8,
         }}
       />
 
@@ -116,15 +116,15 @@ export default function OnboardingPage() {
               width: "36px",
               height: "36px",
               borderRadius: "10px",
-              background: "#171717",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
+              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+              border: "1px solid rgba(139, 92, 246, 0.35)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.6)",
+              boxShadow: "0 0 16px rgba(139, 92, 246, 0.15)",
             }}
           >
-            <Brain style={{ width: "20px", height: "20px", color: "#FFFFFF" }} />
+            <Brain style={{ width: "20px", height: "20px", color: "#A78BFA" }} />
           </div>
           <div>
             <span style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "-0.02em", color: "#FFFFFF" }}>
@@ -203,17 +203,17 @@ export default function OnboardingPage() {
                 key={interest.id}
                 onClick={() => toggleInterest(interest.id)}
                 style={{
-                  background: isSelected ? "#1A1A1A" : "#121212",
+                  background: isSelected ? "#18181C" : "#121215",
                   border: isSelected 
-                    ? "1px solid #FFFFFF" 
-                    : "1px solid rgba(255, 255, 255, 0.14)",
+                    ? "1px solid rgba(139, 92, 246, 0.5)" 
+                    : "1px solid rgba(255, 255, 255, 0.08)",
                   borderRadius: "16px",
                   padding: "18px",
                   cursor: "pointer",
                   transition: "all 150ms ease",
                   position: "relative",
                   boxShadow: isSelected 
-                    ? "0 8px 24px -6px rgba(255, 255, 255, 0.08)" 
+                    ? "0 8px 24px -6px rgba(124, 58, 237, 0.3)" 
                     : "0 2px 8px rgba(0, 0, 0, 0.5)",
                 }}
                 className="hover:border-slate-500/40 group"
@@ -228,7 +228,7 @@ export default function OnboardingPage() {
                     height: "22px",
                     borderRadius: "6px",
                     background: isSelected ? "#10B981" : "rgba(255, 255, 255, 0.04)",
-                    border: isSelected ? "none" : "1px solid rgba(255, 255, 255, 0.1)",
+                    border: isSelected ? "1px solid #10B981" : "1px solid rgba(255, 255, 255, 0.1)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -352,28 +352,36 @@ export default function OnboardingPage() {
                 height: "42px",
                 padding: "0 22px",
                 borderRadius: "10px",
-                background: previewSpaces.length === 0 ? "rgba(255, 255, 255, 0.2)" : "#FFFFFF",
-                border: "none",
-                color: previewSpaces.length === 0 ? "#737373" : "#000000",
+                background: previewSpaces.length === 0
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : "#FFFFFF",
+                border: previewSpaces.length === 0
+                  ? "none"
+                  : "1px solid #FFFFFF",
+                color: previewSpaces.length === 0 ? "#71717A" : "#000000",
                 fontSize: "13px",
                 fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
                 cursor: previewSpaces.length === 0 ? "not-allowed" : "pointer",
-                boxShadow: previewSpaces.length === 0 ? "none" : "0 4px 16px rgba(255, 255, 255, 0.15)",
+                boxShadow: previewSpaces.length === 0
+                  ? "none"
+                  : "0 4px 16px rgba(255, 255, 255, 0.15)",
                 transition: "all 150ms ease",
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 if (previewSpaces.length > 0) {
-                  e.currentTarget.style.background = "#E5E5E5";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(124, 58, 237, 0.5)";
+                  e.currentTarget.style.filter = "brightness(1.08)";
                   e.currentTarget.style.transform = "translateY(-1px)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (previewSpaces.length > 0) {
-                  e.currentTarget.style.background = "#FFFFFF";
+                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(124, 58, 237, 0.35)";
+                  e.currentTarget.style.filter = "none";
                   e.currentTarget.style.transform = "translateY(0)";
                 }
               }}

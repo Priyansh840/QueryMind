@@ -889,7 +889,20 @@ export default function SpaceDetailPage({
                     onClick={() => openObjectModal(obj)}
                   >
                     <div className="continue-card-top">
-                      <div className="continue-card-icon" style={{ background: "var(--surface-hover)", color: "var(--text-primary)" }}>
+                      <div
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "8px",
+                          background: "var(--surface-hover)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-primary)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.2" fill="none">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />

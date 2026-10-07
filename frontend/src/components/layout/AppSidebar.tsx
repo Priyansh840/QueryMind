@@ -17,6 +17,7 @@ import {
   Moon,
   Sun,
   BookOpen,
+  Brain,
 } from "lucide-react";
 
 export default function AppSidebar() {
@@ -122,7 +123,9 @@ export default function AppSidebar() {
         title="QueryMind Home"
         style={{ cursor: "pointer", textDecoration: "none" }}
       >
-        <div className="sidebar-logo-circle">Q</div>
+        <div className="sidebar-logo-circle">
+          <Brain style={{ width: "18px", height: "18px" }} />
+        </div>
         <span className="sidebar-logo-text">QueryMind</span>
       </Link>
 
@@ -295,8 +298,8 @@ export default function AppSidebar() {
                       <span
                         className="space-dot"
                         style={{
-                          background: isSpaceActive ? "#FFFFFF" : "#737373",
-                          boxShadow: "none",
+                          background: isSpaceActive ? "#C084FC" : "#64748B",
+                          boxShadow: isSpaceActive ? "0 0 8px rgba(192, 132, 252, 0.6)" : "none",
                         }}
                       />
                     </span>
@@ -335,8 +338,10 @@ export default function AppSidebar() {
             onClick={openCreateSpace}
             style={{
               marginTop: "8px",
-              border: "1px dashed var(--border-strong)",
-              opacity: 0.75,
+              border: "1px dashed rgba(139, 92, 246, 0.35)",
+              color: "#C084FC",
+              background: "rgba(139, 92, 246, 0.06)",
+              opacity: 0.9,
               justifyContent: "center",
               fontSize: "12px",
               padding: "6px 12px",
@@ -380,8 +385,9 @@ export default function AppSidebar() {
                     width: "28px",
                     height: "28px",
                     borderRadius: "50%",
-                    background: "#D97706",
-                    color: "#FFFFFF",
+                    background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+                    border: "1px solid rgba(139, 92, 246, 0.35)",
+                    color: "#A78BFA",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -402,15 +408,15 @@ export default function AppSidebar() {
                   )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
                     {userProfile.name}
                   </span>
-                  <span style={{ fontSize: "11px", color: "#8E8E93" }}>
+                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
                     {userProfile.username ? `@${userProfile.username}` : "Free"}
                   </span>
                 </div>
               </div>
-              <ChevronRight size={14} style={{ color: "#8E8E93" }} />
+              <ChevronRight size={14} style={{ color: "var(--text-tertiary)" }} />
             </div>
 
             <div className="chatgpt-popover-divider" />
@@ -424,7 +430,7 @@ export default function AppSidebar() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
-                <Sparkles size={16} style={{ color: "#D1D5DB" }} />
+                <Sparkles size={16} style={{ color: "var(--text-secondary)" }} />
                 <span>Personalization</span>
               </div>
             </div>
@@ -438,7 +444,7 @@ export default function AppSidebar() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
-                <User size={16} style={{ color: "#D1D5DB" }} />
+                <User size={16} style={{ color: "var(--text-secondary)" }} />
                 <span>Profile</span>
               </div>
             </div>
@@ -452,7 +458,7 @@ export default function AppSidebar() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
-                <Settings size={16} style={{ color: "#D1D5DB" }} />
+                <Settings size={16} style={{ color: "var(--text-secondary)" }} />
                 <span>Settings</span>
               </div>
             </div>
@@ -469,10 +475,10 @@ export default function AppSidebar() {
               style={{ justifyContent: "space-between" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <HelpCircle size={16} style={{ color: "#D1D5DB" }} />
+                <HelpCircle size={16} style={{ color: "var(--text-secondary)" }} />
                 <span>Help & User Manual</span>
               </div>
-              <ChevronRight size={14} style={{ color: "#8E8E93" }} />
+              <ChevronRight size={14} style={{ color: "var(--text-tertiary)" }} />
             </div>
 
             {/* Log out */}
@@ -481,7 +487,7 @@ export default function AppSidebar() {
               onClick={handleLogout}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
-                <LogOut size={16} style={{ color: "#D1D5DB" }} />
+                <LogOut size={16} style={{ color: "var(--text-secondary)" }} />
                 <span>Log out</span>
               </div>
             </div>
@@ -503,7 +509,7 @@ export default function AppSidebar() {
             borderRadius: "12px",
             cursor: "pointer",
             transition: "background 150ms ease",
-            background: isMenuOpen ? "rgba(255, 255, 255, 0.08)" : "transparent",
+            background: isMenuOpen ? "var(--surface-hover)" : "transparent",
             width: "100%",
           }}
         >
@@ -513,8 +519,9 @@ export default function AppSidebar() {
                 width: "32px",
                 height: "32px",
                 borderRadius: "50%",
-                background: "#D97706",
-                color: "#FFFFFF",
+                background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+                border: "1px solid rgba(139, 92, 246, 0.35)",
+                color: "#A78BFA",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -540,7 +547,7 @@ export default function AppSidebar() {
                 style={{
                   fontSize: "13px",
                   fontWeight: 600,
-                  color: "#FFFFFF",
+                  color: "var(--text-primary)",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -551,7 +558,7 @@ export default function AppSidebar() {
               <span
                 style={{
                   fontSize: "11px",
-                  color: "#8E8E93",
+                  color: "var(--text-tertiary)",
                   lineHeight: "1.2",
                 }}
               >
@@ -560,7 +567,7 @@ export default function AppSidebar() {
             </div>
           </div>
 
-          <span className="user-chevron" style={{ color: "#8E8E93", display: "flex", alignItems: "center" }}>
+          <span className="user-chevron" style={{ color: "var(--text-tertiary)", display: "flex", alignItems: "center" }}>
             <ChevronRight size={16} />
           </span>
         </div>

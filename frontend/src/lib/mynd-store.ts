@@ -1192,7 +1192,7 @@ export const useMyndStore = create<MyndState>()(
         if (!state.theme || state.theme === "light") {
           state.theme = "dark";
         }
-        if (!state.accentColor) state.accentColor = "#FFFFFF";
+        if (!state.accentColor || state.accentColor === "#8B5CF6") state.accentColor = "#FFFFFF";
         if (!state.uiDensity) state.uiDensity = "comfortable";
         if (state.reduceMotion === undefined) state.reduceMotion = false;
         if (state.soundEffects === undefined) state.soundEffects = true;

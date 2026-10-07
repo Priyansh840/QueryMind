@@ -118,26 +118,34 @@
 }
 
 .continue-card-icon {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--r-sm);
+  border-radius: 50%;
+  background: #0F172A;
+  border: 1.5px solid #3B82F6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+  color: #60A5FA;
 }
 
-/* Card type colorings */
+/* Card type colorings (Harmonized to Right Sidebar Pipeline & Nodes) */
 .continue-card[data-type="document"] .continue-card-icon {
-  background: #EEF2FF;
-  color: var(--accent);
+  background: #0F172A;
+  border: 1.5px solid #3B82F6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+  color: #60A5FA;
 }
 .continue-card[data-type="notes"] .continue-card-icon {
-  background: #FEF3C7;
-  color: #D97706;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 .continue-card[data-type="code"] .continue-card-icon {
-  background: #ECFDF5;
-  color: #059669;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 
 .continue-card-info {
@@ -171,7 +179,7 @@
 
 .continue-card-progress-fill {
   height: 100%;
-  background: var(--accent);
+  background: #10B981;
   border-radius: var(--r-full);
 }
 
@@ -200,9 +208,9 @@
 }
 
 .new-capture-card:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #C084FC;
+  background: rgba(139, 92, 246, 0.08);
 }
 
 .new-capture-icon {
@@ -311,14 +319,14 @@
   width: 72px;
   height: 72px;
   border-radius: var(--r-full);
-  background: #EEF2FF;
-  border: 1px solid var(--accent-soft);
+  background: var(--surface);
+  border: 2px solid rgba(139, 92, 246, 0.45);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--s-4);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   z-index: 12;
   cursor: grab;
 }
@@ -327,8 +335,9 @@
   width: 28px;
   height: 28px;
   border-radius: var(--r-full);
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -351,7 +360,7 @@
 }
 
 .map-svg-line {
-  stroke: #E2E8F0;
+  stroke: var(--border-strong, rgba(255, 255, 255, 0.16));
   stroke-width: 1.5;
   fill: none;
 }

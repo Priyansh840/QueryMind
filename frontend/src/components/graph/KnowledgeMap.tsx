@@ -42,6 +42,7 @@ interface MindNode {
   category: "document" | "concept" | "note" | "research" | "goal" | "general";
   color: string;
   bgColor: string;
+  borderColor?: string;
   icon: React.ReactNode;
   x: number;
   y: number;
@@ -91,46 +92,51 @@ export default function KnowledgeMap() {
   const [uploadToast, setUploadToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to assign vibrant visual styles based on knowledge category
+  // Helper to assign vibrant visual styles based on knowledge category (matching Right Sidebar nodes)
   const getCategoryStyles = useCallback((type: string) => {
     const t = type.toLowerCase();
     if (t.includes("doc") || t.includes("pdf") || t.includes("txt") || t.includes("report")) {
       return {
         category: "document" as const,
-        color: "#10B981",
-        bgColor: "rgba(16, 185, 129, 0.15)",
-        icon: <FileText style={{ width: "14px", height: "14px", color: "#10B981" }} />,
+        color: "#60A5FA",
+        borderColor: "#3B82F6",
+        bgColor: "rgba(59, 130, 246, 0.15)",
+        icon: <FileText style={{ width: "14px", height: "14px", color: "#60A5FA" }} />,
       };
     }
     if (t.includes("concept") || t.includes("arch") || t.includes("system")) {
       return {
         category: "concept" as const,
-        color: "#8B5CF6",
+        color: "#C084FC",
+        borderColor: "#8B5CF6",
         bgColor: "rgba(139, 92, 246, 0.15)",
-        icon: <BrainCircuit style={{ width: "14px", height: "14px", color: "#8B5CF6" }} />,
+        icon: <BrainCircuit style={{ width: "14px", height: "14px", color: "#C084FC" }} />,
       };
     }
     if (t.includes("research") || t.includes("code") || t.includes("engine")) {
       return {
         category: "research" as const,
-        color: "#0284C7",
-        bgColor: "rgba(2, 132, 199, 0.15)",
-        icon: <FileCode style={{ width: "14px", height: "14px", color: "#0284C7" }} />,
+        color: "#818CF8",
+        borderColor: "#6366F1",
+        bgColor: "rgba(99, 102, 241, 0.15)",
+        icon: <FileCode style={{ width: "14px", height: "14px", color: "#818CF8" }} />,
       };
     }
     if (t.includes("goal") || t.includes("matrix") || t.includes("career")) {
       return {
         category: "goal" as const,
-        color: "#F59E0B",
-        bgColor: "rgba(245, 158, 11, 0.15)",
-        icon: <Target style={{ width: "14px", height: "14px", color: "#F59E0B" }} />,
+        color: "#F472B6",
+        borderColor: "#EC4899",
+        bgColor: "rgba(236, 72, 153, 0.15)",
+        icon: <Target style={{ width: "14px", height: "14px", color: "#F472B6" }} />,
       };
     }
     return {
       category: "note" as const,
-      color: "#EC4899",
-      bgColor: "rgba(236, 72, 153, 0.15)",
-      icon: <BookOpen style={{ width: "14px", height: "14px", color: "#EC4899" }} />,
+      color: "#FBBF24",
+      borderColor: "#F59E0B",
+      bgColor: "rgba(245, 158, 11, 0.15)",
+      icon: <BookOpen style={{ width: "14px", height: "14px", color: "#FBBF24" }} />,
     };
   }, []);
 
@@ -503,10 +509,10 @@ export default function KnowledgeMap() {
   return (
     <div
       style={{
-        background: "var(--surface, #FFFFFF)",
+        background: "var(--surface)",
         borderRadius: "18px",
-        border: "1px solid var(--border, #E5E7EB)",
-        boxShadow: "0 4px 20px -4px rgba(0, 0, 0, 0.05)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 4px 20px -4px rgba(0, 0, 0, 0.25)",
         padding: "20px 24px",
         display: "flex",
         flexDirection: "column",
@@ -530,8 +536,10 @@ export default function KnowledgeMap() {
               width: "32px",
               height: "32px",
               borderRadius: "10px",
-              background: "rgba(139, 92, 246, 0.15)",
-              color: "#8B5CF6",
+              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+              border: "1px solid rgba(139, 92, 246, 0.35)",
+              color: "#A78BFA",
+              boxShadow: "0 0 16px rgba(139, 92, 246, 0.15)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -541,7 +549,7 @@ export default function KnowledgeMap() {
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary, #111827)", margin: 0 }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
                 Knowledge Base & Neural Map
               </h3>
               <span
@@ -549,8 +557,8 @@ export default function KnowledgeMap() {
                   fontSize: "11px",
                   fontWeight: 600,
                   color: "#10B981",
-                  background: "rgba(16, 185, 129, 0.15)",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  background: "rgba(16, 185, 129, 0.12)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
                   padding: "2px 8px",
                   borderRadius: "9999px",
                   display: "inline-flex",
@@ -562,7 +570,7 @@ export default function KnowledgeMap() {
                 {nodes.length} Live Items
               </span>
             </div>
-            <p style={{ fontSize: "12px", color: "var(--text-tertiary, #6B7280)", margin: 0, marginTop: "2px" }}>
+            <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: 0, marginTop: "2px" }}>
               Connected to PostgreSQL & Qdrant Vector Engine
             </p>
           </div>
@@ -584,7 +592,7 @@ export default function KnowledgeMap() {
                 left: "10px",
                 width: "14px",
                 height: "14px",
-                color: "var(--text-tertiary, #9CA3AF)",
+                color: "var(--text-tertiary)",
               }}
             />
             <input
@@ -596,9 +604,9 @@ export default function KnowledgeMap() {
                 padding: "6px 12px 6px 30px",
                 fontSize: "12px",
                 borderRadius: "8px",
-                border: "1px solid var(--border, #E5E7EB)",
-                background: "var(--surface-subtle, #F9FAFB)",
-                color: "var(--text-primary, #111827)",
+                border: "1px solid var(--border)",
+                background: "var(--surface-subtle)",
+                color: "var(--text-primary)",
                 outline: "none",
                 width: "160px",
                 transition: "width 150ms ease, border-color 150ms ease",
@@ -613,10 +621,10 @@ export default function KnowledgeMap() {
             style={{
               display: "flex",
               alignItems: "center",
-              background: "var(--surface-subtle, #F3F4F6)",
+              background: "var(--surface-subtle)",
               padding: "2px",
               borderRadius: "8px",
-              border: "1px solid var(--border, #E5E7EB)",
+              border: "1px solid var(--border)",
             }}
           >
             <button
@@ -631,9 +639,9 @@ export default function KnowledgeMap() {
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
-                background: viewMode === "graph" ? "var(--surface, #FFFFFF)" : "transparent",
-                color: viewMode === "graph" ? "var(--text-primary, #111827)" : "var(--text-tertiary, #6B7280)",
-                boxShadow: viewMode === "graph" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                background: viewMode === "graph" ? "var(--surface)" : "transparent",
+                color: viewMode === "graph" ? "var(--text-primary)" : "var(--text-tertiary)",
+                boxShadow: viewMode === "graph" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
               }}
               title="Graph View"
             >
@@ -652,9 +660,9 @@ export default function KnowledgeMap() {
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
-                background: viewMode === "cards" ? "var(--surface, #FFFFFF)" : "transparent",
-                color: viewMode === "cards" ? "var(--text-primary, #111827)" : "var(--text-tertiary, #6B7280)",
-                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                background: viewMode === "cards" ? "var(--surface)" : "transparent",
+                color: viewMode === "cards" ? "var(--text-primary)" : "var(--text-tertiary)",
+                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
               }}
               title="Knowledge Cards View"
             >
@@ -671,9 +679,9 @@ export default function KnowledgeMap() {
                 width: "28px",
                 height: "28px",
                 borderRadius: "6px",
-                border: "1px solid var(--border, #E5E7EB)",
-                background: "var(--surface, #FFFFFF)",
-                color: "var(--text-secondary, #4B5563)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-secondary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -689,9 +697,9 @@ export default function KnowledgeMap() {
                 width: "28px",
                 height: "28px",
                 borderRadius: "6px",
-                border: "1px solid var(--border, #E5E7EB)",
-                background: "var(--surface, #FFFFFF)",
-                color: "var(--text-secondary, #4B5563)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-secondary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -707,9 +715,9 @@ export default function KnowledgeMap() {
                 width: "28px",
                 height: "28px",
                 borderRadius: "6px",
-                border: "1px solid var(--border, #E5E7EB)",
-                background: "var(--surface, #FFFFFF)",
-                color: "var(--text-secondary, #4B5563)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-secondary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -725,9 +733,9 @@ export default function KnowledgeMap() {
                 width: "28px",
                 height: "28px",
                 borderRadius: "6px",
-                border: "1px solid var(--border, #E5E7EB)",
-                background: "var(--surface, #FFFFFF)",
-                color: "var(--text-secondary, #4B5563)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-secondary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -753,10 +761,10 @@ export default function KnowledgeMap() {
       >
         {[
           { id: "all", label: "All Items", count: categoryCounts.all, color: "#8B5CF6" },
-          { id: "document", label: "Documents", count: categoryCounts.document, color: "#10B981" },
-          { id: "concept", label: "Concepts & Systems", count: categoryCounts.concept, color: "#8B5CF6" },
-          { id: "note", label: "Notes & Captures", count: categoryCounts.note, color: "#EC4899" },
-          { id: "research", label: "Research & Code", count: categoryCounts.research, color: "#0284C7" },
+          { id: "document", label: "Documents", count: categoryCounts.document, color: "#60A5FA" },
+          { id: "concept", label: "Concepts & Systems", count: categoryCounts.concept, color: "#C084FC" },
+          { id: "note", label: "Notes & Captures", count: categoryCounts.note, color: "#FBBF24" },
+          { id: "research", label: "Research & Code", count: categoryCounts.research, color: "#818CF8" },
         ].map((cat) => {
           const isActive = activeCategory === cat.id;
           return (
@@ -772,9 +780,9 @@ export default function KnowledgeMap() {
                 fontSize: "12px",
                 fontWeight: 600,
                 cursor: "pointer",
-                border: isActive ? `1.5px solid ${cat.color}` : "1px solid var(--border, #E5E7EB)",
-                background: isActive ? `${cat.color}15` : "var(--surface-subtle, #F9FAFB)",
-                color: isActive ? cat.color : "var(--text-secondary, #4B5563)",
+                border: isActive ? `1.5px solid ${cat.color}` : "1px solid var(--border)",
+                background: isActive ? `${cat.color}18` : "var(--surface)",
+                color: isActive ? cat.color : "var(--text-secondary)",
                 transition: "all 150ms ease",
                 whiteSpace: "nowrap",
               }}
@@ -785,8 +793,8 @@ export default function KnowledgeMap() {
                   fontSize: "11px",
                   padding: "1px 6px",
                   borderRadius: "9999px",
-                  background: isActive ? cat.color : "var(--border, #E5E7EB)",
-                  color: isActive ? "#FFFFFF" : "var(--text-tertiary, #6B7280)",
+                  background: isActive ? cat.color : "rgba(255, 255, 255, 0.08)",
+                  color: isActive ? "#FFFFFF" : "var(--text-tertiary)",
                   fontWeight: 700,
                 }}
               >
@@ -806,10 +814,10 @@ export default function KnowledgeMap() {
           style={{
             position: "relative",
             height: "480px",
-            background: "var(--canvas-bg, radial-gradient(circle at center, #FAFAFE 0%, #F4F4F8 100%))",
+            background: "var(--canvas-bg, radial-gradient(ellipse at center, #13131D 0%, #0B0B0F 100%))",
             borderRadius: "16px",
             overflow: "hidden",
-            border: "1px solid var(--canvas-border, var(--border, #E5E7EB))",
+            border: "1px solid var(--canvas-border, var(--border))",
             userSelect: "none",
             cursor: isDragging ? "grabbing" : "default",
           }}
@@ -858,8 +866,8 @@ export default function KnowledgeMap() {
           >
             <defs>
               <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.2" />
+                <stop offset="0%" stopColor="#4F46E5" stopOpacity="0.45" />
+                <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.35" />
               </linearGradient>
             </defs>
 
@@ -870,7 +878,7 @@ export default function KnowledgeMap() {
                 <g key={`edge-group-${node.id}`}>
                   <path
                     d={renderPath(hubPos.x, hubPos.y, node.x, node.y)}
-                    stroke={isSelected || isHovered ? node.color : "var(--border-strong, #374151)"}
+                    stroke={isSelected || isHovered ? node.color : "rgba(255, 255, 255, 0.12)"}
                     strokeWidth={isSelected || isHovered ? "2.5" : "1.5"}
                     strokeDasharray={isSelected ? "none" : "3,3"}
                     fill="none"
@@ -914,9 +922,9 @@ export default function KnowledgeMap() {
                 width: "60px",
                 height: "60px",
                 borderRadius: "50%",
-                background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
-                border: "3px solid var(--node-bg, #FFFFFF)",
-                boxShadow: "0 6px 20px rgba(139, 92, 246, 0.35)",
+                background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
+                border: "2px solid rgba(139, 92, 246, 0.45)",
+                boxShadow: "0 0 24px rgba(124, 58, 237, 0.45)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -931,7 +939,8 @@ export default function KnowledgeMap() {
                   bottom: "-2px",
                   right: "-2px",
                   background: "#10B981",
-                  border: "2px solid var(--node-bg, #FFFFFF)",
+                  boxShadow: "0 0 6px #10B981",
+                  border: "2px solid var(--surface)",
                   borderRadius: "50%",
                   width: "12px",
                   height: "12px",
@@ -943,17 +952,17 @@ export default function KnowledgeMap() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                background: "var(--node-bg, var(--surface, #FFFFFF))",
+                background: "var(--surface)",
                 padding: "3px 12px",
                 borderRadius: "14px",
-                border: "1px solid var(--border, #E5E7EB)",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                border: "1px solid var(--border)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
               }}
             >
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary, #111827)" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>
                 {currentSpace?.name || "General Space"}
               </span>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "#8B5CF6" }}>
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "#C084FC" }}>
                 Core Brain Hub
               </span>
             </div>
@@ -982,7 +991,7 @@ export default function KnowledgeMap() {
             </div>
           )}
 
-          {/* Satellite Knowledge & Document Nodes */}
+          {/* Satellite Knowledge & Document Nodes (Pods matching Right Sidebar) */}
           {filteredNodes.map((node) => {
             const isSelected = selectedNodeId === node.id || selectedObject?.id === node.id;
             const isHovered = hoveredNodeId === node.id;
@@ -1003,16 +1012,16 @@ export default function KnowledgeMap() {
                   top: `${node.y}px`,
                   transform: `translate(-50%, -50%) scale(${zoom * (isSelected ? 1.08 : isHovered ? 1.04 : 1)})`,
                   zIndex: isSelected ? 20 : isHovered ? 15 : 5,
-                  background: "var(--node-bg, var(--surface, #FFFFFF))",
+                  background: "var(--surface)",
                   border: isSelected
                     ? `2px solid ${node.color}`
-                    : `1px solid ${isHovered ? node.color : "var(--node-border, rgba(0,0,0,0.08))"}`,
+                    : `1px solid ${isHovered ? node.color : "var(--border)"}`,
                   boxShadow: isSelected
-                    ? `0 6px 20px ${node.color}35`
+                    ? `0 0 16px ${node.color}40`
                     : isHovered
-                    ? "var(--node-hover-shadow, 0 6px 16px rgba(0, 0, 0, 0.08))"
-                    : "var(--node-shadow, 0 2px 6px rgba(0, 0, 0, 0.04))",
-                  borderRadius: "14px",
+                    ? "0 4px 16px rgba(0, 0, 0, 0.35)"
+                    : "0 2px 8px rgba(0, 0, 0, 0.25)",
+                  borderRadius: "12px",
                   padding: "8px 12px",
                   display: "flex",
                   alignItems: "center",
@@ -1022,13 +1031,15 @@ export default function KnowledgeMap() {
                   maxWidth: "220px",
                 }}
               >
-                {/* Node Icon */}
+                {/* Node Pod Icon (Exact match to Right Sidebar Glowing Pods) */}
                 <div
                   style={{
                     width: "28px",
                     height: "28px",
-                    borderRadius: "8px",
-                    background: node.bgColor,
+                    borderRadius: "50%",
+                    background: "#0F172A",
+                    border: `1.5px solid ${node.borderColor || node.color}`,
+                    boxShadow: `0 0 8px ${node.color}35`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1044,7 +1055,7 @@ export default function KnowledgeMap() {
                     style={{
                       fontSize: "12px",
                       fontWeight: 600,
-                      color: "var(--text-primary, #111827)",
+                      color: "var(--text-primary)",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -1060,7 +1071,8 @@ export default function KnowledgeMap() {
                         fontWeight: 700,
                         textTransform: "uppercase",
                         color: node.color,
-                        background: `${node.color}15`,
+                        background: `${node.color}18`,
+                        border: `1px solid ${node.color}30`,
                         padding: "1px 5px",
                         borderRadius: "4px",
                       }}
@@ -1068,7 +1080,7 @@ export default function KnowledgeMap() {
                       {node.category}
                     </span>
                     {node.confidence && (
-                      <span style={{ fontSize: "10px", color: "var(--text-tertiary, #6B7280)" }}>
+                      <span style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>
                         {(node.confidence * 100).toFixed(0)}%
                       </span>
                     )}
@@ -1104,8 +1116,8 @@ export default function KnowledgeMap() {
                         padding: "4px 6px",
                         borderRadius: "6px",
                         border: "none",
-                        background: "var(--surface-subtle, #F3F4F6)",
-                        color: "var(--text-secondary, #4B5563)",
+                        background: "var(--surface-hover)",
+                        color: "var(--text-secondary)",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
@@ -1139,7 +1151,7 @@ export default function KnowledgeMap() {
                 gridColumn: "1 / -1",
                 padding: "36px",
                 textAlign: "center",
-                color: "var(--text-tertiary, #6B7280)",
+                color: "var(--text-tertiary)",
               }}
             >
               <Database style={{ width: "32px", height: "32px", margin: "0 auto 10px", opacity: 0.5 }} />
@@ -1156,15 +1168,15 @@ export default function KnowledgeMap() {
                   key={node.id}
                   onClick={() => handleSelectNode(node)}
                   style={{
-                    background: "var(--node-bg, var(--surface, #FFFFFF))",
-                    border: isSelected ? `2px solid ${node.color}` : "1px solid var(--border, #E5E7EB)",
+                    background: "var(--surface)",
+                    border: isSelected ? `2px solid ${node.color}` : "1px solid var(--border)",
                     borderRadius: "12px",
                     padding: "14px",
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
                     cursor: "pointer",
-                    boxShadow: isSelected ? `0 4px 14px ${node.color}25` : "var(--node-shadow, 0 1px 3px rgba(0,0,0,0.04))",
+                    boxShadow: isSelected ? `0 4px 14px ${node.color}25` : "0 2px 8px rgba(0,0,0,0.2)",
                     transition: "all 140ms ease",
                   }}
                 >
@@ -1174,8 +1186,10 @@ export default function KnowledgeMap() {
                         style={{
                           width: "28px",
                           height: "28px",
-                          borderRadius: "6px",
-                          background: node.bgColor,
+                          borderRadius: "50%",
+                          background: "#0F172A",
+                          border: `1.5px solid ${node.borderColor || node.color}`,
+                          boxShadow: `0 0 8px ${node.color}35`,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -1188,7 +1202,7 @@ export default function KnowledgeMap() {
                         style={{
                           fontSize: "13px",
                           fontWeight: 700,
-                          color: "var(--text-primary, #111827)",
+                          color: "var(--text-primary)",
                           margin: 0,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
@@ -1205,7 +1219,8 @@ export default function KnowledgeMap() {
                         fontWeight: 700,
                         textTransform: "uppercase",
                         color: node.color,
-                        background: `${node.color}15`,
+                        background: `${node.color}18`,
+                        border: `1px solid ${node.color}30`,
                         padding: "2px 6px",
                         borderRadius: "4px",
                         flexShrink: 0,
@@ -1219,7 +1234,7 @@ export default function KnowledgeMap() {
                     <p
                       style={{
                         fontSize: "12px",
-                        color: "var(--text-secondary, #4B5563)",
+                        color: "var(--text-secondary)",
                         margin: 0,
                         lineHeight: "1.45",
                         display: "-webkit-box",
@@ -1238,9 +1253,9 @@ export default function KnowledgeMap() {
                       alignItems: "center",
                       justifyContent: "space-between",
                       paddingTop: "6px",
-                      borderTop: "1px solid var(--border, #F3F4F6)",
+                      borderTop: "1px solid var(--border)",
                       fontSize: "11px",
-                      color: "var(--text-tertiary, #9CA3AF)",
+                      color: "var(--text-tertiary)",
                     }}
                   >
                     <span>
@@ -1255,8 +1270,8 @@ export default function KnowledgeMap() {
                         gap: "4px",
                         padding: "3px 8px",
                         borderRadius: "6px",
-                        border: "none",
-                        background: `${node.color}15`,
+                        border: `1px solid ${node.color}30`,
+                        background: `${node.color}18`,
                         color: node.color,
                         fontSize: "11px",
                         fontWeight: 600,
@@ -1274,18 +1289,18 @@ export default function KnowledgeMap() {
         </div>
       )}
 
-      {/* 4. Floating Quick Capture Bar (Real DB & Qdrant Persistence) */}
+      {/* 4. Floating Quick Capture Bar (Matching Right Sidebar Surface & Gradient Button) */}
       <form onSubmit={handleQuickCapture} style={{ marginTop: "4px" }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "10px",
-            background: "var(--node-bg, var(--surface, #FFFFFF))",
-            border: "1px solid var(--border, #E5E7EB)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             borderRadius: "9999px",
             padding: "6px 12px 6px 18px",
-            boxShadow: "0 2px 10px rgba(0, 0, 0, 0.05)",
+            boxShadow: "0 2px 10px rgba(0, 0, 0, 0.25)",
           }}
         >
           {/* Category Selector Pill */}
@@ -1297,9 +1312,9 @@ export default function KnowledgeMap() {
               fontWeight: 600,
               padding: "4px 8px",
               borderRadius: "9999px",
-              border: "1px solid var(--border, #E5E7EB)",
-              background: "var(--surface-subtle, #F9FAFB)",
-              color: "var(--text-secondary, #4B5563)",
+              border: "1px solid var(--border)",
+              background: "var(--surface-subtle)",
+              color: "var(--text-secondary)",
               outline: "none",
               cursor: "pointer",
             }}
@@ -1321,7 +1336,7 @@ export default function KnowledgeMap() {
               outline: "none",
               background: "transparent",
               fontSize: "13px",
-              color: "var(--text-primary, #111827)",
+              color: "var(--text-primary)",
               flex: 1,
             }}
           />
@@ -1333,14 +1348,14 @@ export default function KnowledgeMap() {
                 top: "-42px",
                 left: "50%",
                 transform: "translateX(-50%)",
-                background: "var(--surface, #FFFFFF)",
-                border: "1px solid var(--border, #E5E7EB)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
                 borderRadius: "8px",
                 padding: "6px 14px",
                 fontSize: "12px",
                 fontWeight: 600,
-                color: "var(--text-primary, #111827)",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                color: "var(--text-primary)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
@@ -1372,7 +1387,7 @@ export default function KnowledgeMap() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               style={{
-                color: "var(--text-tertiary, #6B7280)",
+                color: "var(--text-tertiary)",
                 padding: "4px",
                 background: "transparent",
                 border: "none",
@@ -1386,7 +1401,7 @@ export default function KnowledgeMap() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               style={{
-                color: "var(--text-tertiary, #6B7280)",
+                color: "var(--text-tertiary)",
                 padding: "4px",
                 background: "transparent",
                 border: "none",
@@ -1404,16 +1419,23 @@ export default function KnowledgeMap() {
                 width: "32px",
                 height: "32px",
                 borderRadius: "50%",
-                background: captureText.trim() ? "var(--accent-purple, #8B5CF6)" : "var(--surface-subtle, #1F2937)",
-                color: captureText.trim() ? "#FFFFFF" : "var(--text-tertiary, #6B7280)",
+                background: captureText.trim()
+                  ? "linear-gradient(135deg, #4F46E5, #7C3AED)"
+                  : "rgba(255, 255, 255, 0.05)",
+                border: captureText.trim()
+                  ? "1px solid rgba(139, 92, 246, 0.4)"
+                  : "1px solid var(--border)",
+                boxShadow: captureText.trim()
+                  ? "0 2px 10px rgba(124, 58, 237, 0.3)"
+                  : "none",
+                color: captureText.trim() ? "#FFFFFF" : "var(--text-tertiary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "none",
                 cursor: captureText.trim() ? "pointer" : "default",
                 flexShrink: 0,
                 opacity: isSubmittingCapture ? 0.6 : 1,
-                transition: "background 150ms ease",
+                transition: "all 150ms ease",
               }}
               title="Save Knowledge Item"
             >

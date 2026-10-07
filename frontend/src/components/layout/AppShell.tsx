@@ -181,8 +181,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
 
-        {/* 3. Right Context Panel (hidden on chat, focus mode & zen mode) */}
-        {!isFocusMode && !isZenMode && !isChat && <ContextPanel />}
+        {/* 3. Right Context Panel (hidden on focus mode & zen mode) */}
+        {!isFocusMode && !isZenMode && <ContextPanel />}
       </div>
 
       {/* Modals & Drawers */}

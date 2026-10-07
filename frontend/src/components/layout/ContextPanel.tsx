@@ -1,373 +1,112 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
-import { queryMindApi } from "@/lib/api";
 import {
-  MessageSquare,
   FileText,
-  Target,
+  MoreHorizontal,
+  X,
   CheckCircle2,
-  Circle,
-  Plus,
-  Trash2,
+  TrendingUp,
+  Lightbulb,
+  Sparkles,
+  MessageSquare,
   ArrowUpRight,
-  PanelRightClose,
-  PanelRightOpen,
-  Upload,
+  Code2,
   Copy,
   Check,
-  Search,
-  Sparkles,
-  RefreshCw,
-  AlertCircle,
-  X,
-  ChevronLeft,
-  Code2,
-  CheckSquare,
-  Bot,
-  Send,
+  PanelRightClose,
+  PanelRightOpen,
+  Layers,
+  Activity,
+  Compass,
+  Cpu,
+  Zap,
 } from "lucide-react";
-
-function formatRelativeTime(dateStr?: string) {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
-  } catch {
-    return "";
-  }
-}
 
 export default function ContextPanel() {
   const router = useRouter();
   const selectedObject = useMyndStore((state) => state.selectedObject);
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
-  const activeGoal = useMyndStore((state) => state.activeGoal);
-  const setActiveGoal = useMyndStore((state) => state.setActiveGoal);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
-  const addDocument = useMyndStore((state) => state.addDocument);
-  const removeDocument = useMyndStore((state) => state.removeDocument);
+  const activityFeed = useMyndStore((state) => state.activityFeed);
+  const openAskAi = useMyndStore((state) => state.openAskAi);
+  const toggleMilestone = useMyndStore((state) => state.toggleMilestone);
 
-  const [activeTab, setActiveTab] = useState<"chats" | "docs" | "goals">("chats");
-
-  // Real data states
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [goals, setGoals] = useState<any[]>([]);
-  const [docsList, setDocsList] = useState<any[]>([]);
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
-  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
-  const [isLoadingGoals, setIsLoadingGoals] = useState(false);
-
-  // Search & inputs
-  const [chatSearch, setChatSearch] = useState("");
-  const [docSearch, setDocSearch] = useState("");
-  const [newGoalInput, setNewGoalInput] = useState("");
-  const [isAddingGoal, setIsAddingGoal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"summary" | "connections" | "timeline" | "ai">("summary");
+  const [askAiQuery, setAskAiQuery] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Goal Copilot Advisor Chat state
-  const [goalChatMessages, setGoalChatMessages] = useState<
-    Array<{
-      role: "user" | "assistant";
-      content: string;
-      citations?: Array<{ document_title?: string; page_number?: number; snippet: string; score?: number }>;
-      timestamp?: string;
-    }>
-  >([]);
-  const [goalChatInput, setGoalChatInput] = useState("");
-  const [isSendingGoalChat, setIsSendingGoalChat] = useState(false);
-  const [goalChatSpacesSearched, setGoalChatSpacesSearched] = useState<string[]>([]);
-
-  // Reset goal chat messages and auto-expand sidebar when activeGoal changes
-  useEffect(() => {
-    setGoalChatMessages([]);
-    setGoalChatInput("");
-    setGoalChatSpacesSearched([]);
-    if (activeGoal) {
-      setIsCollapsed(false);
-    }
-  }, [activeGoal]);
-
-  const handleSendGoalChat = async (goal: any) => {
-    if (!goalChatInput.trim() || isSendingGoalChat) return;
-    const userMsg = goalChatInput.trim();
-    setGoalChatInput("");
-    setIsSendingGoalChat(true);
-
-    const newMsgItem = {
-      role: "user" as const,
-      content: userMsg,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    setGoalChatMessages((prev) => [...prev, newMsgItem]);
-
-    try {
-      const historyPayload = goalChatMessages.slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const effectiveSpaceIds =
-        goal.space_ids && goal.space_ids.length > 0
-          ? goal.space_ids
-          : goal.project_id
-          ? [goal.project_id]
-          : [];
-
-      const res = await queryMindApi.sendGoalChatMessage(goal.id, {
-        message: userMsg,
-        history: historyPayload,
-        goal_description: goal.description,
-        progress: goal.progress || 0,
-        tasks: goal.tasks || goal.milestones || [],
-        target_date: goal.target_date,
-        space_ids: effectiveSpaceIds,
-      });
-
-      if (res && res.response) {
-        setGoalChatMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: res.response,
-            citations: res.citations || [],
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-        if (res.spaces_searched) {
-          setGoalChatSpacesSearched(res.spaces_searched);
-        }
-      }
-    } catch (err: any) {
-      console.error("Goal chat error:", err);
-      setGoalChatMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "I ran into a temporary error reaching the intelligence service. Please check your model or try again.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    } finally {
-      setIsSendingGoalChat(false);
-    }
-  };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Current Space
+  // Active space
   const currentSpace = useMemo(() => {
     return (
       spaces.find(
         (s) =>
           s.id === activeSpaceId ||
-          s.slug === activeSpaceId ||
           s.name.toLowerCase() === activeSpaceId?.toLowerCase()
       ) || spaces[0]
     );
   }, [spaces, activeSpaceId]);
 
   const spaceName = currentSpace?.name || "Workspace";
+  const spaceColor = "#FFFFFF";
 
-  const isCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
-  const setIsCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
-  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
-
-  const handleToggleCollapse = (collapsed: boolean) => {
-    setIsCollapsed(collapsed);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("querymind_sidebar_collapsed", String(collapsed));
-    }
-  };
-
-  // Fetch real conversations
-  const fetchConversations = useCallback(async () => {
-    setIsLoadingChats(true);
-    try {
-      const data = await queryMindApi.getConversations(activeSpaceId || undefined);
-      if (Array.isArray(data)) {
-        setConversations(data);
-      }
-    } catch (err) {
-      console.warn("ContextPanel: error loading conversations", err);
-    } finally {
-      setIsLoadingChats(false);
-    }
-  }, [activeSpaceId]);
-
-  // Fetch real documents for current space
-  const fetchDocuments = useCallback(async () => {
-    setIsLoadingDocs(true);
-    try {
-      const data = await queryMindApi.listDocuments(activeSpaceId || undefined);
-      if (Array.isArray(data)) {
-        setDocsList(data);
-      }
-    } catch (err) {
-      console.warn("ContextPanel: error loading documents", err);
-    } finally {
-      setIsLoadingDocs(false);
-    }
-  }, [activeSpaceId]);
-
-  // Fetch real goals
-  const fetchGoals = useCallback(async () => {
-    setIsLoadingGoals(true);
-    try {
-      const data = await queryMindApi.getGoals();
-      if (Array.isArray(data)) {
-        setGoals(data);
-      }
-    } catch (err) {
-      console.warn("ContextPanel: error loading goals", err);
-    } finally {
-      setIsLoadingGoals(false);
-    }
-  }, []);
-
-  // Fetch data when active space changes
-  useEffect(() => {
-    fetchConversations();
-    fetchDocuments();
-    fetchGoals();
-  }, [fetchConversations, fetchDocuments, fetchGoals]);
-
-  // Handle Quick Upload
-  const handleFileUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setIsUploading(true);
-    setUploadError(null);
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        const res = await queryMindApi.uploadDocument(file, activeSpaceId);
-        addDocument({
-          name: res.filename || file.name,
-          type: file.name.split(".").pop() || "txt",
-          size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-          chunks: res.chunks_created || 1,
-          vectorsStored: res.vectors_stored || 1,
-          summary: "Uploaded via Workspace Panel",
-          spaceId: activeSpaceId,
-        });
-        await fetchDocuments();
-      } catch (err: any) {
-        console.warn("Failed to upload file:", err);
-        setUploadError(err.message || "Upload failed");
-      }
-    }
-    setIsUploading(false);
-  };
-
-  // Handle Goal Toggle
-  const handleToggleGoal = async (goalId: string, currentStatus: string) => {
-    const nextStatus = currentStatus === "completed" ? "in_progress" : "completed";
-    // Optimistic update
-    setGoals((prev) =>
-      prev.map((g) => (g.id === goalId ? { ...g, status: nextStatus } : g))
+  // Check if content looks like code
+  const isCode = useMemo(() => {
+    if (!selectedObject) return false;
+    const typeStr = (selectedObject.type || "").toLowerCase();
+    const content = selectedObject.content || selectedObject.summary || "";
+    return (
+      typeStr.includes("code") ||
+      content.trim().startsWith("//") ||
+      content.includes("import ") ||
+      content.includes("class ") ||
+      content.includes("function ") ||
+      content.includes("export ")
     );
-    try {
-      await queryMindApi.updateGoal(goalId, { status: nextStatus });
-    } catch (err) {
-      console.warn("Failed to update goal:", err);
-      // Revert on error
-      fetchGoals();
-    }
-  };
+  }, [selectedObject]);
 
-  // Handle Add Goal
-  const handleAddGoal = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!newGoalInput.trim() || isAddingGoal) return;
-    setIsAddingGoal(true);
-    try {
-      const created = await queryMindApi.createGoal({
-        description: newGoalInput.trim(),
-      });
-      setGoals((prev) => [created, ...prev]);
-      setNewGoalInput("");
-    } catch (err: any) {
-      console.warn("Failed to create goal:", err);
-      alert("Failed to create goal: " + (err.message || err));
-    } finally {
-      setIsAddingGoal(false);
+  // Formatted code snippet
+  const formattedCode = useMemo(() => {
+    if (!selectedObject) return "";
+    const raw = selectedObject.content || selectedObject.summary || "";
+    // Clean up semi-colons followed by code to have clean line breaks if mashed into one line
+    if (raw.includes(";") && !raw.includes("\n")) {
+      return raw.replace(/;(?=\s*[a-zA-Z}])/g, ";\n");
     }
-  };
+    return raw;
+  }, [selectedObject]);
 
-  // Handle Delete Conversation
-  const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    try {
-      await queryMindApi.deleteConversation(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
-      console.warn("Failed to delete conversation:", err);
-    }
-  };
+  // Active document or fallback
+  const activeDoc = selectedObject;
 
-  // Handle Delete Document
-  const handleDeleteDocument = async (e: React.MouseEvent, docId: string) => {
-    e.stopPropagation();
-    try {
-      await queryMindApi.deleteDocument(docId);
-      setDocsList((prev) => prev.filter((d) => d.id !== docId));
-      removeDocument(docId);
-    } catch (err) {
-      console.warn("Failed to delete document:", err);
-    }
-  };
+  // Space-specific documents for semantic connections
+  const connectedObjects: KnowledgeObject[] = useMemo(() => {
+    if (!currentSpace) return [];
+    return uploadedDocuments
+      .filter((d) => d.id !== activeDoc?.id && (d.spaceId === currentSpace.id || !d.spaceId))
+      .slice(0, 4);
+  }, [currentSpace, uploadedDocuments, activeDoc?.id]);
 
-  // Handle Copy text
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Filtered lists
-  const filteredConversations = useMemo(() => {
-    if (!chatSearch.trim()) return conversations;
-    const q = chatSearch.toLowerCase();
-    return conversations.filter((c) => (c.title || "").toLowerCase().includes(q));
-  }, [conversations, chatSearch]);
+  const handleAskAiSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!askAiQuery.trim()) return;
+    const targetPrefix = activeDoc ? `Regarding ${activeDoc.title}` : `In ${spaceName} Space`;
+    openAskAi(`${targetPrefix}: ${askAiQuery}`);
+    setAskAiQuery("");
+  };
 
-  const filteredDocs = useMemo(() => {
-    if (!docSearch.trim()) return docsList;
-    const q = docSearch.toLowerCase();
-    return docsList.filter((d) => (d.filename || "").toLowerCase().includes(q));
-  }, [docsList, docSearch]);
-
-  // Goal progress calculation
-  const completedGoalsCount = useMemo(() => {
-    return goals.filter((g) => g.status === "completed").length;
-  }, [goals]);
-
-  const goalProgressPercent = useMemo(() => {
-    if (goals.length === 0) return 0;
-    return Math.round((completedGoalsCount / goals.length) * 100);
-  }, [goals.length, completedGoalsCount]);
-
-  /* ─────────────────────────────────────────────────────────── */
-  /* 1. COLLAPSED VIEW (Minimalist Dock)                         */
-  /* ─────────────────────────────────────────────────────────── */
+  // If collapsed, show a sleek vertical mini-dock
   if (isCollapsed) {
     return (
       <aside
@@ -380,35 +119,25 @@ export default function ContextPanel() {
           flexDirection: "column",
           alignItems: "center",
           padding: "16px 0",
-          gap: "14px",
+          gap: "16px",
           zIndex: 10,
           flexShrink: 0,
         }}
       >
         <button
-          type="button"
-          onClick={() => handleToggleCollapse(false)}
-          title="Expand Workspace Essentials"
+          onClick={() => setIsCollapsed(false)}
+          title="Expand Intelligence Panel"
           style={{
             width: "36px",
             height: "36px",
             borderRadius: "8px",
-            background: "var(--surface)",
+            background: "var(--surface-hover)",
             border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
+            color: "var(--text-primary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            transition: "all 150ms ease",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.borderColor = "var(--border-strong)";
-            e.currentTarget.style.color = "var(--text-primary)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.borderColor = "var(--border)";
-            e.currentTarget.style.color = "var(--text-secondary)";
           }}
         >
           <PanelRightOpen style={{ width: "16px", height: "16px" }} />
@@ -416,789 +145,49 @@ export default function ContextPanel() {
 
         <div style={{ width: "24px", height: "1px", background: "var(--border)" }} />
 
-        {/* Chats icon & badge */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("chats");
-            handleToggleCollapse(false);
-          }}
-          title={`Recent Chats (${conversations.length})`}
+        {/* Space Aura Dot */}
+        <div
+          title={`${spaceName} Domain Active`}
           style={{
-            position: "relative",
-            width: "36px",
-            height: "36px",
+            width: "32px",
+            height: "32px",
             borderRadius: "8px",
-            background: "transparent",
-            border: "none",
-            color: "var(--text-secondary)",
+            background: "var(--surface-hover)",
+            color: "var(--text-primary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            transition: "all 150ms ease",
+            border: "1px solid var(--border)",
           }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-            e.currentTarget.style.background = "var(--surface)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.color = "var(--text-secondary)";
-            e.currentTarget.style.background = "transparent";
-          }}
+          onClick={() => setIsCollapsed(false)}
         >
-          <MessageSquare style={{ width: "16px", height: "16px" }} />
-          {conversations.length > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "3px",
-                right: "3px",
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "var(--accent)",
-              }}
-            />
-          )}
-        </button>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#FFFFFF", boxShadow: "0 0 4px rgba(255, 255, 255, 0.4)" }} />
+        </div>
 
-        {/* Docs icon & badge */}
+        {/* Resident AI trigger */}
         <button
-          type="button"
-          onClick={() => {
-            setActiveTab("docs");
-            handleToggleCollapse(false);
-          }}
-          title={`Documents in ${spaceName} (${docsList.length})`}
+          onClick={() => openAskAi(`${spaceName} Space`)}
+          title={`Ask ${currentSpace?.agentPersona?.name || "Resident AI"}`}
           style={{
-            position: "relative",
-            width: "36px",
-            height: "36px",
+            width: "32px",
+            height: "32px",
             borderRadius: "8px",
             background: "transparent",
             border: "none",
-            color: "var(--text-secondary)",
+            color: "var(--accent)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            transition: "all 150ms ease",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-            e.currentTarget.style.background = "var(--surface)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.color = "var(--text-secondary)";
-            e.currentTarget.style.background = "transparent";
           }}
         >
-          <FileText style={{ width: "16px", height: "16px" }} />
-          {docsList.length > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "3px",
-                right: "3px",
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "#10B981",
-              }}
-            />
-          )}
-        </button>
-
-        {/* Goals icon & badge */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab("goals");
-            handleToggleCollapse(false);
-          }}
-          title={`Goals & Tasks (${goals.length})`}
-          style={{
-            position: "relative",
-            width: "36px",
-            height: "36px",
-            borderRadius: "8px",
-            background: "transparent",
-            border: "none",
-            color: "var(--text-secondary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            transition: "all 150ms ease",
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-            e.currentTarget.style.background = "var(--surface)";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.color = "var(--text-secondary)";
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          <Target style={{ width: "16px", height: "16px" }} />
-          {goals.length > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "3px",
-                right: "3px",
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "#F59E0B",
-              }}
-            />
-          )}
+          <Sparkles style={{ width: "16px", height: "16px" }} />
         </button>
       </aside>
     );
   }
 
-  /* ─────────────────────────────────────────────────────────── */
-  /* 2. EXPANDED VIEW: GOAL COPILOT ADVISOR (when a goal is active) */
-  /* ─────────────────────────────────────────────────────────── */
-  if (activeGoal) {
-    const goalSpaceIds = activeGoal.space_ids || (activeGoal.project_id ? [activeGoal.project_id] : []);
-    const relevantSpaces = spaces.filter((s) => goalSpaceIds.includes(s.id));
-
-    return (
-      <aside
-        className="app-context-panel"
-        style={{
-          width: "var(--context-w, 380px)",
-          height: "100vh",
-          background: "var(--bg)",
-          borderLeft: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          zIndex: 10,
-          overflow: "hidden",
-        }}
-      >
-        {/* Header Toolbar */}
-        <div
-          style={{
-            padding: "14px 18px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "var(--surface)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-            <div
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "8px",
-                background: "var(--accent-soft)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent)",
-                flexShrink: 0,
-              }}
-            >
-              <Bot style={{ width: "16px", height: "16px" }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span>Goal Copilot</span>
-                <span
-                  style={{
-                    fontSize: "9px",
-                    fontWeight: 700,
-                    padding: "1px 5px",
-                    borderRadius: "4px",
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: "#10B981",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Isolated RAG
-                </span>
-              </div>
-              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "200px" }}>
-                {activeGoal.description}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <button
-              type="button"
-              onClick={() => {
-                const tasks = activeGoal.tasks || activeGoal.milestones || [];
-                const pendingTasks = tasks.filter((t: any) => !t.completed).map((t: any) => `- ${t.title || t.name}`).slice(0, 5);
-                const taskSnippet = pendingTasks.length > 0 ? `\nPending tasks:\n${pendingTasks.join("\n")}` : "";
-                const goalPrompt = `Strategize execution and next immediate steps for the following objective:\n\n**Goal**: "${activeGoal.description}"\n**Progress**: ${activeGoal.progress || 0}%\n**Priority**: ${(activeGoal.priority || "medium").toUpperCase()}${taskSnippet}\n\nBased on linked workspace documents, what are the key leverage actions and bottlenecks I should tackle right now?`;
-                router.push(`/chat?q=${encodeURIComponent(goalPrompt)}&goalId=${encodeURIComponent(activeGoal.id)}`);
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "4px 8px",
-                borderRadius: "6px",
-                background: "var(--accent-soft)",
-                border: "1px solid var(--border)",
-                color: "var(--accent)",
-                fontSize: "11px",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 150ms ease",
-              }}
-              title="Open this goal in full multi-agent Reasoning Chat"
-            >
-              <Sparkles style={{ width: "12px", height: "12px" }} />
-              <span>Open in Chat</span>
-              <ArrowUpRight style={{ width: "11px", height: "11px" }} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveGoal(null)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-tertiary)",
-                cursor: "pointer",
-                padding: "4px",
-                display: "flex",
-                alignItems: "center",
-                borderRadius: "4px",
-              }}
-              title="Close Goal Inspector"
-            >
-              <X style={{ width: "15px", height: "15px" }} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleToggleCollapse(true)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                padding: "4px",
-                display: "flex",
-                alignItems: "center",
-                borderRadius: "4px",
-              }}
-              title="Collapse Panel"
-            >
-              <PanelRightClose style={{ width: "16px", height: "16px" }} />
-            </button>
-          </div>
-        </div>
-
-        {/* Scoped Spaces Indicator Bar */}
-        <div
-          style={{
-            padding: "8px 16px",
-            background: "var(--surface-subtle)",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            flexWrap: "wrap",
-            fontSize: "11px",
-          }}
-        >
-          <span style={{ color: "var(--text-tertiary)" }}>
-            Scoped to {goalSpaceIds.length} space{goalSpaceIds.length === 1 ? "" : "s"}:
-          </span>
-          {relevantSpaces.length > 0 ? (
-            relevantSpaces.map((s) => (
-              <span
-                key={s.id}
-                style={{
-                  fontSize: "10.5px",
-                  fontWeight: 600,
-                  padding: "1px 6px",
-                  borderRadius: "4px",
-                  background: "var(--accent-soft)",
-                  color: "var(--accent)",
-                }}
-              >
-                {s.name}
-              </span>
-            ))
-          ) : (
-            <span style={{ color: "var(--text-tertiary)", fontStyle: "italic" }}>Workspace</span>
-          )}
-        </div>
-
-        {/* Chat Messages List */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
-          {goalChatMessages.length === 0 && (
-            <div
-              style={{
-                margin: "auto",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "10px",
-                padding: "16px 8px",
-              }}
-            >
-              <div
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "12px",
-                  background: "var(--accent-soft)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--accent)",
-                }}
-              >
-                <Sparkles style={{ width: "20px", height: "20px" }} />
-              </div>
-              <h4 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                Goal Advisor Ready
-              </h4>
-              <p style={{ fontSize: "11.5px", color: "var(--text-tertiary)", margin: 0, lineHeight: "1.4" }}>
-                Ask strategic questions or request execution roadmaps. Retrieval is scoped to linked space documents.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%", marginTop: "6px" }}>
-                {[
-                  "What should be my immediate next priority?",
-                  "Review my progress and identify bottlenecks",
-                  "Draft an execution plan for my top task",
-                ].map((promptText, pIdx) => (
-                  <button
-                    key={pIdx}
-                    type="button"
-                    onClick={() => setGoalChatInput(promptText)}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      background: "var(--surface)",
-                      color: "var(--text-secondary)",
-                      fontSize: "11.5px",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      transition: "all 120ms ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    💡 {promptText}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {goalChatMessages.map((msg, mIdx) => (
-            <div
-              key={mIdx}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
-                gap: "3px",
-              }}
-            >
-              <div
-                style={{
-                  maxWidth: "92%",
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  background: msg.role === "user" ? "var(--accent)" : "var(--surface-subtle)",
-                  color: msg.role === "user" ? "var(--accent-contrast)" : "var(--text-primary)",
-                  border: msg.role === "user" ? "none" : "1px solid var(--border)",
-                  fontSize: "12.5px",
-                  lineHeight: "1.5",
-                  whiteSpace: "pre-wrap",
-                  boxShadow: "var(--shadow-xs)",
-                }}
-              >
-                {msg.content}
-
-                {/* Citations from Scoped Space Docs */}
-                {msg.citations && msg.citations.length > 0 && (
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      paddingTop: "6px",
-                      borderTop: "1px solid var(--border)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "5px",
-                    }}
-                  >
-                    <span style={{ fontSize: "9.5px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      Referenced Space Knowledge:
-                    </span>
-                    {msg.citations.map((c, cIdx) => (
-                      <div
-                        key={cIdx}
-                        style={{
-                          fontSize: "10.5px",
-                          padding: "5px 8px",
-                          borderRadius: "6px",
-                          background: "var(--surface)",
-                          border: "1px solid var(--border)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <FileText style={{ width: "10px", height: "10px", color: "var(--accent)" }} />
-                          <span>{c.document_title || "Space Document"}</span>
-                          {c.page_number && <span style={{ color: "var(--text-tertiary)" }}>• Page {c.page_number}</span>}
-                        </div>
-                        <div style={{ marginTop: "2px", fontStyle: "italic", color: "var(--text-tertiary)" }}>
-                          &ldquo;{c.snippet}&rdquo;
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {msg.timestamp && (
-                <span style={{ fontSize: "9.5px", color: "var(--text-tertiary)", padding: "0 3px" }}>
-                  {msg.timestamp}
-                </span>
-              )}
-            </div>
-          ))}
-
-          {isSendingGoalChat && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 10px", color: "var(--text-secondary)", fontSize: "11.5px" }}>
-              <Sparkles style={{ width: "13px", height: "13px", color: "var(--accent)", animation: "spin 2s linear infinite" }} />
-              <span>Querying space documents & analyzing goal state...</span>
-            </div>
-          )}
-        </div>
-
-        {/* Input Form */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendGoalChat(activeGoal);
-          }}
-          style={{
-            padding: "12px 14px",
-            borderTop: "1px solid var(--border)",
-            background: "var(--surface)",
-            display: "flex",
-            gap: "8px",
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Ask Copilot about this goal..."
-            value={goalChatInput}
-            onChange={(e) => setGoalChatInput(e.target.value)}
-            disabled={isSendingGoalChat}
-            style={{
-              flex: 1,
-              padding: "8px 12px",
-              borderRadius: "8px",
-              border: "1px solid var(--border)",
-              background: "var(--surface-subtle)",
-              color: "var(--text-primary)",
-              fontSize: "12.5px",
-              outline: "none",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={isSendingGoalChat || !goalChatInput.trim()}
-            style={{
-              padding: "8px 14px",
-              borderRadius: "8px",
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--accent-contrast)",
-              fontSize: "12.5px",
-              fontWeight: 600,
-              cursor: isSendingGoalChat || !goalChatInput.trim() ? "not-allowed" : "pointer",
-              opacity: isSendingGoalChat || !goalChatInput.trim() ? 0.6 : 1,
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-            }}
-          >
-            <Send style={{ width: "13px", height: "13px" }} />
-            <span>Send</span>
-          </button>
-        </form>
-      </aside>
-    );
-  }
-
-  /* ─────────────────────────────────────────────────────────── */
-  /* 3. EXPANDED VIEW: DOCUMENT INSPECTOR MODE (if item selected)*/
-  /* ─────────────────────────────────────────────────────────── */
-  if (selectedObject) {
-    const rawContent = selectedObject.content || selectedObject.summary || "";
-    const isCode =
-      (selectedObject.type || "").toLowerCase().includes("code") ||
-      rawContent.trim().startsWith("//") ||
-      rawContent.includes("import ") ||
-      rawContent.includes("function ");
-
-    return (
-      <aside
-        className="app-context-panel"
-        style={{
-          width: "var(--context-w, 360px)",
-          height: "100vh",
-          background: "var(--bg)",
-          borderLeft: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          zIndex: 10,
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "16px 20px 12px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "var(--surface)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-            <button
-              type="button"
-              onClick={() => setSelectedObject(null)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                padding: "2px",
-                display: "flex",
-                alignItems: "center",
-              }}
-              title="Back to Workspace Essentials"
-            >
-              <ChevronLeft style={{ width: "16px", height: "16px" }} />
-            </button>
-            <span
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--text-primary)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {selectedObject.title}
-            </span>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <button
-              type="button"
-              onClick={() => setSelectedObject(null)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-tertiary)",
-                cursor: "pointer",
-                padding: "4px",
-              }}
-              title="Close Inspection"
-            >
-              <X style={{ width: "15px", height: "15px" }} />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleCollapse(true)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-tertiary)",
-                cursor: "pointer",
-                padding: "4px",
-              }}
-              title="Collapse Panel"
-            >
-              <PanelRightClose style={{ width: "15px", height: "15px" }} />
-            </button>
-          </div>
-        </div>
-
-        {/* Content Body */}
-        <div
-          style={{
-            flex: 1,
-            padding: "18px 20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "16px",
-            overflowY: "auto",
-          }}
-        >
-          {/* Metadata pill */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 14px",
-              borderRadius: "8px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              fontSize: "12px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              {isCode ? <Code2 style={{ width: "14px", height: "14px", color: "var(--accent)" }} /> : <FileText style={{ width: "14px", height: "14px", color: "var(--accent)" }} />}
-              <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                {selectedObject.type?.toUpperCase() || "DOCUMENT"}
-              </span>
-            </div>
-            <span style={{ color: "var(--text-tertiary)" }}>
-              {selectedObject.size || "Indexed"}
-            </span>
-          </div>
-
-          {/* Action: Chat with this item */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedObject(null);
-              router.push(
-                `/chat?q=${encodeURIComponent(`Analyze and summarize "${selectedObject.title}":\n${rawContent.slice(0, 300)}`)}`
-              );
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              background: "var(--accent)",
-              color: "#FFFFFF",
-              border: "none",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <Sparkles style={{ width: "14px", height: "14px" }} />
-            <span>Chat With This Document</span>
-          </button>
-
-          {/* Source Snippet or Summary */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "10px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                padding: "8px 14px",
-                borderBottom: "1px solid var(--border)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              <span>Content Extract</span>
-              <button
-                type="button"
-                onClick={() => handleCopy(rawContent)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: copied ? "#10B981" : "var(--text-secondary)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  fontSize: "11px",
-                }}
-              >
-                {copied ? (
-                  <>
-                    <Check style={{ width: "12px", height: "12px" }} />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy style={{ width: "12px", height: "12px" }} />
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <div
-              style={{
-                padding: "14px",
-                fontSize: "12.5px",
-                lineHeight: "1.6",
-                color: "var(--text-primary)",
-                maxHeight: "360px",
-                overflowY: "auto",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontFamily: isCode ? "var(--mono)" : "inherit",
-              }}
-            >
-              {rawContent || "No plain text content available."}
-            </div>
-          </div>
-        </div>
-      </aside>
-    );
-  }
-
-  /* ─────────────────────────────────────────────────────────── */
-  /* 3. EXPANDED VIEW: WORKSPACE ESSENTIALS                      */
-  /* ─────────────────────────────────────────────────────────── */
   return (
     <aside
       className="app-context-panel"
@@ -1217,674 +206,829 @@ export default function ContextPanel() {
       {/* 1. Header Toolbar */}
       <div
         style={{
-          padding: "14px 18px",
+          padding: "16px 20px 12px",
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "var(--surface)",
+          gap: "10px",
+          background: "linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--surface) 100%)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+        {/* Left: Context Indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
           <div
             style={{
-              padding: "4px 8px",
-              borderRadius: "6px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
               background: "var(--surface-hover)",
-              border: "1px solid var(--border)",
-              fontSize: "12px",
               color: "var(--text-primary)",
-              fontWeight: 500,
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              justifyContent: "center",
+              flexShrink: 0,
             }}
           >
-            <span>📁</span>
-            <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {spaceName}
-            </span>
+            {activeDoc ? (
+              isCode ? (
+                <Code2 style={{ width: "16px", height: "16px" }} />
+              ) : (
+                <FileText style={{ width: "16px", height: "16px" }} />
+              )
+            ) : (
+              <Compass style={{ width: "16px", height: "16px" }} />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: "var(--text-primary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {activeDoc ? activeDoc.title : `${spaceName} Domain`}
+              </span>
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "1px" }}>
+              {activeDoc
+                ? `${activeDoc.type || "Document"} • In ${spaceName}`
+                : "Active Neural Workspace"}
+            </div>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => handleToggleCollapse(true)}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "var(--text-secondary)",
-            cursor: "pointer",
-            padding: "4px",
-            display: "flex",
-            alignItems: "center",
-            borderRadius: "4px",
-          }}
-          title="Collapse Panel"
-        >
-          <PanelRightClose style={{ width: "16px", height: "16px" }} />
-        </button>
+        {/* Right: Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {activeDoc && (
+            <button
+              onClick={() =>
+                router.push(
+                  `/chat?prompt=${encodeURIComponent(
+                    `Analyze and synthesize insights from "${activeDoc.title}": ${activeDoc.summary || ""}`
+                  )}`
+                )
+              }
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "4px 8px",
+                borderRadius: "6px",
+                background: "var(--surface-hover)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+              title="Chat with this item"
+            >
+              <MessageSquare style={{ width: "12px", height: "12px" }} />
+              <span>Chat</span>
+            </button>
+          )}
+
+          {activeDoc && (
+            <button
+              onClick={() => setSelectedObject(null)}
+              style={{
+                padding: "5px",
+                borderRadius: "6px",
+                background: "transparent",
+                border: "none",
+                color: "var(--text-tertiary)",
+                cursor: "pointer",
+              }}
+              title="Return to Space Hub"
+            >
+              <X style={{ width: "15px", height: "15px" }} />
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsCollapsed(true)}
+            style={{
+              padding: "5px",
+              borderRadius: "6px",
+              background: "transparent",
+              border: "none",
+              color: "var(--text-tertiary)",
+              cursor: "pointer",
+            }}
+            title="Collapse Sidebar"
+          >
+            <PanelRightClose style={{ width: "15px", height: "15px" }} />
+          </button>
+        </div>
       </div>
 
-      {/* 2. Clean Navigation Tabs */}
+      {/* 2. Navigation Tabs */}
       <div
         style={{
           display: "flex",
           borderBottom: "1px solid var(--border)",
+          padding: "0 16px",
           background: "var(--surface)",
         }}
       >
-        {[
-          { id: "chats", label: "Chats", icon: MessageSquare, count: conversations.length },
-          { id: "docs", label: "Docs", icon: FileText, count: docsList.length },
-          { id: "goals", label: "Goals", icon: Target, count: goals.length },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                flex: 1,
-                padding: "10px 0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                fontSize: "12px",
-                fontWeight: isActive ? 600 : 500,
-                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
-                borderTop: "none",
-                borderLeft: "none",
-                borderRight: "none",
-                background: "transparent",
-                cursor: "pointer",
-                transition: "all 150ms ease",
-              }}
-            >
-              <Icon style={{ width: "13px", height: "13px" }} />
-              <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span
-                  style={{
-                    fontSize: "10px",
-                    padding: "1px 5px",
-                    borderRadius: "8px",
-                    background: isActive ? "var(--surface-hover)" : "transparent",
-                    color: "var(--text-secondary)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        {(["summary", "connections", "timeline", "ai"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1,
+              padding: "10px 0",
+              fontSize: "12px",
+              fontWeight: activeTab === tab ? 700 : 500,
+              color: activeTab === tab ? "var(--text-primary)" : "var(--text-tertiary)",
+              borderTop: "none",
+              borderLeft: "none",
+              borderRight: "none",
+              borderBottom: activeTab === tab ? "2px solid #FFFFFF" : "2px solid transparent",
+              background: "transparent",
+              cursor: "pointer",
+              textTransform: "capitalize",
+              transition: "all 150ms ease",
+            }}
+          >
+            {tab === "ai" ? "Ask AI" : tab}
+          </button>
+        ))}
       </div>
 
-      {/* 3. Panel Content Area */}
+      {/* 3. Panel Body */}
       <div
         style={{
           flex: 1,
-          padding: "16px 18px",
+          padding: "18px 20px",
           display: "flex",
           flexDirection: "column",
-          gap: "14px",
+          gap: "20px",
           overflowY: "auto",
         }}
       >
         {/* ========================================================= */}
-        {/* TAB 1: RECENT CHATS                                       */}
+        {/* TAB 1: SUMMARY / INTELLIGENCE                             */}
         {/* ========================================================= */}
-        {activeTab === "chats" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
-            {/* Action: New Chat button */}
-            <button
-              type="button"
-              onClick={() => router.push("/chat")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                padding: "8px 14px",
-                borderRadius: "8px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 150ms ease",
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-strong)";
-                e.currentTarget.style.background = "var(--surface-hover)";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)";
-                e.currentTarget.style.background = "var(--surface)";
-              }}
-            >
-              <Plus style={{ width: "14px", height: "14px" }} />
-              <span>New Chat</span>
-            </button>
-
-            {/* Search Filter */}
-            {conversations.length > 3 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 10px",
-                  borderRadius: "6px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <Search style={{ width: "12px", height: "12px", color: "var(--text-tertiary)" }} />
-                <input
-                  type="text"
-                  placeholder="Filter chats..."
-                  value={chatSearch}
-                  onChange={(e) => setChatSearch(e.target.value)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    outline: "none",
-                    fontSize: "12px",
-                    color: "var(--text-primary)",
-                    width: "100%",
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Chats List */}
-            {isLoadingChats ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
-                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
-                <MessageSquare style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
-                <div>No chats found in this space</div>
-                <button
-                  type="button"
-                  onClick={() => router.push("/chat")}
-                  style={{
-                    marginTop: "10px",
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
-                    fontSize: "11.5px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Start First Conversation
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {filteredConversations.map((c) => (
+        {activeTab === "summary" && (
+          <>
+            {/* If an object is selected: render Document Inspection */}
+            {activeDoc ? (
+              <>
+                {/* Content View: Code Studio Card or Executive Briefing Card */}
+                {isCode ? (
                   <div
-                    key={c.id}
-                    onClick={() => router.push(`/chat/${c.id}`)}
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      transition: "all 150ms ease",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-strong)";
-                      e.currentTarget.style.background = "var(--surface-hover)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.background = "var(--surface)";
+                      borderRadius: "10px",
+                      background: "#0F172A",
+                      border: "1px solid #1E293B",
+                      overflow: "hidden",
+                      boxShadow: "var(--shadow-sm)",
                     }}
                   >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: "12.5px",
-                          fontWeight: 500,
-                          color: "var(--text-primary)",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {c.title || "Chat Session"}
-                      </div>
-                      <div style={{ fontSize: "10.5px", color: "var(--text-tertiary)", marginTop: "2px" }}>
-                        {formatRelativeTime(c.created_at)}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteConversation(e, c.id)}
-                      title="Delete chat"
+                    <div
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--text-tertiary)",
-                        padding: "4px",
-                        cursor: "pointer",
-                        borderRadius: "4px",
-                        opacity: 0.6,
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.opacity = "1";
-                        e.currentTarget.style.color = "#EF4444";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.opacity = "0.6";
-                        e.currentTarget.style.color = "var(--text-tertiary)";
+                        padding: "8px 12px",
+                        background: "#1E293B",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "11px",
+                        color: "#94A3B8",
                       }}
                     >
-                      <Trash2 style={{ width: "12px", height: "12px" }} />
-                    </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Code2 style={{ width: "13px", height: "13px", color: "#38BDF8" }} />
+                        <span style={{ fontWeight: 600, color: "#F1F5F9" }}>Source Extract</span>
+                      </div>
+                      <button
+                        onClick={() => handleCopy(formattedCode)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: copied ? "#10B981" : "#94A3B8",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "11px",
+                        }}
+                      >
+                        {copied ? (
+                          <>
+                            <Check style={{ width: "12px", height: "12px" }} />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy style={{ width: "12px", height: "12px" }} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre
+                      style={{
+                        padding: "12px",
+                        margin: 0,
+                        fontFamily: "var(--mono)",
+                        fontSize: "11px",
+                        lineHeight: "1.55",
+                        color: "#E2E8F0",
+                        maxHeight: "220px",
+                        overflowY: "auto",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {formattedCode}
+                    </pre>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB 2: SPACE DOCUMENTS & UPLOAD                          */}
-        {/* ========================================================= */}
-        {activeTab === "docs" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
-            {/* Quick Upload Dropzone / Button */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              onChange={(e) => {
-                handleFileUpload(e.target.files);
-                e.target.value = "";
-              }}
-              multiple
-            />
-            <button
-              type="button"
-              disabled={isUploading}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                padding: "16px",
-                borderRadius: "8px",
-                border: "1px dashed var(--border-strong)",
-                background: "var(--surface)",
-                color: "var(--text-secondary)",
-                cursor: isUploading ? "not-allowed" : "pointer",
-                transition: "all 150ms ease",
-              }}
-              onMouseOver={(e) => {
-                if (!isUploading) {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-strong)";
-                e.currentTarget.style.color = "var(--text-secondary)";
-              }}
-            >
-              {isUploading ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
-                  <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
-                  <span>Indexing document into Qdrant...</span>
-                </div>
-              ) : (
-                <>
-                  <Upload style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    Upload to {spaceName}
-                  </span>
-                  <span style={{ fontSize: "10.5px", color: "var(--text-tertiary)" }}>
-                    PDF, TXT, MD, DOCX, Code files
-                  </span>
-                </>
-              )}
-            </button>
-
-            {uploadError && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(239, 68, 68, 0.12)",
-                  border: "1px solid rgba(239, 68, 68, 0.3)",
-                  color: "#EF4444",
-                  fontSize: "11.5px",
-                }}
-              >
-                <AlertCircle style={{ width: "13px", height: "13px", flexShrink: 0 }} />
-                <span>{uploadError}</span>
-              </div>
-            )}
-
-            {/* Search Filter */}
-            {docsList.length > 3 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 10px",
-                  borderRadius: "6px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <Search style={{ width: "12px", height: "12px", color: "var(--text-tertiary)" }} />
-                <input
-                  type="text"
-                  placeholder="Filter documents..."
-                  value={docSearch}
-                  onChange={(e) => setDocSearch(e.target.value)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    outline: "none",
-                    fontSize: "12px",
-                    color: "var(--text-primary)",
-                    width: "100%",
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Documents List */}
-            {isLoadingDocs ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
-                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
-              </div>
-            ) : filteredDocs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
-                <FileText style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
-                <div>No documents in this space yet</div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {filteredDocs.map((doc) => (
+                ) : (
                   <div
-                    key={doc.id}
-                    onClick={() => {
-                      setSelectedObject({
-                        id: doc.id,
-                        title: doc.filename,
-                        type: doc.filename?.split(".").pop() || "doc",
-                        size: doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(2)} MB` : "Document",
-                        summary: doc.summary || "Indexed and vectorized for workspace search.",
-                        spaceId: doc.space_id,
-                      });
-                    }}
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      transition: "all 150ms ease",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-strong)";
-                      e.currentTarget.style.background = "var(--surface-hover)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.background = "var(--surface)";
+                      padding: "14px",
+                      borderRadius: "10px",
+                      background: "var(--surface-subtle)",
+                      borderTop: "1px solid var(--border)",
+                      borderRight: "1px solid var(--border)",
+                      borderBottom: "1px solid var(--border)",
+                      borderLeft: "3px solid #FFFFFF",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
-                      <FileText style={{ width: "14px", height: "14px", color: "var(--accent)", flexShrink: 0 }} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
+                    <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-primary)", marginBottom: "6px" }}>
+                      Executive Synthesis
+                    </div>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        lineHeight: "1.55",
+                        color: "var(--text-secondary)",
+                        margin: 0,
+                      }}
+                    >
+                      {activeDoc.summary ||
+                        "Resource indexed and vectorized. Ready for context-isolated agent retrieval."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Key Takeaways & Highlights */}
+                <div>
+                  <h4
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-tertiary)",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    Key Highlights & Tags
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {(activeDoc.keyIdeas && activeDoc.keyIdeas.length > 0
+                      ? activeDoc.keyIdeas
+                      : [
+                          activeDoc.title,
+                          "Semantic Cohesion: High",
+                          "Domain Scope: " + spaceName,
+                        ]
+                    ).map((highlight, idx) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                        <CheckCircle2 style={{ width: "14px", height: "14px", color: "#10B981", marginTop: "2px", flexShrink: 0 }} />
+                        <span style={{ fontSize: "12px", color: "var(--text-primary)", fontWeight: 500, lineHeight: "1.4" }}>
+                          {highlight}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {activeDoc.tags && activeDoc.tags.length > 0 && (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" }}>
+                      {activeDoc.tags.map((tag) => (
+                        <span key={tag} className="kbd" style={{ fontSize: "10px", padding: "2px 6px" }}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Suggestions / Recommendations */}
+                <div>
+                  <h4
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-tertiary)",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    Autonomous Suggestions
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+                        <TrendingUp style={{ width: "14px", height: "14px", color: "#10B981", flexShrink: 0 }} />
+                        <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
+                          Cross-reference with {spaceName} milestones
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => openAskAi(`Cross-reference "${activeDoc.title}" with current milestones in ${spaceName}`)}
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          padding: "3px 8px",
+                          borderRadius: "4px",
+                          background: "var(--surface-hover)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+                        <Lightbulb style={{ width: "14px", height: "14px", color: "var(--text-secondary)", flexShrink: 0 }} />
+                        <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
+                          Extract 3 practice interview questions
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => openAskAi(`Extract 3 technical questions based on "${activeDoc.title}"`)}
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          padding: "3px 8px",
+                          borderRadius: "4px",
+                          background: "var(--surface-hover)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Run
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* If no document selected: render Space & Neural Intelligence Hub */
+              <>
+                {/* Resident Specialist Card */}
+                {currentSpace?.agentPersona && (
+                  <div
+                    style={{
+                      padding: "16px",
+                      borderRadius: "12px",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "10px",
+                          background: "#262626",
+                          color: "#FFFFFF",
+                          border: "1px solid rgba(255, 255, 255, 0.2)",
+                          fontWeight: 700,
+                          fontSize: "13px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        AI
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>
+                          {currentSpace.agentPersona.name}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                          {currentSpace.agentPersona.title}
+                        </div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: 0, lineHeight: "1.4" }}>
+                      {currentSpace.agentPersona.specialty}
+                    </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#10B981" }}>
+                      <span className="alive-dot" style={{ background: "#10B981" }} />
+                      <span style={{ fontWeight: 600 }}>Active & Watching Domain</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Domain Telemetry Radar */}
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", marginBottom: "10px" }}>
+                    Cognitive Telemetry
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Qdrant Vectors</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>~1,420</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>Cohesion Index</div>
+                      <div style={{ fontSize: "16px", fontWeight: 700, color: "#10B981", marginTop: "2px" }}>94.2%</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Milestones Checklist */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
+                      Active Milestones
+                    </span>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      {currentSpace?.goal?.progress || 0}%
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {(currentSpace?.milestones || []).slice(0, 3).map((m) => (
+                      <div
+                        key={m.id}
+                        onClick={() => currentSpace && toggleMilestone(currentSpace.id, m.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "8px 10px",
+                          borderRadius: "6px",
+                          background: m.completed ? "var(--surface-subtle)" : "var(--surface)",
+                          border: "1px solid var(--border)",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <span style={{ color: m.completed ? "#10B981" : "var(--text-tertiary)", fontWeight: 700 }}>
+                          {m.completed ? "✓" : "○"}
+                        </span>
+                        <span
                           style={{
-                            fontSize: "12.5px",
-                            fontWeight: 500,
-                            color: "var(--text-primary)",
+                            color: m.completed ? "var(--text-tertiary)" : "var(--text-primary)",
+                            textDecoration: m.completed ? "line-through" : "none",
+                            flex: 1,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                           }}
                         >
-                          {doc.filename}
-                        </div>
-                        <div style={{ fontSize: "10.5px", color: "var(--text-tertiary)", marginTop: "2px" }}>
-                          {doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(2)} MB` : "Ready"} • {formatRelativeTime(doc.created_at)}
-                        </div>
+                          {m.title}
+                        </span>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                </div>
 
+                {/* One-Click Domain Actions */}
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", marginBottom: "8px" }}>
+                    One-Click Actions
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <button
-                      type="button"
-                      onClick={(e) => handleDeleteDocument(e, doc.id)}
-                      title="Delete document"
+                      onClick={() => openAskAi(`Synthesize all key findings and documents in ${spaceName}`)}
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--text-tertiary)",
-                        padding: "4px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        color: "var(--text-primary)",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        textAlign: "left",
                         cursor: "pointer",
-                        borderRadius: "4px",
-                        opacity: 0.6,
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.opacity = "1";
-                        e.currentTarget.style.color = "#EF4444";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.opacity = "0.6";
-                        e.currentTarget.style.color = "var(--text-tertiary)";
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
                       }}
                     >
-                      <Trash2 style={{ width: "12px", height: "12px" }} />
+                      <Zap style={{ width: "13px", height: "13px", color: "var(--text-primary)" }} />
+                      <span>Synthesize {spaceName} Briefing</span>
+                    </button>
+
+                    <button
+                      onClick={() => openAskAi(`Identify knowledge gaps and blind spots in ${spaceName}`)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        color: "var(--text-primary)",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <Lightbulb style={{ width: "13px", height: "13px", color: "var(--text-secondary)" }} />
+                      <span>Audit Knowledge Gaps</span>
                     </button>
                   </div>
-                ))}
-              </div>
+                </div>
+              </>
             )}
+
+            {/* Bottom Mini Ask AI Input Bar */}
+            <form onSubmit={handleAskAiSubmit} style={{ marginTop: "auto", paddingTop: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-subtle)",
+                }}
+              >
+                <Sparkles style={{ width: "14px", height: "14px", color: "var(--text-primary)", flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder={activeDoc ? "Ask AI about this item..." : `Query ${spaceName} Brain...`}
+                  value={askAiQuery}
+                  onChange={(e) => setAskAiQuery(e.target.value)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    fontSize: "12px",
+                    color: "var(--text-primary)",
+                    flex: 1,
+                  }}
+                />
+              </div>
+            </form>
+          </>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 2: CONNECTIONS                                        */}
+        {/* ========================================================= */}
+        {activeTab === "connections" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
+              Semantic Neighbors (Qdrant)
+            </div>
+
+            {connectedObjects.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--text-tertiary)", textAlign: "center", padding: "20px" }}>
+                No direct connections found. Upload more documents to form neural links.
+              </div>
+            ) : (
+              connectedObjects.map((item, idx) => (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedObject(item)}
+                  style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      {item.title}
+                    </span>
+                    <span className="badge" style={{ fontSize: "10px", background: "rgba(255, 255, 255, 0.08)", color: "#FFFFFF", border: "1px solid rgba(255, 255, 255, 0.15)" }}>
+                      {98 - idx * 4}% Match
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "4px" }}>
+                    {item.type || "Doc"} • Click to inspect
+                  </div>
+                </div>
+              ))
+            )}
+
+            <button
+              onClick={() => router.push(`/chat?prompt=Explore graph connections between documents in ${spaceName}`)}
+              style={{
+                marginTop: "10px",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--border)",
+                background: "var(--surface-subtle)",
+                color: "var(--text-primary)",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+            >
+              <span>Explore Knowledge Constellation</span>
+              <ArrowUpRight style={{ width: "13px", height: "13px" }} />
+            </button>
           </div>
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: GOALS & ACTIONABLE TASKS                           */}
+        {/* TAB 3: TIMELINE                                           */}
         {/* ========================================================= */}
-        {activeTab === "goals" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%" }}>
-            {/* Progress Header */}
-            <div
+        {activeTab === "timeline" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
+              Audit & Ingestion Timeline
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ fontSize: "12px", borderLeft: "2px solid rgba(255, 255, 255, 0.4)", paddingLeft: "12px" }}>
+                <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                  {activeDoc ? activeDoc.title : spaceName} Synchronized
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  Vector embeddings cached in Qdrant • 10 minutes ago
+                </div>
+              </div>
+
+              <div style={{ fontSize: "12px", borderLeft: "2px solid var(--border)", paddingLeft: "12px" }}>
+                <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                  Autonomous Specialist Sync
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  Checked domain cohesion & link integrity • 2 hours ago
+                </div>
+              </div>
+
+              <div style={{ fontSize: "12px", borderLeft: "2px solid var(--border)", paddingLeft: "12px" }}>
+                <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                  Memory Consolidation Event
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  System checkpoint committed to PostgreSQL • Yesterday
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 4: ASK AI                                             */}
+        {/* ========================================================= */}
+        {activeTab === "ai" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
+              Autonomous Co-pilot
+            </div>
+
+            <button
+              onClick={() =>
+                router.push(
+                  `/chat?prompt=${encodeURIComponent(
+                    activeDoc
+                      ? `Deeply synthesize and extract key architectural concepts from "${activeDoc.title}": ${activeDoc.summary || ""}`
+                      : `Provide an executive intelligence briefing across the ${spaceName} space.`
+                  )}`
+                )
+              }
               style={{
-                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                background: "#FFFFFF",
+                color: "#000000",
+                fontSize: "12px",
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(255, 255, 255, 0.15)",
+              }}
+            >
+              <span>🚀 Launch Streaming Chat</span>
+              <ArrowUpRight style={{ width: "14px", height: "14px" }} />
+            </button>
+
+            <button
+              onClick={() =>
+                openAskAi(
+                  activeDoc
+                    ? `What are the top 3 critical takeaways from "${activeDoc.title}"?`
+                    : `What are the top 3 priorities in the ${spaceName} domain?`
+                )
+              }
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
                 borderRadius: "8px",
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                cursor: "pointer",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-secondary)" }}>
-                  Goal Completion
-                </span>
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)" }}>
-                  {goalProgressPercent}%
-                </span>
-              </div>
-              <div
-                style={{
-                  width: "100%",
-                  height: "5px",
-                  borderRadius: "4px",
-                  background: "var(--surface-hover)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${goalProgressPercent}%`,
-                    height: "100%",
-                    background: "var(--accent)",
-                    transition: "width 300ms ease",
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "6px" }}>
-                {completedGoalsCount} of {goals.length} goals achieved
-              </div>
-            </div>
+              ✨ Extract Top 3 Key Takeaways
+            </button>
 
-            {/* Quick Add Goal Input */}
-            <form onSubmit={handleAddGoal} style={{ display: "flex", gap: "6px" }}>
-              <input
-                type="text"
-                placeholder="Add new goal or task..."
-                value={newGoalInput}
-                onChange={(e) => setNewGoalInput(e.target.value)}
-                disabled={isAddingGoal}
-                style={{
-                  flex: 1,
-                  padding: "7px 10px",
-                  borderRadius: "6px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                  fontSize: "12px",
-                  outline: "none",
-                }}
-              />
-              <button
-                type="submit"
-                disabled={!newGoalInput.trim() || isAddingGoal}
-                style={{
-                  padding: "7px 12px",
-                  borderRadius: "6px",
-                  background: newGoalInput.trim() ? "var(--accent)" : "var(--surface-hover)",
-                  color: newGoalInput.trim() ? "#FFFFFF" : "var(--text-tertiary)",
-                  border: "none",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: newGoalInput.trim() ? "pointer" : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <Plus style={{ width: "13px", height: "13px" }} />
-                <span>Add</span>
-              </button>
-            </form>
+            <button
+              onClick={() =>
+                openAskAi(
+                  activeDoc
+                    ? `Identify conceptual gaps or blind spots in "${activeDoc.title}".`
+                    : `Identify missing resources or knowledge gaps in ${spaceName}.`
+                )
+              }
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                cursor: "pointer",
+              }}
+            >
+              🔍 Pinpoint Blind Spots & Gaps
+            </button>
 
-            {/* Goals List */}
-            {isLoadingGoals ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "30px", color: "var(--text-tertiary)" }}>
-                <RefreshCw className="animate-spin" style={{ width: "16px", height: "16px" }} />
-              </div>
-            ) : goals.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
-                <Target style={{ width: "24px", height: "24px", margin: "0 auto 8px", opacity: 0.4 }} />
-                <div>No active goals yet</div>
-                <div style={{ fontSize: "11px", marginTop: "4px" }}>Add a task above to track your progress</div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {goals.map((goal) => {
-                  const isDone = goal.status === "completed";
-                  return (
-                    <div
-                      key={goal.id}
-                      onClick={() => handleToggleGoal(goal.id, goal.status)}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        background: isDone ? "var(--surface-subtle)" : "var(--surface)",
-                        border: "1px solid var(--border)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "10px",
-                        transition: "all 150ms ease",
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border-strong)";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border)";
-                      }}
-                    >
-                      <button
-                        type="button"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          padding: 0,
-                          cursor: "pointer",
-                          color: isDone ? "#10B981" : "var(--text-tertiary)",
-                          display: "flex",
-                          alignItems: "center",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {isDone ? (
-                          <CheckCircle2 style={{ width: "15px", height: "15px" }} />
-                        ) : (
-                          <Circle style={{ width: "15px", height: "15px" }} />
-                        )}
-                      </button>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: "12.5px",
-                            fontWeight: 500,
-                            color: isDone ? "var(--text-tertiary)" : "var(--text-primary)",
-                            textDecoration: isDone ? "line-through" : "none",
-                            lineHeight: "1.4",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {goal.description}
-                        </div>
-                        {goal.created_at && (
-                          <div style={{ fontSize: "10px", color: "var(--text-ghost)", marginTop: "4px" }}>
-                            Added {formatRelativeTime(goal.created_at)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <button
+              onClick={() =>
+                openAskAi(
+                  activeDoc
+                    ? `Formulate 5 technical interview or examination questions testing knowledge of "${activeDoc.title}".`
+                    : `Generate 5 high-impact questions testing mastery of ${spaceName}.`
+                )
+              }
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--text-primary)",
+                cursor: "pointer",
+              }}
+            >
+              🎯 Generate Mastery / Exam Questions
+            </button>
           </div>
         )}
       </div>

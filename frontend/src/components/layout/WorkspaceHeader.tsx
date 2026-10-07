@@ -63,11 +63,12 @@ export default function WorkspaceHeader() {
           style={{
             background: isFocusMode ? "#FFFFFF" : undefined,
             color: isFocusMode ? "#000000" : "var(--text-primary)",
-            borderColor: isFocusMode ? "#FFFFFF" : undefined,
+            border: isFocusMode ? "1px solid #FFFFFF" : undefined,
+            boxShadow: isFocusMode ? "0 2px 10px rgba(255, 255, 255, 0.2)" : undefined,
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
-            padding: isFocusMode ? "0 10px" : undefined,
+            padding: isFocusMode ? "0 12px" : undefined,
             width: isFocusMode ? "auto" : undefined,
             fontSize: "12px",
             fontWeight: 600,
@@ -75,7 +76,7 @@ export default function WorkspaceHeader() {
         >
           {isFocusMode ? (
             <>
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#000000" }} />
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981", boxShadow: "0 0 6px #10B981" }} />
               <span>Focus On</span>
             </>
           ) : (
@@ -103,9 +104,9 @@ export default function WorkspaceHeader() {
             title={isContextPanelCollapsed ? "Open Right Sidebar (Copilot / Essentials)" : "Collapse Right Sidebar"}
             onClick={toggleContextPanel}
             style={{
-              background: !isContextPanelCollapsed ? "var(--surface)" : undefined,
-              borderColor: !isContextPanelCollapsed ? "var(--border-strong)" : undefined,
-              color: !isContextPanelCollapsed ? "var(--text-primary)" : "var(--text-secondary)",
+              background: !isContextPanelCollapsed ? "rgba(139, 92, 246, 0.15)" : undefined,
+              borderColor: !isContextPanelCollapsed ? "rgba(139, 92, 246, 0.35)" : undefined,
+              color: !isContextPanelCollapsed ? "#C084FC" : "var(--text-secondary)",
             }}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
@@ -122,9 +123,10 @@ export default function WorkspaceHeader() {
             width: "28px",
             height: "28px",
             borderRadius: "9999px",
-            background: "#262626",
-            color: "#FFFFFF",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
+            background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
+            color: "#A78BFA",
+            border: "1px solid rgba(139, 92, 246, 0.35)",
+            boxShadow: "0 0 10px rgba(139, 92, 246, 0.2)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
