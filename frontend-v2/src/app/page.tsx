@@ -1,30 +1,5 @@
-"use client";
-
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { redirect } from "next/navigation";
 
 export default function RootPage() {
-  const router = useRouter();
-  const { currentSpace, spaces, isLoading } = useAuth();
-
-  useEffect(() => {
-    if (!isLoading) {
-      router.replace("/home");
-    }
-  }, [isLoading, router]);
-
-  return (
-    <div className="min-h-screen w-screen flex items-center justify-center p-8 bg-[var(--bg-app)]">
-      <div className="w-full max-w-md space-y-4">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-6 h-6 rounded-lg bg-[#818cf8] animate-pulse" />
-            <span className="text-sm font-semibold text-white">Entering Command Space...</span>
-          </div>
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    </div>
-  );
+  redirect("/dashboard");
 }

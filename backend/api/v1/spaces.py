@@ -672,3 +672,114 @@ async def get_space_workspace(
         active_projects=projects_list,
         active_goals=goals_list,
     )
+
+
+class SpaceBriefingResponse(BaseModel):
+    space_id: str
+    space_name: str
+    executive_summary: str
+    key_takeaways: List[str]
+    active_priorities: List[str]
+    knowledge_gaps: List[str]
+    recommended_actions: List[str]
+
+
+@router.get("/{space_id}/briefing", response_model=SpaceBriefingResponse)
+async def get_space_intelligence_briefing(
+    space_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generates an on-demand AI intelligence briefing synthesizing the space's
+    documents, goals, and recent activity into actionable takeaways and knowledge gaps.
+    """
+    try:
+        space_uuid = uuid.UUID(space_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid space ID format")
+
+    stmt_space = select(Space).where(
+        Space.id == space_uuid,
+        Space.user_id == current_user.id
+    )
+    space_res = await db.execute(stmt_space)
+    space = space_res.scalar_one_or_none()
+    if not space:
+        raise HTTPException(status_code=404, detail="Space not found")
+
+    # Fetch documents belonging to space
+    doc_stmt = select(Document).where(Document.space_id == space_uuid).order_by(Document.created_at.desc()).limit(15)
+    docs = (await db.execute(doc_stmt)).scalars().all()
+
+    # Fetch goals for this space
+    goal_stmt = select(Goal).where(Goal.space_id == space_uuid).order_by(Goal.created_at.desc()).limit(10)
+    goals = (await db.execute(goal_stmt)).scalars().all()
+
+    # Fetch recent conversations
+    conv_stmt = select(Conversation).where(Conversation.space_id == space_uuid).order_by(Conversation.created_at.desc()).limit(5)
+    convs = (await db.execute(conv_stmt)).scalars().all()
+
+    docs_summary = "\n".join([f"- {d.title} (Type: {d.content_type}, Status: {d.status})" for d in docs]) or "No documents uploaded yet."
+    goals_summary = "\n".join([f"- {g.description} [Status: {g.status}]" for g in goals]) or "No explicit goals defined yet."
+    convs_summary = "\n".join([f"- {c.title}" for c in convs]) or "No past discussions."
+
+    prompt = f"""You are the Chief Intelligence Analyst for the workspace '{space.name}'.
+Description: {space.description or 'Specialized domain workspace'}
+
+Workspace Inventory:
+Documents:
+{docs_summary}
+
+Active/Recent Goals:
+{goals_summary}
+
+Recent Topics Explored:
+{convs_summary}
+
+Provide a concise, high-signal intelligence briefing for this domain:
+1. Executive Summary: 2 concise sentences summarizing the primary purpose, active focus, and current maturity of this space.
+2. Key Takeaways: 3-4 bullet points highlighting the core knowledge domain and themes covered.
+3. Active Priorities: 2-3 focus areas or open milestones.
+4. Knowledge Gaps: 2 critical missing topics, documents, or question areas needed to round out this domain.
+5. Recommended Actions: 2 concrete next actions the user should take in this space.
+"""
+
+    from llm.provider import get_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    class StructuredBriefing(BaseModel):
+        executive_summary: str
+        key_takeaways: List[str]
+        active_priorities: List[str]
+        knowledge_gaps: List[str]
+        recommended_actions: List[str]
+
+    llm = get_llm(temperature=0.2)
+    try:
+        structured_llm = llm.with_structured_output(StructuredBriefing)
+        briefing = await structured_llm.ainvoke([
+            SystemMessage(content="You are QueryMind's executive workspace intelligence analyst. Produce crisp, high-signal domain briefings."),
+            HumanMessage(content=prompt)
+        ])
+        return SpaceBriefingResponse(
+            space_id=str(space.id),
+            space_name=space.name,
+            executive_summary=briefing.executive_summary,
+            key_takeaways=briefing.key_takeaways,
+            active_priorities=briefing.active_priorities,
+            knowledge_gaps=briefing.knowledge_gaps,
+            recommended_actions=briefing.recommended_actions,
+        )
+    except Exception as e:
+        logger.warning(f"Structured briefing fallback: {e}")
+        return SpaceBriefingResponse(
+            space_id=str(space.id),
+            space_name=space.name,
+            executive_summary=f"Active domain workspace '{space.name}' indexing {len(docs)} documents and {len(goals)} active objectives.",
+            key_takeaways=[f"Indexes {len(docs)} knowledge resources.", "Grounded vector partitioning enabled."],
+            active_priorities=[g.description for g in goals[:3]] if goals else ["Define initial milestones for this workspace."],
+            knowledge_gaps=["Upload additional source documents to unlock deeper domain RAG."],
+            recommended_actions=["Start an in-situ discussion with Space Copilot.", "Index core references."],
+        )
+

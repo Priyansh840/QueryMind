@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
+from pydantic import BaseModel
 import uuid
 import os
 import shutil
@@ -52,10 +53,20 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-async def _resolve_user_space(space_id: Optional[str], user_id: uuid.UUID, db: AsyncSession) -> Space:
-    """Resolve space by UUID, name match, or fallback to user's default/first space."""
+async def _resolve_user_space(
+    space_id: Optional[str],
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    filename: Optional[str] = None,
+    snippet: Optional[str] = None
+) -> Space:
+    """
+    Resolve space by UUID, name match, or smart auto-classification.
+    If space_id is omitted or 'auto', automatically routes to the best matching user space
+    based on document content and existing space archetypes/descriptions.
+    """
     space = None
-    if space_id:
+    if space_id and space_id.strip() and space_id.lower() != "auto":
         try:
             space_uuid = uuid.UUID(space_id)
             stmt = select(Space).where(Space.id == space_uuid, Space.user_id == user_id)
@@ -69,12 +80,15 @@ async def _resolve_user_space(space_id: Optional[str], user_id: uuid.UUID, db: A
             res_name = await db.execute(stmt_name)
             space = res_name.scalars().first()
 
-    if not space:
-        stmt_default = select(Space).where(Space.user_id == user_id).order_by(Space.created_at.asc())
-        res_default = await db.execute(stmt_default)
-        space = res_default.scalars().first()
+    if space:
+        return space
 
-    if not space:
+    # Fetch all spaces owned by or accessible to user
+    stmt_all = select(Space).where(Space.user_id == user_id).order_by(Space.created_at.asc())
+    res_all = await db.execute(stmt_all)
+    user_spaces = res_all.scalars().all()
+
+    if not user_spaces:
         space = Space(
             id=uuid.uuid4(),
             user_id=user_id,
@@ -87,8 +101,89 @@ async def _resolve_user_space(space_id: Optional[str], user_id: uuid.UUID, db: A
         db.add(space)
         await db.commit()
         await db.refresh(space)
+        return space
 
-    return space
+    # If only 1 space exists, directly use it
+    if len(user_spaces) == 1:
+        return user_spaces[0]
+
+    # Auto-classification with fast LLM if filename or snippet is available
+    if filename or snippet:
+        try:
+            from llm.provider import get_llm
+            from langchain_core.messages import SystemMessage, HumanMessage
+            from pydantic import BaseModel, Field
+
+            class SpaceRouteChoice(BaseModel):
+                confidence: str = Field(description="'high' if the document cleanly fits one of the candidate spaces, or 'low' if it belongs to an unrepresented domain")
+                selected_space_id: Optional[str] = Field(None, description="UUID of the selected space if confidence is high, or default space if low")
+                suggest_new_space: bool = Field(False, description="True if this document represents a distinct new topic/domain not covered by existing spaces")
+                suggested_space_name: Optional[str] = Field(None, description="Short, clean title for the suggested new space (e.g. 'Developer Tools', 'System Architecture', 'Finance')")
+                suggested_space_description: Optional[str] = Field(None, description="1-sentence purpose for the suggested space")
+                suggested_space_icon: Optional[str] = Field(None, description="Emoji icon e.g. 🛠️, 💻, 📈")
+                rationale: str = Field(description="Short reason for this choice")
+
+            def format_desc(s):
+                if s.description and s.description.strip():
+                    return s.description.strip()
+                n = s.name.lower()
+                if "study" in n or "academic" in n or "course" in n:
+                    return "Coursework, college subjects, textbooks, unit notes, exams, syllabi"
+                elif "career" in n or "job" in n or "interview" in n:
+                    return "Resumes, CVs, job descriptions, interview prep, performance reviews, company research"
+                elif "eng" in n or "system" in n or "code" in n:
+                    return "Software architectures, system design, coding projects, technical RFCs"
+                return "General personal notes and miscellaneous resources"
+
+            spaces_catalog = "\n".join([
+                f"- ID: {s.id} | Name: '{s.name}' | Purpose: '{format_desc(s)}'"
+                for s in user_spaces
+            ])
+
+            sample_text = (snippet or "")[:800].strip()
+            prompt = (
+                f"Existing User Spaces:\n{spaces_catalog}\n\n"
+                f"Document Name: {filename or 'Unnamed'}\n"
+                f"Content Sample:\n{sample_text}\n\n"
+                "Classification Guidelines:\n"
+                "1. If this document is college coursework/unit material, match it to Study.\n"
+                "2. If this document is a resume, CV, job application, or placement prep, match it to Career.\n"
+                "3. If this document represents a clearly distinct domain (like Developer Tools, AI Workflows, System Design, or Finance) and NO appropriate space exists, set suggest_new_space=True, provide a proposed space name/description/icon, and set selected_space_id to the default General space for now.\n"
+                "4. NEVER force developer tools or technical guides into Career."
+            )
+
+            llm = get_llm(temperature=0.0)
+            if hasattr(llm, "with_structured_output"):
+                structured_classifier = llm.with_structured_output(SpaceRouteChoice)
+                choice = await structured_classifier.ainvoke([
+                    SystemMessage(content="You are an expert document taxonomy classifier. Accurately categorize or propose spaces."),
+                    HumanMessage(content=prompt)
+                ])
+                chosen_id = getattr(choice, "selected_space_id", None)
+                matched = None
+                if chosen_id:
+                    matched = next((s for s in user_spaces if str(s.id).lower() == str(chosen_id).lower().strip()), None)
+
+                if not matched:
+                    matched = next((s for s in user_spaces if s.is_default), user_spaces[0])
+
+                # Attach suggestion metadata to space object dynamically
+                if getattr(choice, "suggest_new_space", False) and getattr(choice, "suggested_space_name", None):
+                    setattr(matched, "_suggested_new_space", {
+                        "name": choice.suggested_space_name,
+                        "description": choice.suggested_space_description or "Dedicated domain workspace",
+                        "icon": choice.suggested_space_icon or "📁",
+                        "rationale": choice.rationale,
+                    })
+
+                logger.info(f"Auto-routed document '{filename}' to space '{matched.name}' (suggestion: {getattr(choice, 'suggested_space_name', None)})")
+                return matched
+        except Exception as e:
+            logger.warning(f"Auto-classification fallback to default space: {e}")
+
+    # Fallback to default space or first space
+    default_sp = next((s for s in user_spaces if s.is_default), user_spaces[0])
+    return default_sp
 
 
 @router.post("/upload", response_model=dict)
@@ -106,14 +201,6 @@ async def upload_document(
     User identity and space isolation are strictly enforced.
     """
     try:
-        if space_id:
-            from api.deps import get_space_membership
-            space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
-            space_uuid = space.id
-        else:
-            space = await _resolve_user_space(None, current_user.id, db)
-            space_uuid = space.id
-
         # Validate file extension
         filename = file.filename or "uploaded_document"
         file_ext = os.path.splitext(filename)[1].lower()
@@ -141,6 +228,29 @@ async def upload_document(
                         detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB",
                     )
                 buffer.write(chunk)
+
+        # Peek preview snippet for smart space classification if needed
+        snippet_peek = None
+        if not space_id or space_id.strip() in ("", "auto"):
+            try:
+                if file_ext in (".txt", ".md", ".json", ".csv", ".py", ".ts", ".tsx"):
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        snippet_peek = f.read(1500)
+                elif file_ext == ".pdf":
+                    import pypdf
+                    reader = pypdf.PdfReader(file_path)
+                    if len(reader.pages) > 0:
+                        snippet_peek = reader.pages[0].extract_text()[:1500]
+            except Exception as e:
+                logger.debug(f"Snippet extraction for auto-routing notice: {e}")
+
+        if space_id and space_id.strip() not in ("", "auto"):
+            from api.deps import get_space_membership
+            space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
+            space_uuid = space.id
+        else:
+            space = await _resolve_user_space(None, current_user.id, db, filename=filename, snippet=snippet_peek)
+            space_uuid = space.id
 
         # Check if an existing completed document with this filename already exists in this space
         stmt = (
@@ -177,6 +287,8 @@ async def upload_document(
             fail_at_stage=test_fail_stage,
         )
 
+        suggested_space = getattr(space, "_suggested_new_space", None)
+
         return {
             "status": "success",
             "document_id": str(document.id),
@@ -186,6 +298,7 @@ async def upload_document(
             "space_name": space.name,
             "chunks_created": 1,
             "vectors_stored": 1,
+            "suggested_new_space": suggested_space,
         }
 
     except HTTPException:
@@ -203,21 +316,32 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List all documents for a specific space. Requires at least 'viewer' role.
+    List documents. If space_id is provided, lists documents scoped to that space.
+    If space_id is omitted or empty, lists all documents across all accessible spaces.
     """
-    if space_id:
+    if space_id and space_id.strip() and space_id.lower() != "all":
         from api.deps import get_space_membership
         space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
-        space_uuid = space.id
+        stmt = (
+            select(Document)
+            .where(Document.space_id == space.id)
+            .order_by(Document.created_at.desc())
+        )
     else:
-        space = await _resolve_user_space(None, current_user.id, db)
-        space_uuid = space.id
+        # Return all documents across all spaces owned by or accessible to current_user
+        from models.space_member import SpaceMember
+        stmt = (
+            select(Document)
+            .join(Space, Document.space_id == Space.id)
+            .outerjoin(SpaceMember, Space.id == SpaceMember.space_id)
+            .where(
+                (Space.user_id == current_user.id) | (SpaceMember.user_id == current_user.id)
+            )
+            .distinct()
+            .order_by(Document.created_at.desc())
+        )
 
-    result = await db.execute(
-        select(Document)
-        .where(Document.space_id == space.id)
-        .order_by(Document.created_at.desc())
-    )
+    result = await db.execute(stmt)
     docs = result.scalars().all()
     return [
         DocumentResponse(
@@ -396,3 +520,99 @@ async def delete_document(
     await db.commit()
 
     return {"status": "success", "detail": "Document deleted successfully"}
+
+
+class MoveDocumentRequest(BaseModel):
+    target_space_id: str
+    create_space_if_missing: bool = False
+    new_space_name: Optional[str] = None
+    new_space_description: Optional[str] = None
+
+
+@router.patch("/{document_id}/move")
+async def move_document(
+    document_id: str,
+    payload: MoveDocumentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Moves a document to another space, or creates the proposed space and moves it there.
+    Updates the document in PostgreSQL and updates space_id in Qdrant payloads.
+    """
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document_id UUID format")
+
+    doc = await db.get(Document, doc_uuid)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    target_space = None
+    if payload.create_space_if_missing and payload.new_space_name:
+        # Create the approved new space
+        target_space = Space(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            name=payload.new_space_name.strip(),
+            description=payload.new_space_description or "Specialized workspace",
+            icon="folder",
+            color="#6366f1",
+            is_default=False,
+        )
+        db.add(target_space)
+        await db.commit()
+        await db.refresh(target_space)
+    else:
+        try:
+            target_space_uuid = uuid.UUID(payload.target_space_id)
+            stmt = select(Space).where(Space.id == target_space_uuid, Space.user_id == current_user.id)
+            target_space = (await db.execute(stmt)).scalar_one_or_none()
+        except ValueError:
+            pass
+
+    if not target_space:
+        raise HTTPException(status_code=404, detail="Target space not found")
+
+    old_space_id = str(doc.space_id)
+    doc.space_id = target_space.id
+    await db.commit()
+    await db.refresh(doc)
+
+    # Update Qdrant vectors payload with new space_id
+    if settings.qdrant_client_url:
+        try:
+            qdrant = AsyncQdrantClient(
+                url=settings.qdrant_client_url,
+                api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
+            )
+            from qdrant_client.http import models as qmodels
+
+            for col in [settings.QDRANT_COLLECTION_DOCUMENTS, settings.QDRANT_COLLECTION_KNOWLEDGE or "querymind_knowledge"]:
+                await qdrant.set_payload(
+                    collection_name=col,
+                    payload={"space_id": str(target_space.id)},
+                    points=qmodels.FilterSelector(
+                        filter=qmodels.Filter(
+                            must=[
+                                qmodels.FieldCondition(
+                                    key="document_id",
+                                    match=qmodels.MatchValue(value=document_id),
+                                )
+                            ]
+                        )
+                    ),
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update Qdrant space_id on move: {e}")
+
+    return {
+        "status": "success",
+        "document_id": str(doc.id),
+        "filename": doc.title,
+        "old_space_id": old_space_id,
+        "new_space_id": str(target_space.id),
+        "new_space_name": target_space.name,
+    }
+

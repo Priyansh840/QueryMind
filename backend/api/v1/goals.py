@@ -29,6 +29,7 @@ class GoalCreateRequest(BaseModel):
     space_id: Optional[str] = None
     project_id: Optional[str] = None
     tasks: Optional[List[dict]] = None
+    document_ids: Optional[List[str]] = None
     category: Optional[str] = "career"
     priority: Optional[str] = "medium"
     target_date: Optional[str] = None
@@ -38,6 +39,7 @@ class GoalUpdateRequest(BaseModel):
     description: Optional[str] = Field(None, min_length=1)
     status: Optional[str] = Field(None, max_length=50)
     tasks: Optional[List[dict]] = None
+    document_ids: Optional[List[str]] = None
     category: Optional[str] = None
     priority: Optional[str] = None
     target_date: Optional[str] = None
@@ -51,6 +53,7 @@ class GoalResponse(BaseModel):
     description: str
     status: str
     tasks: Optional[List[dict]] = []
+    document_ids: Optional[List[str]] = []
     category: Optional[str] = "career"
     priority: Optional[str] = "medium"
     target_date: Optional[str] = None
@@ -64,6 +67,7 @@ class RecommendTasksRequest(BaseModel):
     goal_description: str = Field(..., min_length=2)
     space_id: Optional[str] = None
     space_ids: Optional[List[str]] = None
+    document_ids: Optional[List[str]] = None
     category: Optional[str] = "career"
 
 
@@ -98,6 +102,8 @@ class GoalChatRequest(BaseModel):
     goal_description: Optional[str] = None
     progress: Optional[int] = None
     tasks: Optional[List[dict]] = []
+    sub_goals: Optional[List[str]] = []
+    document_ids: Optional[List[str]] = []
     target_date: Optional[str] = None
     space_ids: Optional[List[str]] = []
 
@@ -106,6 +112,7 @@ class GoalChatResponse(BaseModel):
     response: str
     citations: List[GoalChatCitation] = []
     spaces_searched: List[str] = []
+    documents_searched: List[str] = []
 
 # -------------------------------------------------------------
 # Endpoints
@@ -166,6 +173,7 @@ async def create_goal(
         description=request.description.strip(),
         status="active",
         tasks=request.tasks or [],
+        document_ids=request.document_ids or [],
         category=request.category or "career",
         priority=request.priority or "medium",
         target_date=request.target_date,
@@ -193,6 +201,7 @@ async def create_goal(
                     "description": new_goal.description,
                     "status": new_goal.status,
                     "tasks": new_goal.tasks,
+                    "document_ids": new_goal.document_ids,
                     "category": new_goal.category,
                     "priority": new_goal.priority,
                     "target_date": new_goal.target_date,
@@ -222,6 +231,7 @@ async def create_goal(
         description=new_goal.description,
         status=new_goal.status,
         tasks=new_goal.tasks or [],
+        document_ids=new_goal.document_ids or [],
         category=new_goal.category or "career",
         priority=new_goal.priority or "medium",
         target_date=new_goal.target_date,
@@ -284,6 +294,7 @@ async def list_goals(
             description=g.description,
             status=g.status,
             tasks=g.tasks or [],
+            document_ids=g.document_ids or [],
             category=g.category or "career",
             priority=g.priority or "medium",
             target_date=g.target_date,
@@ -330,6 +341,7 @@ async def get_goal(
         description=goal.description,
         status=goal.status,
         tasks=goal.tasks or [],
+        document_ids=goal.document_ids or [],
         category=goal.category or "career",
         priority=goal.priority or "medium",
         target_date=goal.target_date,
@@ -372,6 +384,7 @@ async def update_goal(
         "description": goal.description,
         "status": goal.status,
         "tasks": goal.tasks,
+        "document_ids": goal.document_ids,
         "category": goal.category,
         "priority": goal.priority,
         "target_date": goal.target_date,
@@ -385,6 +398,8 @@ async def update_goal(
         goal.status = request.status.strip()
     if request.tasks is not None:
         goal.tasks = request.tasks
+    if request.document_ids is not None:
+        goal.document_ids = request.document_ids
     if request.category is not None:
         goal.category = request.category
     if request.priority is not None:
@@ -397,6 +412,7 @@ async def update_goal(
         "description": goal.description,
         "status": goal.status,
         "tasks": goal.tasks,
+        "document_ids": goal.document_ids,
         "category": goal.category,
         "priority": goal.priority,
         "target_date": goal.target_date,
@@ -441,6 +457,7 @@ async def update_goal(
         description=goal.description,
         status=goal.status,
         tasks=goal.tasks or [],
+        document_ids=goal.document_ids or [],
         category=goal.category or "career",
         priority=goal.priority or "medium",
         target_date=goal.target_date,
@@ -504,6 +521,8 @@ async def recommend_goal_tasks(
     if request.space_id and request.space_id not in target_space_ids:
         target_space_ids.append(request.space_id)
 
+    target_doc_ids = [d for d in (request.document_ids or []) if d]
+
     if target_space_ids:
         try:
             results = await asyncio.wait_for(
@@ -511,6 +530,7 @@ async def recommend_goal_tasks(
                     query=request.goal_description,
                     user_id=str(current_user.id),
                     space_ids=target_space_ids,
+                    document_ids=target_doc_ids or None,
                     top_k=4,
                 ),
                 timeout=3.5,
@@ -697,10 +717,15 @@ async def goal_chat(
     if db_goal and db_goal.space_id and str(db_goal.space_id) not in target_spaces:
         target_spaces.append(str(db_goal.space_id))
 
+    # Determine documents to strictly search
+    target_docs = [str(d) for d in (request.document_ids or []) if d]
+    if not target_docs and db_goal and db_goal.document_ids:
+        target_docs = [str(d) for d in db_goal.document_ids if d]
+
     citations: List[GoalChatCitation] = []
     rag_context = ""
 
-    # 1. Scoped Space Retrieval
+    # 1. Scoped Space & Document Retrieval
     if target_spaces:
         try:
             results = await asyncio.wait_for(
@@ -708,16 +733,20 @@ async def goal_chat(
                     query=request.message,
                     user_id=str(current_user.id),
                     space_ids=target_spaces,
+                    document_ids=target_docs or None,
                     top_k=5,
                 ),
                 timeout=4.0,
             )
             snippets = []
             for r in results:
+                # Discard low scoring noise
+                score = r.get("score", 0.0)
+                if score < 0.50 and not target_docs:
+                    continue
                 doc_title = r.get("document_title") or "Associated Knowledge Doc"
                 content = r.get("content") or r.get("text") or ""
                 page_num = r.get("page_number")
-                score = r.get("score")
                 if content:
                     snippet = content[:350]
                     snippets.append(f"[{doc_title}]: {snippet}")
@@ -734,34 +763,88 @@ async def goal_chat(
         except Exception as e:
             logger.warning(f"Goal chat context retrieval failed or timed out: {e}")
 
-    # Format Tasks Summary
-    tasks_summary = "No subtasks recorded yet."
-    if request.tasks:
-        formatted_tasks = []
-        for t in request.tasks:
-            status_icon = "[DONE]" if t.get("completed") else "[TODO]"
-            prio = t.get("priority", "medium")
-            title = t.get("title", "Task")
-            formatted_tasks.append(f"- {status_icon} ({prio}) {title}")
-        tasks_summary = "\n".join(formatted_tasks)
+    # Format Hierarchical Sub-Goals and Tasks
+    tasks_list = request.tasks or (db_goal.tasks if db_goal and db_goal.tasks else [])
+    
+    # 1. Build Sub-Goals mapping preserving order
+    sub_goals_map: dict[str, list[dict]] = {}
+    
+    # If explicit sub_goals order was supplied from client, seed them
+    if request.sub_goals:
+        for sg in request.sub_goals:
+            if sg and sg not in sub_goals_map:
+                sub_goals_map[sg] = []
+                
+    for t in tasks_list:
+        sg_name = t.get("sub_goal") or "Core Objectives"
+        if sg_name not in sub_goals_map:
+            sub_goals_map[sg_name] = []
+        sub_goals_map[sg_name].append(t)
 
-    # 2. Build Executive AI Prompt
+    if not sub_goals_map:
+        sub_goals_map["Core Objectives"] = []
+
+    sub_goals_overview_lines = []
+    detailed_breakdown_lines = []
+    
+    for idx, (sg_name, sg_tasks) in enumerate(sub_goals_map.items(), 1):
+        completed_count = sum(1 for t in sg_tasks if t.get("completed"))
+        total_count = len(sg_tasks)
+        pct = int((completed_count / total_count * 100)) if total_count > 0 else 0
+        
+        sub_goals_overview_lines.append(
+            f"{idx}. {sg_name} ({completed_count}/{total_count} tasks completed - {pct}%)"
+        )
+        
+        task_bullets = []
+        for t in sg_tasks:
+            status_tag = "[DONE]" if t.get("completed") else "[TODO]"
+            prio = (t.get("priority") or "medium").upper()
+            title = t.get("title") or "Task"
+            task_bullets.append(f"     - {status_tag} ({prio} Priority) {title}")
+            
+        if not task_bullets:
+            task_bullets.append("     - (No tasks assigned yet)")
+            
+        detailed_breakdown_lines.append(
+            f"### Sub-Goal {idx}: {sg_name} ({completed_count}/{total_count} completed)\n"
+            + "\n".join(task_bullets)
+        )
+
+    sub_goals_summary = "\n".join(sub_goals_overview_lines)
+    detailed_tasks_summary = "\n\n".join(detailed_breakdown_lines)
+    sub_goal_names_only = ", ".join([f'"{name}"' for name in sub_goals_map.keys()])
+
+    # 2. Build Executive AI Prompt with Strict Hierarchical Clarity
     system_prompt = (
         "You are QueryMind's executive AI Goal Coach and Strategic Advisor.\n"
         "You are having a focused working conversation with the user regarding their specific goal.\n"
-        "You have direct access to their goal milestones and documents retrieved EXCLUSIVELY from their associated spaces.\n\n"
-        f"=== CURRENT GOAL STATE ===\n"
-        f"Goal: {goal_desc}\n"
-        f"Progress: {progress}%\n"
-        f"Target Date: {target_date}\n"
-        f"Associated Spaces Filter: {', '.join(target_spaces) if target_spaces else 'None'}\n"
-        f"Key Tasks / Subtasks:\n{tasks_summary}\n"
-        f"===========================\n\n"
-        "Guidelines:\n"
-        "1. Give direct, actionable, and inspiring guidance tailored to the user's progress and tasks.\n"
-        "2. If relevant documents were found in their associated spaces, ground your advice in those documents and cite them naturally.\n"
-        "3. If they ask about next steps, suggest which subtask to tackle next based on priority or propose a new specific subtask.\n"
-        "4. Keep your tone concise, strategic, and empowering."
+        "You have direct access to their structured goal hierarchy, modular sub-goals, tasks, and documents scoped to their space.\n\n"
+        "=================== STRUCTURED GOAL HIERARCHY ===================\n"
+        f"OVERARCHING GOAL: {goal_desc}\n"
+        f"Overall Goal Progress: {progress}%\n"
+        f"Target Completion Date: {target_date}\n"
+        f"Associated Spaces Filter: {', '.join(target_spaces) if target_spaces else 'None'}\n\n"
+        f"LIST OF SUB-GOALS (Modular Milestone Categories):\n"
+        f"{sub_goals_summary}\n\n"
+        f"DETAILED SUB-GOALS & EMBEDDED ACTION TASKS:\n"
+        f"{detailed_tasks_summary}\n"
+        "=================================================================\n\n"
+        "CRITICAL RULES FOR RESPONDING (STRICT TERMINOLOGY - NEVER CONFUSE):\n"
+        "1. DEFINITION OF LEVELS:\n"
+        f"   - Level 1: 'Goal' = The overarching goal ({goal_desc}).\n"
+        f"   - Level 2: 'Sub-Goals' = The milestone categories/phases that subdivide this goal ({sub_goal_names_only}).\n"
+        "   - Level 3: 'Tasks' = The individual actionable to-do items listed under each sub-goal.\n\n"
+        "2. USER QUERY ROUTING:\n"
+        "   - When the user asks about SUB-GOALS (e.g. 'what are my sub goals', 'what are my first three sub goals', 'tell me about sub-goal X'):\n"
+        "     You MUST answer with the SUB-GOALS themselves (e.g., 1. Data Structures & Algorithms, 2. System Design & Architecture, 3. Behavioral & Interview Prep). DO NOT return tasks when asked about sub-goals!\n"
+        "   - When the user asks about TASKS, ACTION ITEMS, or TO-DOS (e.g. 'what are my tasks', 'what should I work on next', 'list tasks in sub-goal X'):\n"
+        "     Answer with the actionable tasks inside the relevant sub-goal, highlighting priorities.\n"
+        "   - When the user asks about the overall GOAL:\n"
+        "     Provide a strategic roadmap of the entire objective, explaining how the sub-goals connect.\n\n"
+        "3. ACCURACY & CONCISENESS:\n"
+        "   - Ground domain advice in retrieved space documents when available.\n"
+        "   - Keep answers clear, direct, structured, and free of fluff."
     )
 
     user_prompt_parts = []

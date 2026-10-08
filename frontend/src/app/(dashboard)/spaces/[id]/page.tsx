@@ -40,6 +40,89 @@ export default function SpaceDetailPage({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
 
+  // Space Intelligence Briefing State
+  const [briefing, setBriefing] = useState<{
+    space_id: string;
+    space_name: string;
+    executive_summary: string;
+    key_takeaways: string[];
+    active_priorities: string[];
+    knowledge_gaps: string[];
+    recommended_actions: string[];
+  } | null>(null);
+  const [isLoadingBriefing, setIsLoadingBriefing] = useState(false);
+
+  // Space Copilot Chat State
+  const [copilotMessages, setCopilotMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string; citations?: string[] }>>([
+    {
+      id: "initial-copilot",
+      role: "assistant",
+      content: "Welcome to your Space Copilot. I am strictly grounded in this workspace's documents, milestones, and active knowledge. Ask me anything or explore key topics.",
+    },
+  ]);
+  const [copilotInput, setCopilotInput] = useState("");
+  const [isCopilotStreaming, setIsCopilotStreaming] = useState(false);
+  const copilotEndRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchBriefing = async () => {
+    if (!space?.id) return;
+    setIsLoadingBriefing(true);
+    try {
+      const res = await queryMindApi.getSpaceBriefing(space.id);
+      setBriefing(res);
+    } catch (err) {
+      console.error("Failed to generate space briefing:", err);
+    } finally {
+      setIsLoadingBriefing(false);
+    }
+  };
+
+  const handleSendCopilotMessage = async (e?: React.FormEvent, customPrompt?: string) => {
+    if (e) e.preventDefault();
+    const promptToSend = customPrompt || copilotInput;
+    if (!promptToSend.trim() || isCopilotStreaming || !space?.id) return;
+
+    const userMsgId = `user-${Date.now()}`;
+    const newMsgs = [...copilotMessages, { id: userMsgId, role: "user" as const, content: promptToSend.trim() }];
+    setCopilotMessages(newMsgs);
+    setCopilotInput("");
+    setIsCopilotStreaming(true);
+
+    const assistantMsgId = `assistant-${Date.now()}`;
+    try {
+      // Direct call to orchestrator chat with hard space_id bound
+      const res = await (await import("@/lib/api")).default.post("/chat", {
+        query: promptToSend.trim(),
+        space_id: space.id,
+      });
+
+      setCopilotMessages([
+        ...newMsgs,
+        {
+          id: assistantMsgId,
+          role: "assistant",
+          content: res.data?.answer || "No response received.",
+          citations: res.data?.citations || [],
+        },
+      ]);
+    } catch (err: any) {
+      console.error("Space copilot chat failed:", err);
+      setCopilotMessages([
+        ...newMsgs,
+        {
+          id: assistantMsgId,
+          role: "assistant",
+          content: "Sorry, I encountered an issue retrieving workspace knowledge. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsCopilotStreaming(false);
+      setTimeout(() => {
+        copilotEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  };
+
   // Find space or fallback to first space
   const space = useMemo(() => {
     return (
@@ -560,7 +643,7 @@ export default function SpaceDetailPage({
           </div>
           <div>
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
-              Vector Embeddings
+              Searchable Passages
             </div>
             <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", marginTop: "2px" }}>
               <AnimatedCounter target={vectorCount} prefix="~" />
@@ -596,6 +679,8 @@ export default function SpaceDetailPage({
       >
         {[
           { id: "overview", label: "Pulse (Overview)" },
+          { id: "copilot", label: "✨ Space Copilot" },
+          { id: "briefing", label: "📋 Intelligence Briefing" },
           { id: "objects", label: `Vault & Docs (${spaceObjects.length})` },
           { id: "graph", label: "Knowledge Map" },
           { id: "notes", label: "Studio & Notes" },
@@ -1104,6 +1189,402 @@ export default function SpaceDetailPage({
             </span>
           </div>
           <KnowledgeMap />
+        </div>
+      )}
+
+      {/* Tab: SPACE COPILOT (In-Situ Chat Scoped to Space) */}
+      {activeSpaceTab === "copilot" && (
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "14px",
+            display: "flex",
+            flexDirection: "column",
+            height: "650px",
+            overflow: "hidden",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          {/* Copilot Header */}
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: "rgba(255, 255, 255, 0.02)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  background: "#10B981",
+                  boxShadow: "0 0 8px rgba(16, 185, 129, 0.6)",
+                }}
+              />
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                  {space.name} Resident Copilot
+                </h3>
+                <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                  Grounded strictly in {spaceObjects.length} documents & milestones
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => setCopilotMessages([
+                  {
+                    id: "reset",
+                    role: "assistant",
+                    content: `Reset complete. How can I assist you with **${space.name}**?`,
+                  }
+                ])}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Clear History
+              </button>
+            </div>
+          </div>
+
+          {/* Copilot Messages Scroll Container */}
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+          >
+            {copilotMessages.map((msg) => (
+              <div
+                key={msg.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                  maxWidth: "85%",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    background: msg.role === "user" ? "#FFFFFF" : "var(--surface-hover)",
+                    color: msg.role === "user" ? "#000000" : "var(--text-primary)",
+                    fontSize: "13px",
+                    lineHeight: "1.6",
+                    border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {msg.content}
+                </div>
+                {msg.citations && msg.citations.length > 0 && (
+                  <div style={{ marginTop: "6px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {msg.citations.map((c, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: "10px",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.05)",
+                          color: "var(--text-tertiary)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        📄 {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {isCopilotStreaming && (
+              <div
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  background: "var(--surface-hover)",
+                  fontSize: "12px",
+                  color: "var(--text-tertiary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span className="alive-dot" style={{ background: "#FFFFFF" }} />
+                <span>Searching {space.name} vector memory...</span>
+              </div>
+            )}
+            <div ref={copilotEndRef} />
+          </div>
+
+          {/* Quick Starter Pills */}
+          <div
+            style={{
+              padding: "8px 16px",
+              display: "flex",
+              gap: "8px",
+              overflowX: "auto",
+              borderTop: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.1)",
+            }}
+          >
+            {[
+              `Summarize key concepts in ${space.name}`,
+              "What milestones should I tackle next?",
+              "Generate a quick quiz on these documents",
+            ].map((pill, i) => (
+              <button
+                key={i}
+                onClick={() => handleSendCopilotMessage(undefined, pill)}
+                disabled={isCopilotStreaming}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-secondary)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                💡 {pill}
+              </button>
+            ))}
+          </div>
+
+          {/* Copilot Input Box */}
+          <form
+            onSubmit={handleSendCopilotMessage}
+            style={{
+              padding: "12px 16px",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              gap: "10px",
+              background: "var(--surface)",
+            }}
+          >
+            <input
+              type="text"
+              placeholder={`Ask anything about ${space.name}...`}
+              value={copilotInput}
+              onChange={(e) => setCopilotInput(e.target.value)}
+              disabled={isCopilotStreaming}
+              style={{
+                flex: 1,
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                background: "var(--surface-subtle)",
+                color: "var(--text-primary)",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!copilotInput.trim() || isCopilotStreaming}
+              style={{
+                padding: "0 18px",
+                borderRadius: "8px",
+                border: "none",
+                background: copilotInput.trim() && !isCopilotStreaming ? "#FFFFFF" : "var(--surface-hover)",
+                color: copilotInput.trim() && !isCopilotStreaming ? "#000000" : "var(--text-tertiary)",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: copilotInput.trim() && !isCopilotStreaming ? "pointer" : "default",
+              }}
+            >
+              Send
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Tab: INTELLIGENCE BRIEFING (Option 3 Synthesis) */}
+      {activeSpaceTab === "briefing" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* Briefing Trigger Banner */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, var(--surface) 100%)",
+              border: "1px solid var(--border)",
+              borderRadius: "14px",
+              padding: "24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "16px",
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                {space.name} Intelligence Synthesis
+              </h3>
+              <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "6px 0 0 0", maxWidth: "600px" }}>
+                Generates a multi-angle executive digest synthesizing all {spaceObjects.length} documents, active milestones, and past conversations in this workspace.
+              </p>
+            </div>
+            <button
+              onClick={fetchBriefing}
+              disabled={isLoadingBriefing}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#FFFFFF",
+                color: "#000000",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: isLoadingBriefing ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {isLoadingBriefing ? (
+                <>
+                  <span className="alive-dot" style={{ background: "#000000" }} />
+                  <span>Synthesizing Domain...</span>
+                </>
+              ) : (
+                <>
+                  <span>⚡</span>
+                  <span>{briefing ? "Regenerate Briefing" : "Generate Briefing"}</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Briefing Output Cards */}
+          {briefing && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Executive Summary Card */}
+              <div
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "12px",
+                  padding: "20px",
+                }}
+              >
+                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981", marginBottom: "8px" }}>
+                  Executive Summary
+                </div>
+                <p style={{ fontSize: "14px", lineHeight: "1.6", color: "var(--text-primary)", margin: 0 }}>
+                  {briefing.executive_summary}
+                </p>
+              </div>
+
+              {/* 2-Column Grid: Key Takeaways & Active Priorities */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px" }}>
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "20px",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-secondary)", marginBottom: "12px" }}>
+                    💡 Core Themes & Takeaways
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {briefing.key_takeaways.map((item, idx) => (
+                      <li key={idx} style={{ fontSize: "13px", color: "var(--text-primary)", lineHeight: "1.5" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "20px",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-secondary)", marginBottom: "12px" }}>
+                    🎯 Active Priorities
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {briefing.active_priorities.map((item, idx) => (
+                      <li key={idx} style={{ fontSize: "13px", color: "var(--text-primary)", lineHeight: "1.5" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 2-Column Grid: Knowledge Gaps & Recommended Actions */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px" }}>
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                    borderRadius: "12px",
+                    padding: "20px",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#EF4444", marginBottom: "12px" }}>
+                    ⚠️ Knowledge Gaps & Blind Spots
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {briefing.knowledge_gaps.map((item, idx) => (
+                      <li key={idx} style={{ fontSize: "13px", color: "var(--text-primary)", lineHeight: "1.5" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                    borderRadius: "12px",
+                    padding: "20px",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3B82F6", marginBottom: "12px" }}>
+                    🚀 Recommended Actions
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {briefing.recommended_actions.map((item, idx) => (
+                      <li key={idx} style={{ fontSize: "13px", color: "var(--text-primary)", lineHeight: "1.5" }}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

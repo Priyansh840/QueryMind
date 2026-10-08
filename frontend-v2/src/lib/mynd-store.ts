@@ -563,7 +563,7 @@ export const useMyndStore = create<MyndState>()(
   persist(
     (set, get) => ({
       theme: "dark",
-      accentColor: "#FFFFFF",
+      accentColor: "#6366f1",
       uiDensity: "comfortable",
       reduceMotion: false,
       soundEffects: true,
@@ -1069,10 +1069,10 @@ export const useMyndStore = create<MyndState>()(
 
       syncWithBackend: async () => {
         try {
-          const [meData, spacesData, knowledgeData] = await Promise.allSettled([
+          const [meData, spacesData, documentsData] = await Promise.allSettled([
             authApi.getMe(),
             queryMindApi.getSpaces(),
-            queryMindApi.getKnowledge(),
+            queryMindApi.listDocuments(),
           ]);
 
           const updates: Partial<MyndState> = {};
@@ -1146,36 +1146,19 @@ export const useMyndStore = create<MyndState>()(
             updates.hasCompletedOnboarding = true;
           }
 
-          if (knowledgeData.status === "fulfilled" && Array.isArray(knowledgeData.value)) {
-            const objects: KnowledgeObject[] = knowledgeData.value.map((k) => ({
-              id: k.id,
-              title: k.title || k.content.slice(0, 40),
-              type: (k.knowledge_type || "NOTE").toUpperCase(),
-              badge: (k.knowledge_type || "NOTE").toUpperCase(),
-              updated: "Recently",
-              time: "Recently",
-              spaceId: k.space_id,
-              confidence: `${Math.round((k.confidence || 0.9) * 100)}%`,
-              summary: k.content.slice(0, 150),
-              content: k.content,
-              meta: `${k.knowledge_type} • ${new Date(k.created_at).toLocaleDateString()}`,
-              tags: [k.knowledge_type],
+          if (documentsData.status === "fulfilled" && Array.isArray(documentsData.value)) {
+            const rawDocs = documentsData.value;
+            const mappedDocs = rawDocs.map((d: any) => ({
+              id: d.id,
+              title: d.title || d.name || "Document",
+              name: d.title || d.name || "Document",
+              type: (d.type || "pdf").toUpperCase(),
+              size: "Document",
+              chunks: 1,
+              spaceId: d.space_id,
+              summary: "Ready for search and reasoning.",
             }));
-            updates.recentObjects = objects;
-            updates.uploadedDocuments = objects.filter((o) => o.type === "DOCUMENT");
-
-            if (objects.length > 0 && get().activityFeed.length === 0) {
-              updates.activityFeed = objects.slice(0, 8).map((obj) => ({
-                id: `act-${obj.id}`,
-                title: `${obj.type === "DOCUMENT" ? "Document added" : "Note saved"}: ${obj.title}`,
-                text: obj.summary || obj.title,
-                time: "Recently",
-                space: "General",
-                iconType: obj.type === "DOCUMENT" ? "file" : "sparkles",
-                color: "#6366F1",
-                bg: "var(--surface-hover)",
-              }));
-            }
+            updates.uploadedDocuments = mappedDocs;
           }
 
           set((state) => ({ ...state, ...updates }));
@@ -1192,7 +1175,9 @@ export const useMyndStore = create<MyndState>()(
         if (!state.theme || state.theme === "light") {
           state.theme = "dark";
         }
-        if (!state.accentColor || state.accentColor === "#8B5CF6") state.accentColor = "#FFFFFF";
+        if (!state.accentColor || state.accentColor === "#FFFFFF" || state.accentColor === "#ECECEC" || state.accentColor.toLowerCase() === "#ececec") {
+          state.accentColor = "#6366f1";
+        }
         if (!state.uiDensity) state.uiDensity = "comfortable";
         if (state.reduceMotion === undefined) state.reduceMotion = false;
         if (state.soundEffects === undefined) state.soundEffects = true;
@@ -1205,10 +1190,8 @@ export const useMyndStore = create<MyndState>()(
         if (typeof document !== "undefined") {
           document.documentElement.setAttribute("data-theme", state.theme || "dark");
           document.documentElement.setAttribute("data-density", state.uiDensity || "comfortable");
-          if (state.accentColor) {
-            document.documentElement.style.setProperty("--accent", state.accentColor);
-            document.documentElement.style.setProperty("--accent-soft", state.accentColor + "26");
-          }
+          document.documentElement.style.setProperty("--accent", state.accentColor || "#6366f1");
+          document.documentElement.style.setProperty("--accent-soft", (state.accentColor || "#6366f1") + "26");
         }
         // If onboarding has not been completed, spaces must be empty
         if (!state.hasCompletedOnboarding) {

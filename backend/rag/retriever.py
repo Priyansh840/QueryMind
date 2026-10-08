@@ -28,19 +28,22 @@ async def retrieve_context(
     user_id: Optional[str] = None,
     space_id: Optional[str] = None,
     space_ids: Optional[List[str]] = None,
+    document_ids: Optional[List[str]] = None,
     top_k: int = 8,
     score_threshold: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """
     1. Embeds query dynamically.
-    2. Searches Qdrant strictly scoped to space_id or space_ids (primary collaboration boundary).
+    2. Searches Qdrant strictly scoped to space_id/space_ids and optional document_ids.
     3. Fetches actual text from PostgreSQL using chunk_id from payload.
     """
     target_spaces = [str(s) for s in (space_ids or []) if s]
     if space_id and str(space_id) not in target_spaces:
         target_spaces.append(str(space_id))
 
-    logger.info(f"Retrieving context for query: '{query}' (spaces={target_spaces})")
+    target_docs = [str(d) for d in (document_ids or []) if d]
+
+    logger.info(f"Retrieving context for query: '{query}' (spaces={target_spaces}, docs={target_docs})")
 
     if not settings.qdrant_client_url:
         logger.warning("Qdrant URL missing. Skipping retrieval.")
@@ -55,7 +58,7 @@ async def retrieve_context(
         api_key=settings.QDRANT_API_KEY if settings.QDRANT_API_KEY else None,
     )
 
-    # 1. Space Filter (if specified, filter by spaces; if empty/universal, search entire user knowledge)
+    # 1. Space and Document Filters
     filter_conditions = []
     if target_spaces:
         if len(target_spaces) == 1:
@@ -66,6 +69,19 @@ async def retrieve_context(
             models.FieldCondition(
                 key="space_id",
                 match=space_match
+            )
+        )
+
+    # Strict Document Scoping if specified
+    if target_docs:
+        if len(target_docs) == 1:
+            doc_match = models.MatchValue(value=target_docs[0])
+        else:
+            doc_match = models.MatchAny(any=target_docs)
+        filter_conditions.append(
+            models.FieldCondition(
+                key="document_id",
+                match=doc_match
             )
         )
 

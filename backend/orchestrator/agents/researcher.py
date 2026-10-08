@@ -143,9 +143,41 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
             # - sort by relevance score descending
             combined = raw_evidence[:5] + kn_evidence[:4]
 
+            # Check if active workspace goals or queries indicate explicit document scoping
+            active_goals = (state.get("workspace_context") or {}).get("goals", [])
+            scoped_doc_ids = set()
+            for ag in active_goals:
+                for did in (ag.get("document_ids") or []):
+                    if did:
+                        scoped_doc_ids.add(str(did))
+
+            user_q_lower = (state.get("raw_query") or "").lower()
+            task_q_lower = task["query"].lower()
+
+            # Technical query detection: if user/task is doing technical learning/practice/coding,
+            # actively filter out personal resumes/CVs unless explicitly requested.
+            is_technical_query = any(k in user_q_lower or k in task_q_lower for k in (
+                "dsa", "algorithm", "data structure", "compiler", "operating system",
+                "practice sprint", "module", "subtask", "code", "programming", "topic",
+                "database", "architecture", "study", "learning", "exam", "syllabus"
+            ))
+            explicit_career_query = any(k in user_q_lower or k in task_q_lower for k in ("cv", "resume", "experience", "bio", "work history", "profile"))
+
             # Deduplicate by content: if exact same content text exists in both, keep higher score
             deduped = {}
             for item in combined:
+                doc_title = (item.get("document_title") or "").lower()
+                doc_id = str(item.get("document_id") or "")
+
+                # If active goals have specific assigned document IDs and this document is not in them, skip
+                if scoped_doc_ids and doc_id and doc_id not in scoped_doc_ids:
+                    continue
+
+                # Filter out CV/resume if query is technical and not about career
+                if is_technical_query and not explicit_career_query:
+                    if any(bad in doc_title for bad in ("cv", "resume", "curriculum vitae")):
+                        continue
+
                 content_key = item["content"].strip().lower()
                 if content_key in deduped:
                     if (item["relevance_score"] or 0.0) > (deduped[content_key]["relevance_score"] or 0.0):
@@ -153,10 +185,6 @@ async def research_node(state: AgentState, config: RunnableConfig) -> AgentState
                 else:
                     deduped[content_key] = item
 
-            # Prioritize chunks from documents whose title appears in query or raw_query
-            user_q_lower = (state.get("raw_query") or "").lower()
-            task_q_lower = task["query"].lower()
-            
             def calc_priority(item):
                 score = item["relevance_score"] if item["relevance_score"] is not None else 0.0
                 doc_title = (item.get("document_title") or "").lower()

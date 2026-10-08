@@ -24,12 +24,13 @@ async def retrieve_knowledge(
     user_id: Optional[str] = None,
     space_id: Optional[str] = None,
     knowledge_type: Optional[str] = None,
+    document_ids: Optional[List[str]] = None,
     top_k: int = 5,
 ) -> List[Dict[str, Any]]:
     """
     Retrieves structured knowledge items:
     1. Embeds the user query.
-    2. Searches Qdrant 'querymind_knowledge' vector index with authoritative space_id workspace isolation.
+    2. Searches Qdrant 'querymind_knowledge' vector index with space_id and optional document_ids isolation.
     3. Hydrates authoritative content and metadata from PostgreSQL knowledge table with matching space boundary.
     """
     user_uuid = None
@@ -50,6 +51,8 @@ async def retrieve_knowledge(
         logger.error("Either space_id or user_id is strictly required for knowledge retrieval.")
         return []
 
+    target_docs = [str(d) for d in (document_ids or []) if d]
+
     # 1. Embed query
     query_vector = embedding_service.embed_query(query)
 
@@ -67,6 +70,18 @@ async def retrieve_knowledge(
             qmodels.FieldCondition(
                 key="user_id",
                 match=qmodels.MatchValue(value=str(user_uuid)),
+            )
+        )
+
+    if target_docs:
+        if len(target_docs) == 1:
+            doc_match = qmodels.MatchValue(value=target_docs[0])
+        else:
+            doc_match = qmodels.MatchAny(any=target_docs)
+        must_conditions.append(
+            qmodels.FieldCondition(
+                key="document_id",
+                match=doc_match,
             )
         )
 

@@ -204,6 +204,7 @@ async def gather_context_node(state: AgentState, config: RunnableConfig) -> Agen
                 "id": str(g.id),
                 "description": g.description,
                 "status": g.status,
+                "document_ids": [str(d) for d in (g.document_ids or [])],
                 "space_id": str(g.space_id) if g.space_id else None,
                 "space_name": sp_name or "General",
                 "is_current_space": is_current,

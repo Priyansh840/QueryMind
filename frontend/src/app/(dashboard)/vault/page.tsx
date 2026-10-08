@@ -16,6 +16,7 @@ import {
   Square,
   Sparkles,
   ChevronDown,
+  FolderPlus,
 } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi, downloadBlob } from "@/lib/api";
@@ -27,6 +28,14 @@ export default function VaultPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [proposedSpaceSuggestion, setProposedSpaceSuggestion] = useState<{
+    documentId: string;
+    documentName: string;
+    proposedName: string;
+    proposedDescription: string;
+    proposedIcon?: string;
+  } | null>(null);
+  const [isApprovingSpace, setIsApprovingSpace] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
 
   // Bulk and single export state
@@ -41,26 +50,27 @@ export default function VaultPage() {
   const deleteDocument = useMyndStore((state) => state.deleteDocument);
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+  const selectSpace = useMyndStore((state) => state.selectSpace);
 
-  // Sync with backend on load
+  // Sync all documents with backend on load
   useEffect(() => {
     let isMounted = true;
     const fetchBackendDocs = async () => {
-      if (!activeSpaceId) return;
       try {
-        const docs = await queryMindApi.listDocuments(activeSpaceId);
+        // Fetch ALL documents across all user spaces
+        const docs = await queryMindApi.listDocuments();
         if (isMounted && Array.isArray(docs) && docs.length > 0) {
           const currentUploaded = useMyndStore.getState().uploadedDocuments;
-          docs.forEach((d: { id: string; title: string; file_type?: string; file_size?: number }) => {
+          docs.forEach((d: { id: string; title: string; type?: string; file_type?: string; file_size?: number; space_id?: string }) => {
             const exists = currentUploaded.some((u) => u.id === d.id || u.title === d.title);
             if (!exists) {
               addDocument({
                 id: d.id,
                 name: d.title,
-                type: d.file_type || "pdf",
+                type: d.type || d.file_type || "pdf",
                 size: d.file_size ? `${(d.file_size / (1024 * 1024)).toFixed(2)} MB` : "1.2 MB",
                 chunks: 1,
-                spaceId: activeSpaceId,
+                spaceId: d.space_id || activeSpaceId || undefined,
                 summary: `Ingested document in Workspace.`,
               });
             }
@@ -74,7 +84,7 @@ export default function VaultPage() {
     return () => {
       isMounted = false;
     };
-  }, [activeSpaceId, addDocument]);
+  }, [addDocument, activeSpaceId]);
 
   const handleFileUpload = async (selectedFile: File) => {
     if (!selectedFile) return;
@@ -86,12 +96,16 @@ export default function VaultPage() {
     const ext = selectedFile.name.split(".").pop() || "doc";
 
     try {
+      // In the general Vault, upload with auto routing so the backend classifies the document
       const data = await queryMindApi.uploadDocument(
         selectedFile,
-        activeSpaceId || undefined
+        undefined
       );
 
-      // Add to store with real backend vector results
+      const assignedSpaceId = data.space_id || activeSpaceId || undefined;
+      const assignedSpaceName = data.space_name ? ` (Filed in ${data.space_name})` : "";
+
+      // Add to store with real backend vector results & assigned space
       addDocument({
         id: data.document_id,
         name: data.filename || selectedFile.name,
@@ -99,16 +113,27 @@ export default function VaultPage() {
         size: fileSizeStr,
         chunks: data.chunks_created || 1,
         vectorsStored: data.vectors_stored || 1,
-        spaceId: activeSpaceId || undefined,
+        spaceId: assignedSpaceId,
         summary: data.first_chunk_preview
-          ? `Indexed document with ${data.chunks_created} chunks. Preview: ${data.first_chunk_preview}`
-          : `Document parsed and embedded into Qdrant.`,
+          ? `Preview: ${data.first_chunk_preview}`
+          : `Ready for search and AI reasoning.`,
       });
 
       setUploadStatus({
         type: "success",
-        message: `Successfully indexed "${data.filename || selectedFile.name}" into Qdrant (${data.chunks_created || 1} chunks, ${data.vectors_stored || 1} vectors stored).`,
+        message: `Successfully processed "${data.filename || selectedFile.name}"${assignedSpaceName}.`,
       });
+
+      // If backend suggested a new space for this document, prompt the user for approval
+      if (data.suggested_new_space && data.suggested_new_space.name) {
+        setProposedSpaceSuggestion({
+          documentId: data.document_id,
+          documentName: data.filename || selectedFile.name,
+          proposedName: data.suggested_new_space.name,
+          proposedDescription: data.suggested_new_space.description || "Dedicated domain workspace",
+          proposedIcon: data.suggested_new_space.icon || "📁",
+        });
+      }
     } catch (err: unknown) {
       // If backend is offline, still save the real uploaded file locally in store with notification
       addDocument({
@@ -118,17 +143,73 @@ export default function VaultPage() {
         size: fileSizeStr,
         chunks: 1,
         spaceId: activeSpaceId || undefined,
-        summary: `Local file ${selectedFile.name} added to workspace vault.`,
+        summary: `Document added to your library.`,
       });
 
       setUploadStatus({
         type: "error",
-        message: `Saved locally. Backend vector indexing was unreachable: ${
-          err instanceof Error ? err.message : "Network error"
+        message: `Saved locally. Cloud sync temporarily unavailable: ${
+          err instanceof Error ? err.message : "Connection error"
         }`,
       });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleApproveNewSpace = async () => {
+    if (!proposedSpaceSuggestion) return;
+    setIsApprovingSpace(true);
+    try {
+      const res = await queryMindApi.moveDocument(
+        proposedSpaceSuggestion.documentId,
+        "new",
+        {
+          createSpaceIfMissing: true,
+          newSpaceName: proposedSpaceSuggestion.proposedName,
+          newSpaceDescription: proposedSpaceSuggestion.proposedDescription,
+        }
+      );
+
+      // Refresh local store
+      useMyndStore.getState().deleteDocument(proposedSpaceSuggestion.documentId);
+      addDocument({
+        id: res.document_id,
+        name: res.filename,
+        type: "PDF",
+        size: "Document",
+        chunks: 1,
+        spaceId: res.new_space_id,
+        summary: `Organized into newly created space '${res.new_space_name}'.`,
+      });
+
+      // Reload spaces in store
+      const allSpaces = await queryMindApi.getSpaces();
+      useMyndStore.setState({
+        spaces: allSpaces.map((s) => ({
+          id: s.id,
+          name: s.name,
+          slug: s.slug || s.name.toLowerCase().replace(/\s+/g, "-"),
+          desc: s.description || "Workspace",
+          count: 1,
+          status: "synced" as const,
+          color: s.color || "#6366f1",
+          icon: s.icon || "folder",
+          pinned: false,
+          updated: "Just now",
+        })),
+      });
+
+      setUploadStatus({
+        type: "success",
+        message: `Created new space "${res.new_space_name}" and moved "${res.filename}" into it!`,
+      });
+      setProposedSpaceSuggestion(null);
+    } catch (err: any) {
+      console.error("Failed to approve new space:", err);
+      alert("Could not create space: " + (err.message || err));
+    } finally {
+      setIsApprovingSpace(false);
     }
   };
 
@@ -227,7 +308,7 @@ export default function VaultPage() {
             Knowledge Vault
           </h1>
           <p style={{ color: "var(--text-secondary)", marginTop: "6px" }}>
-            Upload documents to automatically parse, chunk, embed, and index into PostgreSQL and your Qdrant vector database.
+            Your centralized document library. Upload resources to make them instantly searchable and accessible to your AI assistants.
           </p>
         </div>
 
@@ -384,10 +465,10 @@ export default function VaultPage() {
         </div>
 
         <h3 style={{ fontSize: "16px", fontWeight: "var(--w-semibold)", color: "var(--text-primary)" }}>
-          {isUploading ? "Uploading & indexing into Qdrant..." : "Click or drag files to upload"}
+          {isUploading ? "Processing document..." : "Click or drag files to upload"}
         </h3>
         <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginTop: "6px" }}>
-          Supports PDF, DOCX, TXT, Markdown. Vectors are stored in Qdrant with BGE-small embeddings.
+          Supports PDF, Word, Markdown, and text files. Automatically filed and indexed for AI reasoning.
         </p>
       </div>
 
@@ -406,8 +487,106 @@ export default function VaultPage() {
             border: `1px solid ${uploadStatus.type === "success" ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
           }}
         >
-          {uploadStatus.type === "success" ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          <span>{uploadStatus.message}</span>
+          {uploadStatus.type === "success" ? <CheckCircle className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          <span style={{ flex: 1 }}>{uploadStatus.message}</span>
+        </div>
+      )}
+
+      {/* Suggested New Space Approval Card */}
+      {proposedSpaceSuggestion && (
+        <div
+          style={{
+            padding: "16px 20px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%)",
+            border: "1px solid rgba(99, 102, 241, 0.35)",
+            boxShadow: "0 6px 20px rgba(99, 102, 241, 0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "14px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", maxWidth: "680px" }}>
+            <span style={{ fontSize: "24px", lineHeight: "1" }}>{proposedSpaceSuggestion.proposedIcon || "📁"}</span>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "14px", fontWeight: "var(--w-semibold)", color: "var(--text-primary)" }}>
+                  Create dedicated space for &quot;{proposedSpaceSuggestion.documentName}&quot;?
+                </span>
+                <span
+                  style={{
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    background: "rgba(99, 102, 241, 0.2)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  Suggested: {proposedSpaceSuggestion.proposedName}
+                </span>
+              </div>
+              <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                {proposedSpaceSuggestion.proposedDescription}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => setProposedSpaceSuggestion(null)}
+              disabled={isApprovingSpace}
+              style={{
+                padding: "7px 14px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: "var(--w-medium)",
+                color: "var(--text-tertiary)",
+                background: "transparent",
+                border: "1px solid var(--border-subtle)",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              className="hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
+            >
+              Keep in General
+            </button>
+            <button
+              type="button"
+              onClick={handleApproveNewSpace}
+              disabled={isApprovingSpace}
+              style={{
+                padding: "7px 16px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: "var(--w-semibold)",
+                color: "#FFFFFF",
+                background: "var(--accent)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: isApprovingSpace ? "not-allowed" : "pointer",
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.35)",
+              }}
+              className="hover:brightness-110 active:scale-[0.98]"
+            >
+              {isApprovingSpace ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Creating Space...</span>
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>Approve & Create Space</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -711,12 +890,12 @@ export default function VaultPage() {
                   </p>
                 )}
 
-                <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
-                  <span className="kbd" style={{ fontSize: "10px" }}>
-                    {doc.chunks || 1} chunks
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "auto" }}>
+                  <span className="kbd" style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>
+                    {doc.fileSize || "File"}
                   </span>
-                  <span className="kbd" style={{ fontSize: "10px", color: "var(--accent)" }}>
-                    Qdrant Vector Indexed
+                  <span className="kbd" style={{ fontSize: "10px", color: "#10B981", background: "rgba(16, 185, 129, 0.08)", borderColor: "rgba(16, 185, 129, 0.2)" }}>
+                    ✓ Indexed
                   </span>
                 </div>
               </div>
@@ -764,7 +943,7 @@ export default function VaultPage() {
                       {doc.title}
                     </h4>
                     <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                      {doc.fileSize || "PDF"} • {doc.chunks || 1} chunks
+                      {doc.fileSize || "File"} • {doc.type ? doc.type.toUpperCase() : "Document"}
                     </span>
                   </div>
                 </div>
