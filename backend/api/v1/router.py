@@ -5,9 +5,12 @@ Aggregates all route modules into a single router.
 
 from fastapi import APIRouter
 
-from api.v1 import auth, documents, spaces, knowledge
+from api.v1 import auth, documents, spaces, knowledge, chat
 
 api_router = APIRouter()
+
+# Chat Orchestration endpoint
+api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 
 # Auth endpoint
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])

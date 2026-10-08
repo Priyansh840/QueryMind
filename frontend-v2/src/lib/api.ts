@@ -220,106 +220,6 @@ export interface SpaceUpdateData {
   is_default?: boolean;
 }
 
-export interface CockpitEvidence {
-  id?: string;
-  title: string;
-  type: string;
-  snippet?: string;
-}
-
-export interface CockpitAction {
-  action_type: string;
-  label: string;
-  target_id?: string;
-  payload?: Record<string, any>;
-}
-
-export interface RightNowFocus {
-  id: string;
-  headline: string;
-  why_it_matters: string;
-  evidence: CockpitEvidence[];
-  recommended_action: CockpitAction;
-  urgency: "high" | "medium" | "low";
-  source_context: string;
-}
-
-export interface NoticedPattern {
-  id: string;
-  type: "pattern" | "contradiction" | "repeated_topic" | "shift";
-  title: string;
-  observation: string;
-  why_it_matters: string;
-  confidence: number;
-  sources_count: number;
-  evidence: CockpitEvidence[];
-  action?: CockpitAction;
-}
-
-export interface OpenLoopItem {
-  id: string;
-  loop_type: "uncompleted_task" | "pending_proposal" | "unverified_outcome";
-  title: string;
-  context: string;
-  age_formatted: string;
-  created_at: string;
-  importance: "high" | "medium" | "low" | string;
-  action: CockpitAction;
-}
-
-export interface NextBestMoveItem {
-  id: string;
-  action_type: string;
-  headline: string;
-  why_mynd_recommends: string;
-  expected_impact: string;
-  action: CockpitAction;
-}
-
-export interface KnowledgeGapItem {
-  id: string;
-  known_concept: string;
-  missing_relationship: string;
-  related_sources: string[];
-  suggested_action: CockpitAction;
-}
-
-export interface ResolvedConnectionItem {
-  id: string;
-  source_id: string;
-  source_title: string;
-  source_type: string;
-  target_id: string;
-  target_title: string;
-  target_type: string;
-  relation: string;
-  reason?: string;
-  confidence: number;
-  created_at: string;
-}
-
-export interface IntelligenceTimelineItem {
-  id: string;
-  event_type: string;
-  title: string;
-  detail: string;
-  timestamp: string;
-  status?: string;
-  badge_label: string;
-}
-
-export interface SpaceCockpitData {
-  space: SpaceData;
-  last_synced_at: string;
-  right_now?: RightNowFocus | null;
-  mynd_noticed: NoticedPattern[];
-  open_loops: OpenLoopItem[];
-  next_best_move?: NextBestMoveItem | null;
-  knowledge_gaps: KnowledgeGapItem[];
-  connections: ResolvedConnectionItem[];
-  timeline: IntelligenceTimelineItem[];
-}
-
 export interface KnowledgeItemData {
   id: string;
   user_id: string;
@@ -374,64 +274,6 @@ export interface MemoryData {
   last_reinforced_at: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface ActionProposalItem {
-  id: string;
-  proposal_id: string;
-  space_id?: string;
-  action_type: string;
-  target_id?: string;
-  parameters: Record<string, any>;
-  reason: string;
-  confidence: string;
-  status: "pending" | "approved" | "executed" | "rejected" | "failed";
-  created_at: string;
-}
-
-export interface ReflectionItem {
-  id: string;
-  space_id: string;
-  user_id: string;
-  outcome_id?: string;
-  reflection_type: "lesson" | "failure_analysis" | "success_pattern" | "user_feedback";
-  title: string;
-  lesson_learned: string;
-  actionable_guidance?: string;
-  confidence: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WorkflowStepItem {
-  id: string;
-  step_order: number;
-  iteration: number;
-  intent_type: string;
-  name: string;
-  description?: string;
-  status: string;
-  output_summary?: string;
-  agent_runs: Array<{
-    id: string;
-    agent_type: string;
-    status: string;
-    started_at?: string;
-    completed_at?: string;
-    output_summary?: Record<string, any>;
-  }>;
-}
-
-export interface WorkflowDetailItem {
-  id: string;
-  objective_id: string;
-  space_id: string;
-  goal: string;
-  status: string;
-  created_at: string;
-  steps: WorkflowStepItem[];
-  output?: Record<string, any>;
-  pending_actions: any[];
 }
 
 export const queryMindApi = {
@@ -496,18 +338,18 @@ export const queryMindApi = {
   },
 
   // Goals Management
-  getGoals: async (filters?: { spaceId?: string; projectId?: string } | string): Promise<GoalData[]> => {
-    let qs = "";
+  getGoals: async (filters?: { projectId?: string; spaceId?: string } | string): Promise<GoalData[]> => {
+    let url = "/goals";
     if (typeof filters === "string") {
-      qs = `?project_id=${encodeURIComponent(filters)}`;
+      url += `?project_id=${filters}`;
     } else if (filters) {
-      const p = new URLSearchParams();
-      if (filters.spaceId) p.append("space_id", filters.spaceId);
-      if (filters.projectId) p.append("project_id", filters.projectId);
-      const str = p.toString();
-      if (str) qs = `?${str}`;
+      const params = new URLSearchParams();
+      if (filters.projectId) params.append("project_id", filters.projectId);
+      if (filters.spaceId) params.append("space_id", filters.spaceId);
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
     }
-    const res = await api.get<GoalData[]>(`/goals${qs}`);
+    const res = await api.get<GoalData[]>(url);
     return res.data;
   },
   getGoal: async (goalId: string): Promise<GoalData> => {
@@ -568,6 +410,7 @@ export const queryMindApi = {
       goal_description?: string;
       progress?: number;
       tasks?: Array<any>;
+      sub_goals?: string[];
       document_ids?: string[];
       target_date?: string;
       space_ids?: string[];
@@ -590,7 +433,7 @@ export const queryMindApi = {
     const res = await api.get<MemoryData>(`/memories/${memoryId}`);
     return res.data;
   },
-  createMemory: async (data: { memory_type: string; content: string; importance?: string; space_id?: string }): Promise<MemoryData> => {
+  createMemory: async (data: { memory_type: string; content: string; importance?: string }): Promise<MemoryData> => {
     const res = await api.post<MemoryData>("/memories", data);
     return res.data;
   },
@@ -602,14 +445,6 @@ export const queryMindApi = {
     const res = await api.delete<{ status: string; message: string }>(`/memories/${memoryId}`);
     return res.data;
   },
-  reinforceMemory: async (memoryId: string): Promise<MemoryData> => {
-    const res = await api.post<MemoryData>(`/memories/${memoryId}/reinforce`);
-    return res.data;
-  },
-  getSpaceMemorySummary: async (spaceId: string): Promise<any> => {
-    const res = await api.get(`/memories/space/${spaceId}/summary`);
-    return res.data;
-  },
 
   // Spaces Management
   getSpaces: async (): Promise<SpaceData[]> => {
@@ -619,6 +454,11 @@ export const queryMindApi = {
 
   getSpace: async (spaceId: string): Promise<SpaceData> => {
     const res = await api.get<SpaceData>(`/spaces/${spaceId}`);
+    return res.data;
+  },
+
+  getSpaceWorkspace: async (spaceId: string): Promise<any> => {
+    const res = await api.get(`/spaces/${spaceId}/workspace`);
     return res.data;
   },
 
@@ -648,31 +488,6 @@ export const queryMindApi = {
   deleteSpace: async (spaceId: string): Promise<{ status: string; message: string }> => {
     const res = await api.delete<{ status: string; message: string }>(`/spaces/${spaceId}`);
     return res.data;
-  },
-
-  getSpaceCockpit: async (spaceId: string): Promise<SpaceCockpitData> => {
-    const res = await api.get<SpaceCockpitData>(`/spaces/${spaceId}/cockpit`);
-    return res.data;
-  },
-
-  resolveOpenLoop: async (action: CockpitAction): Promise<any> => {
-    if (action.action_type === "approve_proposal" && action.target_id) {
-      return queryMindApi.approveAction(action.target_id);
-    }
-    if (action.action_type === "complete_task" && action.payload?.goal_id && action.payload?.task_id) {
-      const goal = await queryMindApi.getGoal(action.payload.goal_id);
-      const updatedTasks = (goal.tasks || []).map((t) =>
-        t.id === action.payload?.task_id ? { ...t, completed: true } : t
-      );
-      return queryMindApi.updateGoal(action.payload.goal_id, { tasks: updatedTasks });
-    }
-    if (action.action_type === "verify_outcome" && action.payload?.outcome_id) {
-      return api.post(`/outcomes/${action.payload.outcome_id}/evaluate`, {
-        status: "success",
-        actual_outcome: "Verified efficacious by human workspace operator.",
-      });
-    }
-    return null;
   },
 
   // Conversations & SSE Streaming
@@ -827,16 +642,6 @@ export const queryMindApi = {
   },
 
   // Action Proposals & Execution
-  getActions: async (params?: { spaceId?: string; status?: string; limit?: number }): Promise<{ items: ActionProposalItem[]; total: number }> => {
-    const p = new URLSearchParams();
-    if (params?.spaceId) p.append("space_id", params.spaceId);
-    if (params?.status) p.append("status", params.status);
-    if (params?.limit) p.append("limit", params.limit.toString());
-    const qs = p.toString();
-    const res = await api.get<{ items: ActionProposalItem[]; total: number }>(`/actions${qs ? `?${qs}` : ""}`);
-    return res.data;
-  },
-
   approveAction: async (proposalId: string) => {
     const res = await api.post(`/actions/${proposalId}/approve`);
     return res.data;
@@ -844,45 +649,6 @@ export const queryMindApi = {
 
   rejectAction: async (proposalId: string) => {
     const res = await api.post(`/actions/${proposalId}/reject`);
-    return res.data;
-  },
-
-  // Reflections & Critic Management
-  getReflections: async (spaceId: string, reflectionType?: string): Promise<{ items: ReflectionItem[]; total: number }> => {
-    const p = new URLSearchParams();
-    p.append("space_id", spaceId);
-    if (reflectionType) p.append("reflection_type", reflectionType);
-    const res = await api.get<{ items: ReflectionItem[]; total: number }>(`/reflections?${p.toString()}`);
-    return res.data;
-  },
-
-  createReflection: async (data: {
-    space_id: string;
-    title: string;
-    lesson_learned: string;
-    actionable_guidance?: string;
-    reflection_type?: "lesson" | "failure_analysis" | "success_pattern" | "user_feedback";
-    confidence?: number;
-  }): Promise<ReflectionItem> => {
-    const res = await api.post<ReflectionItem>("/reflections", data);
-    return res.data;
-  },
-
-  // Workflows & Multi-Agent Orchestration
-  getWorkflows: async (spaceId: string, status?: string): Promise<any[]> => {
-    const p = new URLSearchParams({ space_id: spaceId });
-    if (status) p.append("status", status);
-    const res = await api.get<any[]>(`/workflows?${p.toString()}`);
-    return res.data;
-  },
-
-  getWorkflow: async (workflowId: string): Promise<WorkflowDetailItem> => {
-    const res = await api.get<WorkflowDetailItem>(`/workflows/${workflowId}`);
-    return res.data;
-  },
-
-  createWorkflow: async (spaceId: string, goal: string): Promise<WorkflowDetailItem> => {
-    const res = await api.post<WorkflowDetailItem>("/workflows", { space_id: spaceId, goal });
     return res.data;
   },
 

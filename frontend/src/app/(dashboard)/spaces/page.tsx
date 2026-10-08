@@ -158,7 +158,7 @@ export default function SpacesDirectoryPage() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Qdrant Vectors</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Indexed Passages</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalVectors} prefix="~" />
             </div>

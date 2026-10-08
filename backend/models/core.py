@@ -55,6 +55,7 @@ class Goal(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="active")
     tasks: Mapped[list | None] = mapped_column(JSONB, default=list, nullable=True)
+    document_ids: Mapped[list | None] = mapped_column(JSONB, default=list, nullable=True)
     category: Mapped[str | None] = mapped_column(String(50), default="career", nullable=True)
     priority: Mapped[str | None] = mapped_column(String(50), default="medium", nullable=True)
     target_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
