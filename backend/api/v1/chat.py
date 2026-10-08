@@ -8,6 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from langchain_core.messages import HumanMessage
 
 from api.deps import get_db, get_current_user
