@@ -20,18 +20,44 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODELS = [
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
+import time
+
+PRIMARY_GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
-    "gemini-3.7-flash",
     "gemini-3.6-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
     "gemini-flash-latest",
+    "gemini-3.8-flash",
 ]
+
+_model_cooldowns: dict[str, float] = {}
+COOLDOWN_SECONDS = 300.0  # 5 minutes cooldown for models returning 503/429/404
+
+def get_prioritized_models() -> List[str]:
+    """Returns active models prioritizing proven healthy models and skipping cooling-down models."""
+    now = time.time()
+    active = [m for m in PRIMARY_GEMINI_MODELS if _model_cooldowns.get(m, 0) < now]
+    if not active:
+        _model_cooldowns.clear()
+        return list(PRIMARY_GEMINI_MODELS)
+    return active
+
+def mark_model_failure(model_name: str):
+    """Temporarily avoids a model that experienced 503/429/404 errors."""
+    _model_cooldowns[model_name] = time.time() + COOLDOWN_SECONDS
+
+def mark_model_success(model_name: str):
+    """Promotes a working model to index 0 so subsequent agent nodes use it immediately."""
+    _model_cooldowns.pop(model_name, None)
+    if model_name in PRIMARY_GEMINI_MODELS and PRIMARY_GEMINI_MODELS[0] != model_name:
+        PRIMARY_GEMINI_MODELS.remove(model_name)
+        PRIMARY_GEMINI_MODELS.insert(0, model_name)
 
 
 class FallbackStructuredOutput:
-    """Runnable wrapper for structured output with multi-model fallback."""
+    """Runnable wrapper for structured output with multi-model fallback and latency optimization."""
 
     def __init__(self, models: List[str], google_api_key: str, temperature: float, schema: Any, **kwargs: Any):
         self.models = models
@@ -42,7 +68,7 @@ class FallbackStructuredOutput:
 
     def invoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any:
         last_error = None
-        for model_name in self.models:
+        for model_name in get_prioritized_models():
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=model_name,
@@ -51,9 +77,12 @@ class FallbackStructuredOutput:
                     max_retries=0,
                 )
                 structured_llm = llm.with_structured_output(self.schema, **self.kwargs)
-                return structured_llm.invoke(input, config=config, **kwargs)
+                res = structured_llm.invoke(input, config=config, **kwargs)
+                mark_model_success(model_name)
+                return res
             except Exception as e:
                 logger.warning(f"Model {model_name} structured output invocation failed ({e}). Falling back...")
+                mark_model_failure(model_name)
                 last_error = e
                 continue
 
@@ -81,7 +110,7 @@ class FallbackStructuredOutput:
 
     async def ainvoke(self, input: Any, config: Any = None, **kwargs: Any) -> Any:
         last_error = None
-        for model_name in self.models:
+        for model_name in get_prioritized_models():
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=model_name,
@@ -90,9 +119,12 @@ class FallbackStructuredOutput:
                     max_retries=0,
                 )
                 structured_llm = llm.with_structured_output(self.schema, **self.kwargs)
-                return await structured_llm.ainvoke(input, config=config, **kwargs)
+                res = await structured_llm.ainvoke(input, config=config, **kwargs)
+                mark_model_success(model_name)
+                return res
             except Exception as e:
                 logger.warning(f"Model {model_name} structured output async invocation failed ({e}). Falling back...")
+                mark_model_failure(model_name)
                 last_error = e
                 continue
 
@@ -120,9 +152,9 @@ class FallbackStructuredOutput:
 
 
 class FallbackGeminiChatModel(BaseChatModel):
-    """Custom LangChain chat model wrapper that transparently falls back across Gemini models on 429 quota/404 errors, and then to local Ollama."""
+    """Custom LangChain chat model wrapper that transparently falls back across Gemini models with adaptive priority."""
 
-    models: List[str] = GEMINI_MODELS
+    models: List[str] = PRIMARY_GEMINI_MODELS
     temperature: float = 0.2
     google_api_key: str = ""
 
@@ -141,7 +173,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         last_error = None
-        for model_name in self.models:
+        for model_name in get_prioritized_models():
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=model_name,
@@ -150,9 +182,11 @@ class FallbackGeminiChatModel(BaseChatModel):
                     max_retries=0,
                 )
                 res = llm.invoke(messages, stop=stop, **kwargs)
+                mark_model_success(model_name)
                 return ChatResult(generations=[ChatGeneration(message=res)])
             except Exception as e:
                 logger.warning(f"Model {model_name} invocation failed ({e}). Falling back to next candidate...")
+                mark_model_failure(model_name)
                 last_error = e
                 continue
 
@@ -175,7 +209,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         last_error = None
-        for model_name in self.models:
+        for model_name in get_prioritized_models():
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=model_name,
@@ -184,9 +218,11 @@ class FallbackGeminiChatModel(BaseChatModel):
                     max_retries=0,
                 )
                 res = await llm.ainvoke(messages, stop=stop, **kwargs)
+                mark_model_success(model_name)
                 return ChatResult(generations=[ChatGeneration(message=res)])
             except Exception as e:
                 logger.warning(f"Model {model_name} async invocation failed ({e}). Falling back to next candidate...")
+                mark_model_failure(model_name)
                 last_error = e
                 continue
                 
@@ -203,7 +239,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
 
 
-def get_llm(model_name: str = "gemini-3.6-flash", temperature: float = 0.2) -> BaseChatModel:
+def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2) -> BaseChatModel:
     """
     Returns a configured LangChain ChatModel based on available keys and provider settings.
     """

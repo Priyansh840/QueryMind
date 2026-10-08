@@ -126,7 +126,7 @@ async def planner_node(state: AgentState, config: RunnableConfig) -> AgentState:
             "- If the user's query is a standalone command to create a goal/space/project without referencing any uploaded documents (e.g., 'create a goal to learn DSA with 3 tasks', 'make a new goal', 'create a space', 'create a project', 'add a memory', 'save a note'), set needs_research to false so the system immediately routes to decision analysis and action execution.\n"
             "- When formulating search tasks, write effective semantic queries that will match content inside the document (e.g. for 'what is my name in the document' or 'in the document', create queries like 'name candidate personal details contact information resume summary' or 'profile overview').\n"
             "- If the user asks a purely generic question (e.g. general math, generic coding theory, general chit-chat) unrelated to workspace documents, set needs_research to false.\n"
-            "- When <recent_action_outcomes> or <lessons_learned> are present in context, consider them to recognize repeated failures and avoid repeating known ineffective query patterns, but treat unverified reflections as advisory rather than axiomatic truth.\n"
+            "- Keep research tasks highly focused: return at most 1 to 2 targeted search tasks to maintain fast responsiveness.\n"
             "- Return a structured plan with needs_research, reasoning_summary, and specific search tasks."
         )
         

@@ -395,8 +395,14 @@ async def send_message(
                                         yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'researcher', 'iteration': next_iter}})}\n\n"
                                         yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'researcher', 'status': 'Retrieving additional evidence...'}})}\n\n"
                                     else:
-                                        yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
-                                        yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing evidence...'}})}\n\n"
+                                        raw_q_lower = request.content.lower()
+                                        is_action = any(kw in raw_q_lower for kw in ("create", "make", "add", "set", "update", "delete", "plan", "roadmap", "schedule", "assign", "prioritize", "blocker", "recommend"))
+                                        if is_action:
+                                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'decision_analyzer'}})}\n\n"
+                                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'decision_analyzer', 'status': 'Analyzing evidence...'}})}\n\n"
+                                        else:
+                                            yield f"data: {json.dumps({'event': 'workflow.step.started', 'data': {'step': 'synthesizer'}})}\n\n"
+                                            yield f"data: {json.dumps({'event': 'agent.status', 'data': {'agent': 'synthesizer', 'status': 'Synthesizing response...'}})}\n\n"
                                         
                                 elif node_name == "decision_analyzer":
                                     d_out = node_state.get("decision_output", {})

@@ -2,13 +2,15 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from core.config import settings
+from database.postgres import Base
+import models
 
 async def main():
     engine = create_async_engine(settings.DATABASE_URL)
     async with engine.begin() as conn:
-        res = await conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"))
-        tables = [row[0] for row in res.fetchall()]
-        print("TABLES:", tables)
+        await conn.execute(text("ALTER TABLE goals ADD COLUMN IF NOT EXISTS document_ids JSONB DEFAULT '[]'::jsonb;"))
+        print("Successfully added document_ids to goals table.")
 
 if __name__ == "__main__":
     asyncio.run(main())
+

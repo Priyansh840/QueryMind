@@ -47,11 +47,20 @@ def route_after_critic(state: AgentState) -> str:
     # Check task budget
     if state.get("total_research_tasks", 0) >= MAX_TOTAL_RESEARCH_TASKS:
         logger.warning("Max total research tasks reached, routing to synthesis.")
-        return "decision_analyzer"
+        raw_q = (state.get("raw_query") or "").lower()
+        is_action_command = any(kw in raw_q for kw in ("create", "make", "add", "set", "update", "delete", "plan", "roadmap"))
+        return "decision_analyzer" if is_action_command else "synthesizer"
         
     if critic_out.get("decision") == "research_more" and state.get("workflow_status") != "terminated_budget":
         return "researcher"
         
+    # Fast path: For Q&A, inquiries, document lookups, and summaries where no workspace mutation was requested,
+    # skip decision_analyzer and action_proposer directly to synthesizer.
+    raw_q = (state.get("raw_query") or "").lower()
+    is_action_command = any(kw in raw_q for kw in ("create", "make", "add", "set", "update", "delete", "plan", "roadmap", "schedule", "assign", "prioritize", "blocker", "recommend"))
+    if not is_action_command:
+        return "synthesizer"
+
     return "decision_analyzer"
 
 

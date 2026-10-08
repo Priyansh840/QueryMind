@@ -67,9 +67,10 @@ async def critic_node(state: AgentState, config: RunnableConfig) -> AgentState:
         
         system_prompt = (
             "You are the Critic Agent for QueryMind. Your job is to review the retrieved evidence "
-            "and determine if it is sufficient to accurately and fully answer the user's query.\n"
-            "If the evidence is sufficient, decide 'accept'.\n"
-            "If crucial information is missing, decide 'research_more' and provide missing_tasks."
+            "and determine if it is sufficient to accurately answer the user's query.\n"
+            "If the evidence contains relevant information or addresses the user's query, decide 'accept'.\n"
+            "Be practical: prefer 'accept' whenever reasonable context is retrieved so the user receives a timely response.\n"
+            "Only decide 'research_more' if the evidence is completely empty or completely irrelevant to the question."
         )
         
         # Build evidence context
