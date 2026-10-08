@@ -220,7 +220,7 @@ export default function VaultPage() {
   }, [uploadedDocuments, filterQuery]);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 stagger">
+    <div className="w-full space-y-8 stagger">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 style={{ fontSize: "var(--t-display)", fontWeight: "var(--w-bold)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>

@@ -220,6 +220,106 @@ export interface SpaceUpdateData {
   is_default?: boolean;
 }
 
+export interface CockpitEvidence {
+  id?: string;
+  title: string;
+  type: string;
+  snippet?: string;
+}
+
+export interface CockpitAction {
+  action_type: string;
+  label: string;
+  target_id?: string;
+  payload?: Record<string, any>;
+}
+
+export interface RightNowFocus {
+  id: string;
+  headline: string;
+  why_it_matters: string;
+  evidence: CockpitEvidence[];
+  recommended_action: CockpitAction;
+  urgency: "high" | "medium" | "low";
+  source_context: string;
+}
+
+export interface NoticedPattern {
+  id: string;
+  type: "pattern" | "contradiction" | "repeated_topic" | "shift";
+  title: string;
+  observation: string;
+  why_it_matters: string;
+  confidence: number;
+  sources_count: number;
+  evidence: CockpitEvidence[];
+  action?: CockpitAction;
+}
+
+export interface OpenLoopItem {
+  id: string;
+  loop_type: "uncompleted_task" | "pending_proposal" | "unverified_outcome";
+  title: string;
+  context: string;
+  age_formatted: string;
+  created_at: string;
+  importance: "high" | "medium" | "low" | string;
+  action: CockpitAction;
+}
+
+export interface NextBestMoveItem {
+  id: string;
+  action_type: string;
+  headline: string;
+  why_mynd_recommends: string;
+  expected_impact: string;
+  action: CockpitAction;
+}
+
+export interface KnowledgeGapItem {
+  id: string;
+  known_concept: string;
+  missing_relationship: string;
+  related_sources: string[];
+  suggested_action: CockpitAction;
+}
+
+export interface ResolvedConnectionItem {
+  id: string;
+  source_id: string;
+  source_title: string;
+  source_type: string;
+  target_id: string;
+  target_title: string;
+  target_type: string;
+  relation: string;
+  reason?: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface IntelligenceTimelineItem {
+  id: string;
+  event_type: string;
+  title: string;
+  detail: string;
+  timestamp: string;
+  status?: string;
+  badge_label: string;
+}
+
+export interface SpaceCockpitData {
+  space: SpaceData;
+  last_synced_at: string;
+  right_now?: RightNowFocus | null;
+  mynd_noticed: NoticedPattern[];
+  open_loops: OpenLoopItem[];
+  next_best_move?: NextBestMoveItem | null;
+  knowledge_gaps: KnowledgeGapItem[];
+  connections: ResolvedConnectionItem[];
+  timeline: IntelligenceTimelineItem[];
+}
+
 export interface KnowledgeItemData {
   id: string;
   user_id: string;
@@ -530,6 +630,31 @@ export const queryMindApi = {
   deleteSpace: async (spaceId: string): Promise<{ status: string; message: string }> => {
     const res = await api.delete<{ status: string; message: string }>(`/spaces/${spaceId}`);
     return res.data;
+  },
+
+  getSpaceCockpit: async (spaceId: string): Promise<SpaceCockpitData> => {
+    const res = await api.get<SpaceCockpitData>(`/spaces/${spaceId}/cockpit`);
+    return res.data;
+  },
+
+  resolveOpenLoop: async (action: CockpitAction): Promise<any> => {
+    if (action.action_type === "approve_proposal" && action.target_id) {
+      return queryMindApi.approveAction(action.target_id);
+    }
+    if (action.action_type === "complete_task" && action.payload?.goal_id && action.payload?.task_id) {
+      const goal = await queryMindApi.getGoal(action.payload.goal_id);
+      const updatedTasks = (goal.tasks || []).map((t) =>
+        t.id === action.payload?.task_id ? { ...t, completed: true } : t
+      );
+      return queryMindApi.updateGoal(action.payload.goal_id, { tasks: updatedTasks });
+    }
+    if (action.action_type === "verify_outcome" && action.payload?.outcome_id) {
+      return api.post(`/outcomes/${action.payload.outcome_id}/evaluate`, {
+        status: "success",
+        actual_outcome: "Verified efficacious by human workspace operator.",
+      });
+    }
+    return null;
   },
 
   // Conversations & SSE Streaming

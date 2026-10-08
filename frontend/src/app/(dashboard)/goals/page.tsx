@@ -1006,7 +1006,7 @@ export default function GoalsPage() {
   // ───────────────────────────────────────────────────────────
   if (selectedGoal) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px", maxWidth: "1000px", margin: "0 auto", width: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
         {/* Top Header / Navigation Bar */}
         <div
           style={{
@@ -1731,7 +1731,7 @@ export default function GoalsPage() {
   // B. ALL GOALS SCREEN (Default view)
   // ───────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px", maxWidth: "980px", margin: "0 auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
       {/* 1. Header Banner */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
         <div>

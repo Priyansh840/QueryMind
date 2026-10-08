@@ -68,7 +68,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px", maxWidth: "980px", margin: "0 auto", width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%" }}>
       {/* 1. Header Banner */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
         <div>

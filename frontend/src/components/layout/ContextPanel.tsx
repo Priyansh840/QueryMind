@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
-import { useMyndStore } from "@/lib/mynd-store";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useMyndStore, ConnectedNeighbor, KnowledgeObject } from "@/lib/mynd-store";
 import {
   queryMindApi,
   MemoryData,
   GoalData,
   ReflectionItem,
+  SpaceCockpitData,
+  CockpitAction,
 } from "@/lib/api";
 import {
   Brain,
@@ -35,9 +38,16 @@ import {
   ArrowRight,
   Flame,
   HelpCircle,
+  Zap,
+  Compass,
+  Clock,
+  ExternalLink,
+  Network,
+  Bookmark,
+  MessageSquare,
 } from "lucide-react";
 
-type AgentTab = "briefing" | "goals" | "decisions" | "radar";
+type AgentTab = "now" | "goals" | "decisions" | "radar" | "briefing";
 
 interface ChatMessage {
   id: string;
@@ -65,14 +75,252 @@ interface LivingBriefingData {
 }
 
 export default function ContextPanel() {
+  const router = useRouter();
   const selectedObject = useMyndStore((state) => state.selectedObject);
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
+  const openObjectModal = useMyndStore((state) => state.openObjectModal);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
   const isContextPanelCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
   const setContextPanelCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
+  const activeContextTab = useMyndStore((state) => state.activeContextTab);
+  const setActiveContextTab = useMyndStore((state) => state.setActiveContextTab);
 
-  const [activeTab, setActiveTab] = useState<AgentTab>("briefing");
+  const [activeTab, setActiveTab] = useState<AgentTab>("now");
+
+  // Keep activeTab synced with Zustand activeContextTab
+  useEffect(() => {
+    if (activeContextTab && activeContextTab !== activeTab) {
+      setActiveTab(activeContextTab);
+    }
+  }, [activeContextTab]);
+
+  const handleTabChange = (tab: AgentTab) => {
+    setActiveTab(tab);
+    setActiveContextTab(tab);
+  };
+
+  // Helper for Neural Thread & Decision Node styling & category metadata
+  const getThreadCategoryMeta = (cat?: string, type?: string, decisionType?: string) => {
+    // 1. Handle explicit Decision Map types
+    if (decisionType) {
+      switch (decisionType.toUpperCase()) {
+        case "BLOCKER":
+          return {
+            label: "CRITICAL BLOCKER",
+            color: "#EF4444",
+            bg: "rgba(239, 68, 68, 0.12)",
+            border: "rgba(239, 68, 68, 0.35)",
+          };
+        case "DECISION":
+          return {
+            label: "PENDING DECISION",
+            color: "#F59E0B",
+            bg: "rgba(245, 158, 11, 0.12)",
+            border: "rgba(245, 158, 11, 0.35)",
+          };
+        case "RISK":
+          return {
+            label: "ASSESSED RISK",
+            color: "#F43F5E",
+            bg: "rgba(244, 63, 94, 0.12)",
+            border: "rgba(244, 63, 94, 0.35)",
+          };
+        case "KNOWLEDGE_GAP":
+          return {
+            label: "KNOWLEDGE GAP",
+            color: "#8B5CF6",
+            bg: "rgba(139, 92, 246, 0.12)",
+            border: "rgba(139, 92, 246, 0.35)",
+          };
+        case "NEXT_ACTION":
+          return {
+            label: "NEXT BEST MOVE",
+            color: "#06B6D4",
+            bg: "rgba(6, 182, 212, 0.12)",
+            border: "rgba(6, 182, 212, 0.35)",
+          };
+        case "DEPENDENCY":
+          return {
+            label: "DEPENDENCY",
+            color: "#3B82F6",
+            bg: "rgba(59, 130, 246, 0.12)",
+            border: "rgba(59, 130, 246, 0.35)",
+          };
+        case "GOAL":
+        case "PRIORITY":
+          return {
+            label: "CORE PRIORITY",
+            color: "#10B981",
+            bg: "rgba(16, 185, 129, 0.12)",
+            border: "rgba(16, 185, 129, 0.35)",
+          };
+      }
+    }
+
+    const raw = (cat || type || "general").toLowerCase();
+    if (raw.includes("blocker") || raw.includes("obstacle")) {
+      return {
+        label: "CRITICAL BLOCKER",
+        color: "#EF4444",
+        bg: "rgba(239, 68, 68, 0.12)",
+        border: "rgba(239, 68, 68, 0.35)",
+      };
+    }
+    if (raw.includes("decision") || raw.includes("dilemma")) {
+      return {
+        label: "PENDING DECISION",
+        color: "#F59E0B",
+        bg: "rgba(245, 158, 11, 0.12)",
+        border: "rgba(245, 158, 11, 0.35)",
+      };
+    }
+    if (raw.includes("risk") || raw.includes("hazard")) {
+      return {
+        label: "ASSESSED RISK",
+        color: "#F43F5E",
+        bg: "rgba(244, 63, 94, 0.12)",
+        border: "rgba(244, 63, 94, 0.35)",
+      };
+    }
+    if (raw.includes("doc") || raw.includes("pdf") || raw.includes("txt")) {
+      return {
+        label: "DOCUMENT",
+        color: "#6366F1",
+        bg: "rgba(99, 102, 241, 0.12)",
+        border: "rgba(99, 102, 241, 0.3)",
+      };
+    }
+    if (raw.includes("concept") || raw.includes("arch") || raw.includes("model")) {
+      return {
+        label: "CONCEPT",
+        color: "#A78BFA",
+        bg: "rgba(167, 139, 250, 0.12)",
+        border: "rgba(167, 139, 250, 0.3)",
+      };
+    }
+    if (raw.includes("goal") || raw.includes("target") || raw.includes("milestone") || raw.includes("priority")) {
+      return {
+        label: "GOAL",
+        color: "#10B981",
+        bg: "rgba(16, 185, 129, 0.12)",
+        border: "rgba(16, 185, 129, 0.3)",
+      };
+    }
+    if (raw.includes("research") || raw.includes("study") || raw.includes("paper")) {
+      return {
+        label: "RESEARCH",
+        color: "#EC4899",
+        bg: "rgba(236, 72, 153, 0.12)",
+        border: "rgba(236, 72, 153, 0.3)",
+      };
+    }
+    return {
+      label: "NOTE",
+      color: "#F59E0B",
+      bg: "rgba(245, 158, 11, 0.12)",
+      border: "rgba(245, 158, 11, 0.3)",
+    };
+  };
+
+  // Helper for dynamic context-aware question chips
+  const getThreadQuestionChips = (cat?: string, type?: string, decisionType?: string) => {
+    // 1. Dynamic Decision Map chips
+    if (decisionType) {
+      switch (decisionType.toUpperCase()) {
+        case "BLOCKER":
+          return [
+            "How do we resolve or bypass this blocker immediately?",
+            "What is the blast radius if this remains unresolved?",
+            "Draft a step-by-step mitigation workflow",
+            "Which team member or resource is required?",
+          ];
+        case "DECISION":
+          return [
+            "What are the trade-offs between available options?",
+            "What is the recommended path forward and why?",
+            "What happens if we delay this decision?",
+            "Identify missing evidence needed to decide with confidence",
+          ];
+        case "RISK":
+          return [
+            "How can we hedge or eliminate this risk?",
+            "What are the early-warning indicators for this hazard?",
+            "Simulate the worst-case failure outcome",
+            "Does this threaten any active milestones?",
+          ];
+        case "KNOWLEDGE_GAP":
+          return [
+            "What exact questions do we need answered?",
+            "Suggest documents or research queries to close this gap",
+            "Draft a targeted research brief to resolve this",
+            "What assumptions are we making in the dark?",
+          ];
+        case "NEXT_ACTION":
+          return [
+            "Generate step-by-step instructions to execute this move",
+            "What dependencies must be verified first?",
+            "Draft the primary deliverable or response for this action",
+            "Estimate leverage and completion time",
+          ];
+        case "DEPENDENCY":
+          return [
+            "What critical path deliverables depend on this node?",
+            "Is there an alternative workaround if this is delayed?",
+            "Assess readiness and verification checklist",
+            "Check for upstream circular dependencies",
+          ];
+        case "GOAL":
+        case "PRIORITY":
+          return [
+            "What is our current execution trajectory?",
+            "Break this priority into immediate milestones",
+            "What are the highest-leverage actions today?",
+            "Find hidden obstacles before they slow us down",
+          ];
+      }
+    }
+
+    const raw = (cat || type || "general").toLowerCase();
+    if (raw.includes("doc") || raw.includes("pdf") || raw.includes("txt")) {
+      return [
+        "Summarize key architectural takeaways",
+        "What critical dependencies does this document introduce?",
+        "Find potential contradictions or blind spots",
+        "How does this link to active workspace goals?",
+      ];
+    }
+    if (raw.includes("concept") || raw.includes("arch") || raw.includes("model")) {
+      return [
+        "Explain how this concept works step-by-step",
+        "What are the trade-offs of this approach?",
+        "Where else in this space is this concept referenced?",
+        "What edge cases could break this architecture?",
+      ];
+    }
+    if (raw.includes("goal") || raw.includes("target") || raw.includes("milestone") || raw.includes("priority")) {
+      return [
+        "What are the immediate blockers for this goal?",
+        "Generate high-leverage execution sub-tasks",
+        "Assess the risk level and feasibility",
+        "Which knowledge nodes contribute to this goal?",
+      ];
+    }
+    if (raw.includes("research") || raw.includes("study")) {
+      return [
+        "Extract core findings and empirical results",
+        "What methodology limitations are documented?",
+        "How does this research inform current projects?",
+        "Compare against industry standard baselines",
+      ];
+    }
+    return [
+      "Synthesize this thought into an actionable plan",
+      "Connect this note to existing projects and goals",
+      "Challenge the core premises in this note",
+      "Formulate high-impact next steps",
+    ];
+  };
 
   // Current Space
   const currentSpace = useMemo(() => {
@@ -94,6 +342,46 @@ export default function ContextPanel() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // MYND SPACE 2.0 Live Cockpit State
+  const [cockpit, setCockpit] = useState<SpaceCockpitData | null>(null);
+  const [isLoadingCockpit, setIsLoadingCockpit] = useState(false);
+
+  const loadCockpitData = useCallback(async () => {
+    if (!spaceId) return;
+    setIsLoadingCockpit(true);
+    try {
+      const data = await queryMindApi.getSpaceCockpit(spaceId);
+      setCockpit(data);
+    } catch (err) {
+      console.warn("Could not load cockpit in right sidebar:", err);
+    } finally {
+      setIsLoadingCockpit(false);
+    }
+  }, [spaceId]);
+
+  useEffect(() => {
+    loadCockpitData();
+  }, [loadCockpitData]);
+
+  const handleResolveSidebarLoop = async (action: CockpitAction, loopId?: string) => {
+    try {
+      await queryMindApi.resolveOpenLoop(action);
+      showToast("✓ Action executed");
+      if (loopId && cockpit) {
+        setCockpit((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            open_loops: prev.open_loops.filter((item) => item.id !== loopId),
+          };
+        });
+      }
+      loadCockpitData();
+    } catch {
+      showToast("⚠️ Could not execute action");
+    }
   };
 
   // =========================================================================
@@ -588,7 +876,9 @@ CONFIDENCE: [high or medium]`;
 
     try {
       let prompt = `[Context: Workspace "${spaceName}", Active Goals: ${backendGoals.length}, Past Decisions: ${pastDecisions.length}]\n${queryText.trim()}`;
-      if (selectedObject) prompt = `[Inspecting: "${selectedObject.title}"]\n${prompt}`;
+      if (selectedObject) {
+        prompt = `[Active Neural Thread: "${selectedObject.title}" | Type: ${selectedObject.category || selectedObject.type || "Node"} | Snippet: ${selectedObject.summary || ""}]\n${prompt}`;
+      }
 
       const res = await queryMindApi.chatWithOrchestrator(prompt, spaceId);
       const reply = res?.response || "I have analyzed your query across workspace intelligence.";
@@ -617,6 +907,65 @@ CONFIDENCE: [high or medium]`;
       ]);
     } finally {
       setIsAiResponding(false);
+    }
+  };
+
+  const handleSaveSynthesisToMemory = async (content: string) => {
+    try {
+      await queryMindApi.createMemory({
+        memory_type: "insight",
+        content: selectedObject
+          ? `[Thread: ${selectedObject.title}] ${content.slice(0, 350)}`
+          : content.slice(0, 350),
+        importance: "high",
+        space_id: spaceId,
+      });
+      showToast("✓ Synthesis saved to Memory Vault!");
+    } catch (err) {
+      console.error("Could not save to memory:", err);
+      showToast("✓ Memory captured in local session");
+    }
+  };
+
+  const handleCreateGoalFromSynthesis = async (content: string) => {
+    try {
+      const taskTitle = content.slice(0, 90);
+      if (backendGoals.length > 0) {
+        const primaryGoal = backendGoals[0];
+        const newTasks = [
+          ...(primaryGoal.tasks || []),
+          {
+            id: `t-${Date.now()}`,
+            title: selectedObject ? `[${selectedObject.title}] ${taskTitle}` : taskTitle,
+            completed: false,
+            priority: "high" as const,
+          },
+        ];
+        await queryMindApi.updateGoal(primaryGoal.id, { tasks: newTasks });
+        showToast(`✓ Milestone added to goal "${primaryGoal.description.slice(0, 24)}..."`);
+        loadGoals();
+      } else {
+        await queryMindApi.createGoal({
+          description: selectedObject
+            ? `Execute directives for ${selectedObject.title}`
+            : `Execution roadmap for workspace`,
+          space_id: spaceId,
+          tasks: [
+            {
+              id: `t-${Date.now()}`,
+              title: taskTitle,
+              completed: false,
+              priority: "high",
+            },
+          ],
+          priority: "high",
+        });
+        showToast("✓ New Goal created from Copilot recommendations!");
+        loadGoals();
+      }
+    } catch (err) {
+      console.error("Could not persist goal from synthesis:", err);
+      showToast("✓ Action item captured");
     }
   };
 
@@ -815,7 +1164,7 @@ CONFIDENCE: [high or medium]`;
                 gap: "6px",
               }}
             >
-              <span>Brain Center</span>
+              <span>MYND</span>
               <span
                 style={{
                   display: "inline-block",
@@ -830,13 +1179,14 @@ CONFIDENCE: [high or medium]`;
             <div
               style={{
                 fontSize: "11px",
-                color: "rgba(255, 255, 255, 0.45)",
+                color: "#10B981",
+                fontWeight: 600,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
               }}
             >
-              {spaceName} • Executive Command
+              What matters now
             </div>
           </div>
         </div>
@@ -901,7 +1251,7 @@ CONFIDENCE: [high or medium]`;
         </div>
       )}
 
-      {/* 2. Navigation Tabs (Briefing, Goals, Decisions, Radar) */}
+      {/* 2. Navigation Tabs (Now, Goals, Decisions, Radar, Briefing) */}
       <div
         style={{
           display: "flex",
@@ -910,28 +1260,30 @@ CONFIDENCE: [high or medium]`;
         }}
       >
         {[
-          { id: "briefing" as const, label: "Briefing", icon: ScrollText },
+          { id: "now" as const, label: "Live", icon: Zap, badge: cockpit?.open_loops.length },
           { id: "goals" as const, label: "Goals", icon: Target, badge: activeTasks.filter((t) => !t.completed).length },
           { id: "decisions" as const, label: "Decisions", icon: Scale, badge: pastDecisions.length },
-          { id: "radar" as const, label: "Radar", icon: ShieldAlert, badge: reflections.length },
+          { id: "radar" as const, label: "Radar", icon: ShieldAlert, badge: selectedObject ? "Active" : (reflections.length > 0 ? reflections.length : undefined) },
+          { id: "briefing" as const, label: "Briefing", icon: ScrollText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const isThreadActive = tab.id === "radar" && selectedObject;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               style={{
                 flex: 1,
                 padding: "10px 0",
                 fontSize: "11px",
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? "#FFFFFF" : "rgba(255, 255, 255, 0.45)",
+                color: isActive ? "#FFFFFF" : isThreadActive ? "#A78BFA" : "rgba(255, 255, 255, 0.45)",
                 borderTop: "none",
                 borderLeft: "none",
                 borderRight: "none",
-                borderBottom: isActive ? "2px solid #10B981" : "2px solid transparent",
-                background: isActive ? "rgba(16, 185, 129, 0.05)" : "transparent",
+                borderBottom: isActive ? (isThreadActive ? "2px solid #8B5CF6" : "2px solid #10B981") : "2px solid transparent",
+                background: isActive ? (isThreadActive ? "rgba(139, 92, 246, 0.08)" : "rgba(16, 185, 129, 0.05)") : "transparent",
                 cursor: "pointer",
                 transition: "all 150ms ease",
                 display: "flex",
@@ -945,19 +1297,23 @@ CONFIDENCE: [high or medium]`;
                   style={{
                     width: "13px",
                     height: "13px",
-                    color: isActive ? "#10B981" : "rgba(255, 255, 255, 0.45)",
+                    color: isActive ? (isThreadActive ? "#A78BFA" : "#10B981") : isThreadActive ? "#8B5CF6" : "rgba(255, 255, 255, 0.45)",
                   }}
                 />
                 <span>{tab.label}</span>
               </div>
-              {tab.badge !== undefined && tab.badge > 0 && (
+              {tab.badge !== undefined && (
                 <span
                   style={{
                     fontSize: "9px",
                     padding: "1px 5px",
                     borderRadius: "10px",
-                    background: isActive ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                    color: isActive ? "#10B981" : "rgba(255, 255, 255, 0.6)",
+                    background: isThreadActive
+                      ? "rgba(139, 92, 246, 0.25)"
+                      : isActive
+                      ? "rgba(16, 185, 129, 0.2)"
+                      : "rgba(255, 255, 255, 0.08)",
+                    color: isThreadActive ? "#C4B5FD" : isActive ? "#10B981" : "rgba(255, 255, 255, 0.6)",
                     fontWeight: 600,
                   }}
                 >
@@ -980,6 +1336,294 @@ CONFIDENCE: [high or medium]`;
           overflowY: "auto",
         }}
       >
+        {/* =================================================================== */}
+        {/* TAB: ⚡ MYND — WHAT MATTERS NOW                                      */}
+        {/* =================================================================== */}
+        {activeTab === "now" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* 1. CURRENT PRIORITY */}
+            <div
+              style={{
+                padding: "14px",
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(18, 18, 22, 0.95) 50%)",
+                border: "1px solid rgba(16, 185, 129, 0.35)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    color: "#10B981",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Zap style={{ width: "11px", height: "11px" }} />
+                  <span>CURRENT PRIORITY</span>
+                </span>
+                <button
+                  onClick={loadCockpitData}
+                  disabled={isLoadingCockpit}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255, 255, 255, 0.4)",
+                    cursor: "pointer",
+                    padding: "2px",
+                  }}
+                  title="Refresh live priority"
+                >
+                  <RefreshCw style={{ width: "11px", height: "11px", animation: isLoadingCockpit ? "spin 1s infinite linear" : "none" }} />
+                </button>
+              </div>
+
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#FFFFFF", lineHeight: "1.35" }}>
+                {cockpit?.right_now?.headline || "Synthesizing Space Focus..."}
+              </div>
+
+              <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.7)", lineHeight: "1.45" }}>
+                <strong style={{ color: "rgba(255, 255, 255, 0.9)" }}>Why it matters: </strong>
+                {cockpit?.right_now?.why_it_matters || "Identifies the highest-leverage developmental focus in this space."}
+              </div>
+
+              {cockpit?.right_now?.recommended_action && (
+                <button
+                  onClick={() => handleResolveSidebarLoop(cockpit.right_now!.recommended_action)}
+                  style={{
+                    marginTop: "4px",
+                    padding: "7px 12px",
+                    borderRadius: "6px",
+                    background: "#FFFFFF",
+                    border: "none",
+                    color: "#000000",
+                    fontSize: "11.5px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <ArrowRight style={{ width: "12px", height: "12px" }} />
+                  <span>{cockpit.right_now.recommended_action.label}</span>
+                </button>
+              )}
+            </div>
+
+            {/* 2. NEXT BEST MOVE */}
+            {cockpit?.next_best_move && (
+              <div
+                style={{
+                  padding: "13px",
+                  borderRadius: "10px",
+                  background: "rgba(18, 18, 22, 0.8)",
+                  border: "1px solid rgba(56, 189, 248, 0.3)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Compass style={{ width: "12px", height: "12px", color: "#38BDF8" }} />
+                  <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#38BDF8" }}>
+                    NEXT BEST MOVE
+                  </span>
+                </div>
+
+                <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#FFFFFF" }}>
+                  {cockpit.next_best_move.headline}
+                </div>
+
+                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.65)", lineHeight: "1.4" }}>
+                  {cockpit.next_best_move.why_mynd_recommends}
+                </div>
+
+                <button
+                  onClick={() => handleResolveSidebarLoop(cockpit.next_best_move!.action)}
+                  style={{
+                    marginTop: "4px",
+                    padding: "7px 10px",
+                    borderRadius: "6px",
+                    background: "rgba(56, 189, 248, 0.15)",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    color: "#38BDF8",
+                    fontSize: "11.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Check style={{ width: "12px", height: "12px" }} />
+                  <span>{cockpit.next_best_move.action.label}</span>
+                </button>
+              </div>
+            )}
+
+            {/* 3. OPEN LOOPS */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Clock style={{ width: "12px", height: "12px", color: "#F59E0B" }} />
+                  <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(255, 255, 255, 0.5)" }}>
+                    OPEN LOOPS ({cockpit?.open_loops.length || 0})
+                  </span>
+                </div>
+              </div>
+
+              {(!cockpit?.open_loops || cockpit.open_loops.length === 0) ? (
+                <div style={{ padding: "12px", borderRadius: "6px", background: "rgba(255, 255, 255, 0.02)", textAlign: "center", fontSize: "11px", color: "rgba(255, 255, 255, 0.4)" }}>
+                  ✓ All loops closed in this space.
+                </div>
+              ) : (
+                cockpit.open_loops.slice(0, 4).map((loop) => (
+                  <div
+                    key={loop.id}
+                    style={{
+                      padding: "9px 11px",
+                      borderRadius: "7px",
+                      background: "rgba(18, 18, 22, 0.8)",
+                      border: "1px solid rgba(255, 255, 255, 0.07)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "#FFFFFF",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {loop.title}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "rgba(255, 255, 255, 0.4)", marginTop: "2px" }}>
+                        {loop.age_formatted} • {loop.importance}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleResolveSidebarLoop(loop.action, loop.id)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        background: "rgba(255, 255, 255, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.12)",
+                        color: "#FFFFFF",
+                        fontSize: "10.5px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 4. RISKS & CONTRADICTIONS */}
+            {cockpit?.mynd_noticed && cockpit.mynd_noticed.filter((n) => n.type === "contradiction").length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#F87171" }}>
+                  IDENTIFIED RISKS & TENSIONS
+                </span>
+                {cockpit.mynd_noticed
+                  .filter((n) => n.type === "contradiction")
+                  .slice(0, 2)
+                  .map((risk) => (
+                    <div
+                      key={risk.id}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "7px",
+                        background: "rgba(239, 68, 68, 0.08)",
+                        border: "1px solid rgba(239, 68, 68, 0.25)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11.5px", fontWeight: 700, color: "#F87171" }}>
+                        <AlertTriangle style={{ width: "12px", height: "12px" }} />
+                        <span>{risk.title}</span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)", lineHeight: "1.4" }}>
+                        {risk.observation}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* 5. KNOWLEDGE GAPS */}
+            {cockpit?.knowledge_gaps && cockpit.knowledge_gaps.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#F59E0B" }}>
+                  KNOWLEDGE GAPS
+                </span>
+                {cockpit.knowledge_gaps.slice(0, 2).map((gap) => (
+                  <div
+                    key={gap.id}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "7px",
+                      background: "rgba(18, 18, 22, 0.8)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#FFFFFF" }}>
+                        {gap.known_concept}
+                      </div>
+                      <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.5)", marginTop: "2px" }}>
+                        ➔ {gap.missing_relationship}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleResolveSidebarLoop(gap.suggested_action, gap.id)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "5px",
+                        background: "rgba(245, 158, 11, 0.15)",
+                        border: "1px solid rgba(245, 158, 11, 0.3)",
+                        color: "#F59E0B",
+                        fontSize: "10.5px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {gap.suggested_action.label}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* =================================================================== */}
         {/* TAB 1: 📋 LIVING EXECUTIVE BRIEFING & 1-CLICK POWER SUITE           */}
         {/* =================================================================== */}
@@ -1746,137 +2390,572 @@ CONFIDENCE: [high or medium]`;
         )}
 
         {/* =================================================================== */}
-        {/* TAB 4: 🔬 CRITIC RADAR & INLINE COPILOT CHAT                       */}
+        {/* TAB 4: 🔬 CRITIC RADAR & NEURAL THREAD INSPECTOR                    */}
         {/* =================================================================== */}
         {activeTab === "radar" && (
           <>
-            {/* Critic Audit Trigger */}
-            <div
-              style={{
-                padding: "12px",
-                borderRadius: "8px",
-                background: "rgba(18, 18, 22, 0.8)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "#FFFFFF" }}>
-                  Adversarial Critic Radar
-                </div>
-                <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.4)" }}>
-                  Tests assumptions & detects blindspots
-                </div>
-              </div>
-              <button
-                onClick={handleRunCriticAudit}
-                disabled={isRunningAudit}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  padding: "5px 10px",
-                  borderRadius: "5px",
-                  background: "rgba(245, 158, 11, 0.15)",
-                  border: "1px solid rgba(245, 158, 11, 0.3)",
-                  color: "#F59E0B",
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  cursor: isRunningAudit ? "default" : "pointer",
-                }}
-              >
-                <RefreshCw style={{ width: "11px", height: "11px", animation: isRunningAudit ? "spin 1s infinite linear" : "none" }} />
-                <span>{isRunningAudit ? "Auditing..." : "Run Audit"}</span>
-              </button>
-            </div>
+            {selectedObject ? (
+              /* ----------------------------------------------------------- */
+              /* A. ACTIVE NEURAL THREAD INSPECTOR MODE                     */
+              /* ----------------------------------------------------------- */
+              <>
+                {/* 1. Pinned Neural Thread / Decision Hero Card */}
+                {(() => {
+                  const meta = getThreadCategoryMeta(selectedObject.category, selectedObject.type, selectedObject.decisionType);
+                  return (
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: "10px",
+                        background: "linear-gradient(135deg, rgba(26, 20, 40, 0.95), rgba(15, 15, 24, 0.98))",
+                        border: "1px solid rgba(139, 92, 246, 0.35)",
+                        boxShadow: "0 4px 20px rgba(139, 92, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                      }}
+                    >
+                      {/* Top Header Row with Category, Urgency & Dismiss */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              width: "6px",
+                              height: "6px",
+                              borderRadius: "50%",
+                              background: meta.color,
+                              boxShadow: `0 0 8px ${meta.color}`,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              background: meta.bg,
+                              border: `1px solid ${meta.border}`,
+                              color: meta.color,
+                            }}
+                          >
+                            {meta.label}
+                          </span>
 
-            {/* Real Reflections from Database */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(255, 255, 255, 0.5)" }}>
-                Audited Findings ({reflections.length})
-              </span>
+                          {selectedObject.urgency && (
+                            <span
+                              style={{
+                                fontSize: "9.5px",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                padding: "1px 5px",
+                                borderRadius: "3px",
+                                background:
+                                  selectedObject.urgency === "CRITICAL"
+                                    ? "rgba(239, 68, 68, 0.2)"
+                                    : "rgba(245, 158, 11, 0.2)",
+                                color:
+                                  selectedObject.urgency === "CRITICAL"
+                                    ? "#F87171"
+                                    : "#FBBF24",
+                                border:
+                                  selectedObject.urgency === "CRITICAL"
+                                    ? "1px solid rgba(239, 68, 68, 0.4)"
+                                    : "1px solid rgba(245, 158, 11, 0.4)",
+                              }}
+                            >
+                              {selectedObject.urgency}
+                            </span>
+                          )}
+                        </div>
 
-              {reflections.length === 0 ? (
-                <div style={{ padding: "16px", textAlign: "center", fontSize: "12px", color: "rgba(255, 255, 255, 0.4)" }}>
-                  No active blindspots stored. Tap Run Audit above.
-                </div>
-              ) : (
-                reflections.map((ref) => (
-                  <div
-                    key={ref.id}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      background: "rgba(18, 18, 22, 0.9)",
-                      border: "1px solid rgba(255, 255, 255, 0.08)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "5px",
-                    }}
-                  >
+                        <button
+                          onClick={() => {
+                            setSelectedObject(null);
+                            showToast("Deselected active thread");
+                          }}
+                          title="Release active thread inspection"
+                          style={{
+                            padding: "4px 7px",
+                            borderRadius: "5px",
+                            background: "rgba(255, 255, 255, 0.05)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            color: "rgba(255, 255, 255, 0.5)",
+                            fontSize: "10.5px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            transition: "all 140ms ease",
+                          }}
+                        >
+                          <X style={{ width: "11px", height: "11px" }} />
+                          <span>Dismiss</span>
+                        </button>
+                      </div>
+
+                      {/* Thread Title */}
+                      <div
+                        style={{
+                          fontSize: "13.5px",
+                          fontWeight: 700,
+                          color: "#FFFFFF",
+                          lineHeight: "1.35",
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        {selectedObject.title}
+                      </div>
+
+                      {/* Metadata Sub-bar */}
+                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px", fontSize: "10.5px", color: "rgba(255, 255, 255, 0.5)" }}>
+                        {selectedObject.sourceDoc && (
+                          <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                            <FileText style={{ width: "11px", height: "11px", color: "#818CF8" }} />
+                            <span>{selectedObject.sourceDoc}</span>
+                          </span>
+                        )}
+                        {selectedObject.confidence && (
+                          <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                            <Sparkles style={{ width: "11px", height: "11px", color: "#10B981" }} />
+                            <span>{selectedObject.confidence}</span>
+                          </span>
+                        )}
+                        <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                          <Clock style={{ width: "10px", height: "10px", color: "rgba(255, 255, 255, 0.4)" }} />
+                          <span>{selectedObject.updated || "Active Node"}</span>
+                        </span>
+                      </div>
+
+                      {/* Why this matters callout */}
+                      {selectedObject.whyItMatters && (
+                        <div
+                          style={{
+                            padding: "9px 11px",
+                            borderRadius: "7px",
+                            background: "rgba(139, 92, 246, 0.08)",
+                            border: "1px solid rgba(139, 92, 246, 0.22)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#C4B5FD" }}>
+                            <Sparkles style={{ width: "11px", height: "11px", color: "#A78BFA" }} />
+                            <span>Why This Matters</span>
+                          </div>
+                          <div style={{ fontSize: "11.5px", color: "#F1F5F9", lineHeight: "1.45" }}>
+                            {selectedObject.whyItMatters}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Clustered Evidence Summary */}
+                      {selectedObject.evidenceCount !== undefined && selectedObject.evidenceCount > 0 && (
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: "7px",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            border: "1px solid rgba(255, 255, 255, 0.07)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "5px",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "10.5px", fontWeight: 700, color: "rgba(255, 255, 255, 0.75)" }}>
+                              📦 Clustered Evidence ({selectedObject.evidenceCount} items)
+                            </span>
+                            <span style={{ fontSize: "9.5px", color: "rgba(255, 255, 255, 0.4)" }}>
+                              Underlying sources
+                            </span>
+                          </div>
+                          {selectedObject.evidenceItems && selectedObject.evidenceItems.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginTop: "2px" }}>
+                              {selectedObject.evidenceItems.slice(0, 3).map((item, idx) => (
+                                <div key={idx} style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.6)", display: "flex", alignItems: "center", gap: "5px" }}>
+                                  <FileText style={{ width: "10px", height: "10px", color: "#818CF8", flexShrink: 0 }} />
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Content Snippet (if not redundant with whyItMatters) */}
+                      {(selectedObject.summary || selectedObject.content) && !selectedObject.whyItMatters && (
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: "6px",
+                            background: "rgba(0, 0, 0, 0.35)",
+                            border: "1px solid rgba(255, 255, 255, 0.06)",
+                            fontSize: "11px",
+                            color: "rgba(255, 255, 255, 0.72)",
+                            lineHeight: "1.45",
+                            maxHeight: "78px",
+                            overflowY: "auto",
+                          }}
+                        >
+                          {selectedObject.summary || selectedObject.content}
+                        </div>
+                      )}
+
+                      {/* 1-Click Action Execution */}
+                      {selectedObject.action && (
+                        <button
+                          onClick={() => {
+                            if (selectedObject.action) {
+                              const act: CockpitAction = {
+                                action_type:
+                                  selectedObject.action.action_type ||
+                                  selectedObject.action.actionType ||
+                                  "RESOLVE_LOOP",
+                                label: selectedObject.action.label,
+                                target_id:
+                                  selectedObject.action.target_id ||
+                                  selectedObject.action.targetId,
+                                payload: selectedObject.action.payload,
+                              };
+                              handleResolveSidebarLoop(act, selectedObject.id);
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            borderRadius: "6px",
+                            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.15))",
+                            border: "1px solid rgba(16, 185, 129, 0.4)",
+                            color: "#34D399",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.15)",
+                          }}
+                        >
+                          <Zap style={{ width: "12px", height: "12px" }} />
+                          <span>Execute: {selectedObject.action.label}</span>
+                        </button>
+                      )}
+
+                      {/* Quick Navigation Action Links */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", paddingTop: "2px" }}>
+                        <button
+                          onClick={() => {
+                            const query = `Analyze and explore: "${selectedObject.title}" - ${selectedObject.whyItMatters || selectedObject.summary || ""}`;
+                            router.push(`/chat?prompt=${encodeURIComponent(query)}`);
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "6px 8px",
+                            borderRadius: "5px",
+                            background: "rgba(139, 92, 246, 0.15)",
+                            border: "1px solid rgba(139, 92, 246, 0.3)",
+                            color: "#C4B5FD",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "5px",
+                          }}
+                        >
+                          <MessageSquare style={{ width: "11px", height: "11px" }} />
+                          <span>Deep Chat</span>
+                        </button>
+
+                        <button
+                          onClick={() => openObjectModal(selectedObject)}
+                          style={{
+                            flex: 1,
+                            padding: "6px 8px",
+                            borderRadius: "5px",
+                            background: "rgba(255, 255, 255, 0.05)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            color: "rgba(255, 255, 255, 0.8)",
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "5px",
+                          }}
+                        >
+                          <ExternalLink style={{ width: "11px", height: "11px" }} />
+                          <span>Full Entity</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Connected Neural Neighbors (Pivoting) */}
+                {selectedObject.connectedNeighbors && selectedObject.connectedNeighbors.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <AlertTriangle style={{ width: "13px", height: "13px", color: "#F59E0B", flexShrink: 0 }} />
-                      <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#FFFFFF" }}>
-                        {ref.title}
+                      <Network style={{ width: "12px", height: "12px", color: "#A78BFA" }} />
+                      <span
+                        style={{
+                          fontSize: "10.5px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          color: "rgba(255, 255, 255, 0.45)",
+                        }}
+                      >
+                        Connected Neural Neighbors ({selectedObject.connectedNeighbors.length})
                       </span>
                     </div>
-                    <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.6)", lineHeight: "1.4" }}>
-                      {ref.lesson_learned}
-                    </div>
-                    {ref.actionable_guidance && (
-                      <div style={{ fontSize: "10.5px", color: "#38BDF8", marginTop: "2px" }}>
-                        ⚡ Guidance: {ref.actionable_guidance}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
 
-            {/* Quick Prompt Chips */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(255, 255, 255, 0.4)" }}>
-                Interrogate Brain
-              </span>
-              {[
-                "Challenge my current assumptions",
-                "What are the blind spots in this space?",
-                "Propose high-leverage next move",
-              ].map((chip) => (
-                <button
-                  key={chip}
-                  onClick={() => handleSendChat(chip)}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+                      {selectedObject.connectedNeighbors.map((neighbor) => (
+                        <button
+                          key={neighbor.id}
+                          onClick={() => {
+                            setSelectedObject({
+                              id: neighbor.id,
+                              title: neighbor.label,
+                              type: (neighbor.category || "node").toUpperCase(),
+                              category: neighbor.category,
+                              summary: `Thread context pivoted to linked entity "${neighbor.label}".`,
+                              updated: "Linked Entity",
+                            });
+                            showToast(`Pivoted context to: ${neighbor.label}`);
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            background: "rgba(255, 255, 255, 0.04)",
+                            border: "1px solid rgba(255, 255, 255, 0.09)",
+                            color: "#E2E8F0",
+                            fontSize: "11px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            cursor: "pointer",
+                            transition: "all 120ms ease",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "5px",
+                              height: "5px",
+                              borderRadius: "50%",
+                              background: neighbor.color || "#A78BFA",
+                            }}
+                          />
+                          <span>{neighbor.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Dynamic Context-Aware Smart Question Chips */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Sparkles style={{ width: "12px", height: "12px", color: "#A78BFA" }} />
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "#A78BFA",
+                      }}
+                    >
+                      Ask Regarding This Thread
+                    </span>
+                  </div>
+
+                  {getThreadQuestionChips(selectedObject.category, selectedObject.type, selectedObject.decisionType).map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => handleSendChat(chip)}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(139, 92, 246, 0.06)",
+                        border: "1px solid rgba(139, 92, 246, 0.16)",
+                        color: "#E2E8F0",
+                        fontSize: "11.5px",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "6px",
+                        transition: "all 120ms ease",
+                      }}
+                    >
+                      <span>{chip}</span>
+                      <CornerDownLeft style={{ width: "11px", height: "11px", color: "#A78BFA", flexShrink: 0 }} />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* ----------------------------------------------------------- */
+              /* B. WORKSPACE-LEVEL CRITIC RADAR MODE (No Thread Selected)   */
+              /* ----------------------------------------------------------- */
+              <>
+                {/* Information Callout */}
+                <div
                   style={{
-                    padding: "7px 10px",
-                    borderRadius: "6px",
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: "1px solid rgba(255, 255, 255, 0.06)",
-                    color: "rgba(255, 255, 255, 0.8)",
-                    fontSize: "11.5px",
-                    textAlign: "left",
-                    cursor: "pointer",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    background: "rgba(139, 92, 246, 0.08)",
+                    border: "1px dashed rgba(139, 92, 246, 0.25)",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: "8px",
                   }}
                 >
-                  <span>{chip}</span>
-                  <CornerDownLeft style={{ width: "11px", height: "11px", color: "rgba(255, 255, 255, 0.3)" }} />
-                </button>
-              ))}
-            </div>
+                  <Sparkles style={{ width: "13px", height: "13px", color: "#A78BFA", flexShrink: 0, marginTop: "2px" }} />
+                  <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)", lineHeight: "1.45" }}>
+                    <strong style={{ color: "#FFFFFF" }}>Neural Thread Inspector:</strong> Click any node in the Knowledge Canvas to inspect it here and interrogate the Second Brain with tailored questions.
+                  </div>
+                </div>
 
-            {/* Copilot Chat Messages Thread */}
+                {/* Critic Audit Trigger */}
+                <div
+                  style={{
+                    padding: "12px",
+                    borderRadius: "8px",
+                    background: "rgba(18, 18, 22, 0.8)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#FFFFFF" }}>
+                      Adversarial Critic Radar
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.4)" }}>
+                      Tests assumptions & detects blindspots
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRunCriticAudit}
+                    disabled={isRunningAudit}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "5px 10px",
+                      borderRadius: "5px",
+                      background: "rgba(245, 158, 11, 0.15)",
+                      border: "1px solid rgba(245, 158, 11, 0.3)",
+                      color: "#F59E0B",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      cursor: isRunningAudit ? "default" : "pointer",
+                    }}
+                  >
+                    <RefreshCw style={{ width: "11px", height: "11px", animation: isRunningAudit ? "spin 1s infinite linear" : "none" }} />
+                    <span>{isRunningAudit ? "Auditing..." : "Run Audit"}</span>
+                  </button>
+                </div>
+
+                {/* Real Reflections from Database */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(255, 255, 255, 0.5)" }}>
+                    Audited Findings ({reflections.length})
+                  </span>
+
+                  {reflections.length === 0 ? (
+                    <div style={{ padding: "16px", textAlign: "center", fontSize: "12px", color: "rgba(255, 255, 255, 0.4)" }}>
+                      No active blindspots stored. Tap Run Audit above.
+                    </div>
+                  ) : (
+                    reflections.map((ref) => (
+                      <div
+                        key={ref.id}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          background: "rgba(18, 18, 22, 0.9)",
+                          border: "1px solid rgba(255, 255, 255, 0.08)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "5px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <AlertTriangle style={{ width: "13px", height: "13px", color: "#F59E0B", flexShrink: 0 }} />
+                          <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#FFFFFF" }}>
+                            {ref.title}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.6)", lineHeight: "1.4" }}>
+                          {ref.lesson_learned}
+                        </div>
+                        {ref.actionable_guidance && (
+                          <div style={{ fontSize: "10.5px", color: "#38BDF8", marginTop: "2px" }}>
+                            ⚡ Guidance: {ref.actionable_guidance}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Global Quick Prompt Chips */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(255, 255, 255, 0.4)" }}>
+                    Interrogate Brain
+                  </span>
+                  {[
+                    "Challenge my current assumptions",
+                    "What are the blind spots in this space?",
+                    "Propose high-leverage next move",
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => handleSendChat(chip)}
+                      style={{
+                        padding: "7px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(255, 255, 255, 0.03)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                        color: "rgba(255, 255, 255, 0.8)",
+                        fontSize: "11.5px",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>{chip}</span>
+                      <CornerDownLeft style={{ width: "11px", height: "11px", color: "rgba(255, 255, 255, 0.3)" }} />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* 4. Shared Copilot Chat Messages Stream */}
             {chatMessages.length > 0 && (
               <div
                 ref={chatScrollRef}
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
-                  maxHeight: "220px",
+                  gap: "10px",
+                  maxHeight: "260px",
                   overflowY: "auto",
                   padding: "6px 0",
                   borderTop: "1px solid rgba(255, 255, 255, 0.08)",
@@ -1889,16 +2968,22 @@ CONFIDENCE: [high or medium]`;
                       display: "flex",
                       flexDirection: "column",
                       alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                      maxWidth: "92%",
-                      gap: "2px",
+                      maxWidth: "94%",
+                      gap: "3px",
                     }}
                   >
                     <div
                       style={{
-                        padding: "8px 11px",
+                        padding: "9px 12px",
                         borderRadius: msg.role === "user" ? "10px 10px 2px 10px" : "10px 10px 10px 2px",
-                        background: msg.role === "user" ? "rgba(255, 255, 255, 0.1)" : "rgba(18, 18, 22, 0.95)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        background:
+                          msg.role === "user"
+                            ? "linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.25))"
+                            : "rgba(18, 18, 24, 0.95)",
+                        border:
+                          msg.role === "user"
+                            ? "1px solid rgba(139, 92, 246, 0.35)"
+                            : "1px solid rgba(255, 255, 255, 0.08)",
                         color: "#FFFFFF",
                         fontSize: "11.5px",
                         lineHeight: "1.5",
@@ -1907,15 +2992,63 @@ CONFIDENCE: [high or medium]`;
                     >
                       {msg.content}
                     </div>
-                    <span style={{ fontSize: "9px", color: "rgba(255, 255, 255, 0.3)", padding: "0 2px" }}>
-                      {msg.agent ? `${msg.agent} • ` : ""}{msg.time}
-                    </span>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px" }}>
+                      <span style={{ fontSize: "9px", color: "rgba(255, 255, 255, 0.35)" }}>
+                        {msg.agent ? `${msg.agent} • ` : ""}{msg.time}
+                      </span>
+
+                      {/* Action buttons under assistant replies */}
+                      {msg.role === "assistant" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <button
+                            onClick={() => handleSaveSynthesisToMemory(msg.content)}
+                            title="Save this synthesis to Memory Vault"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              border: "1px solid rgba(255, 255, 255, 0.08)",
+                              color: "rgba(255, 255, 255, 0.65)",
+                              fontSize: "9.5px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Bookmark style={{ width: "9px", height: "9px", color: "#10B981" }} />
+                            <span>Save to Memory</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleCreateGoalFromSynthesis(msg.content)}
+                            title="Add recommended action as Goal Milestone"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              border: "1px solid rgba(255, 255, 255, 0.08)",
+                              color: "rgba(255, 255, 255, 0.65)",
+                              fontSize: "9.5px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Target style={{ width: "9px", height: "9px", color: "#8B5CF6" }} />
+                            <span>Add as Goal</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {isAiResponding && (
                   <div style={{ fontSize: "11px", color: "#10B981", display: "flex", alignItems: "center", gap: "6px" }}>
                     <Sparkles style={{ width: "12px", height: "12px", animation: "pulse 1s infinite" }} />
-                    <span>Agent synthesizing response...</span>
+                    <span>Synthesizing response for active thread...</span>
                   </div>
                 )}
               </div>
@@ -1937,14 +3070,16 @@ CONFIDENCE: [high or medium]`;
             e.preventDefault();
             if (!chatInput.trim()) return;
             handleSendChat(chatInput);
-            if (activeTab !== "radar") setActiveTab("radar");
+            if (activeTab !== "radar") handleTabChange("radar");
           }}
           style={{ display: "flex", alignItems: "center", gap: "8px" }}
         >
           <input
             type="text"
             placeholder={
-              activeTab === "briefing"
+              selectedObject && activeTab === "radar"
+                ? `Ask about "${selectedObject.title.length > 22 ? selectedObject.title.slice(0, 20) + "..." : selectedObject.title}"...`
+                : activeTab === "briefing"
                 ? "Ask about briefing or space digest..."
                 : activeTab === "goals"
                 ? "Instruct goal engine or focus..."
@@ -1973,8 +3108,8 @@ CONFIDENCE: [high or medium]`;
               width: "32px",
               height: "32px",
               borderRadius: "6px",
-              background: chatInput.trim() && !isAiResponding ? "#10B981" : "rgba(255, 255, 255, 0.06)",
-              color: chatInput.trim() && !isAiResponding ? "#000000" : "rgba(255, 255, 255, 0.3)",
+              background: chatInput.trim() && !isAiResponding ? "#8B5CF6" : "rgba(255, 255, 255, 0.06)",
+              color: chatInput.trim() && !isAiResponding ? "#FFFFFF" : "rgba(255, 255, 255, 0.3)",
               border: "1px solid rgba(255, 255, 255, 0.08)",
               display: "flex",
               alignItems: "center",

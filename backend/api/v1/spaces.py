@@ -24,7 +24,8 @@ from models.knowledge import Document, DocumentChunk
 from models.conversation import Conversation, Message
 from models.action_proposal import ActionProposal
 from models.orchestrator import Objective, Workflow, WorkflowStep, AgentRun
-from models.memory import Memory
+from models.memory import Memory, Connection
+from models.outcome import Outcome, Reflection
 
 logger = logging.getLogger(__name__)
 
@@ -672,3 +673,726 @@ async def get_space_workspace(
         active_projects=projects_list,
         active_goals=goals_list,
     )
+
+
+# -------------------------------------------------------------
+# MYND SPACE 2.0: Active Intelligence Cockpit Aggregator
+# -------------------------------------------------------------
+class CockpitEvidence(BaseModel):
+    id: Optional[str] = None
+    title: str
+    type: str  # document, goal, conversation, memory, outcome, reflection, workflow
+    snippet: Optional[str] = None
+
+
+class CockpitAction(BaseModel):
+    action_type: str  # approve_proposal, complete_task, create_task, verify_outcome, navigate, upload_document, create_goal
+    label: str
+    target_id: Optional[str] = None
+    payload: Optional[dict] = None
+
+
+class RightNowFocus(BaseModel):
+    id: str
+    headline: str
+    why_it_matters: str
+    evidence: List[CockpitEvidence] = []
+    recommended_action: CockpitAction
+    urgency: str = "high"
+    source_context: str
+
+
+class NoticedPattern(BaseModel):
+    id: str
+    type: str  # pattern, contradiction, repeated_topic, shift
+    title: str
+    observation: str
+    why_it_matters: str
+    confidence: float
+    sources_count: int
+    evidence: List[CockpitEvidence] = []
+    action: Optional[CockpitAction] = None
+
+
+class OpenLoopItem(BaseModel):
+    id: str
+    loop_type: str  # uncompleted_task, pending_proposal, unverified_outcome
+    title: str
+    context: str
+    age_formatted: str
+    created_at: datetime
+    importance: str  # high, medium, low
+    action: CockpitAction
+
+
+class NextBestMove(BaseModel):
+    id: str
+    action_type: str
+    headline: str
+    why_mynd_recommends: str
+    expected_impact: str
+    action: CockpitAction
+
+
+class KnowledgeGapItem(BaseModel):
+    id: str
+    known_concept: str
+    missing_relationship: str
+    related_sources: List[str]
+    suggested_action: CockpitAction
+
+
+class ResolvedConnectionItem(BaseModel):
+    id: str
+    source_id: str
+    source_title: str
+    source_type: str
+    target_id: str
+    target_title: str
+    target_type: str
+    relation: str
+    reason: Optional[str] = None
+    confidence: float
+    created_at: datetime
+
+
+class IntelligenceTimelineItem(BaseModel):
+    id: str
+    event_type: str  # new_connection, reflection_logged, outcome_evaluated, action_executed, goal_updated, document_indexed
+    title: str
+    detail: str
+    timestamp: datetime
+    status: Optional[str] = None
+    badge_label: str
+
+
+class SpaceCockpitResponse(BaseModel):
+    space: SpaceResponse
+    last_synced_at: datetime
+    right_now: Optional[RightNowFocus] = None
+    mynd_noticed: List[NoticedPattern] = []
+    open_loops: List[OpenLoopItem] = []
+    next_best_move: Optional[NextBestMove] = None
+    knowledge_gaps: List[KnowledgeGapItem] = []
+    connections: List[ResolvedConnectionItem] = []
+    timeline: List[IntelligenceTimelineItem] = []
+
+
+def _format_relative_time(dt: Optional[datetime]) -> str:
+    if not dt:
+        return "recently"
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    diff = now - dt
+    seconds = int(max(0, diff.total_seconds()))
+    if seconds < 60:
+        return "just now"
+    elif seconds < 3600:
+        mins = seconds // 60
+        return f"{mins}m ago"
+    elif seconds < 86400:
+        hours = seconds // 3600
+        return f"{hours}h ago"
+    else:
+        days = seconds // 86400
+        return f"{days}d ago"
+
+
+@router.get("/{space_id}/cockpit", response_model=SpaceCockpitResponse)
+async def get_space_cockpit(
+    space_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    MYND SPACE 2.0: Active Intelligence Cockpit aggregator.
+    Synthesizes the 7 intelligence layers:
+    1. Right Now (Priority & urgent developments)
+    2. MYND Noticed (Patterns, tensions & recurring themes)
+    3. Open Loops (Unfinished tasks, proposals, and outcomes)
+    4. Next Best Move (Single highest-leverage action)
+    5. Knowledge Gaps (Unconnected documents & missing links)
+    6. Discovered Connections (Semantic relationships with resolved titles)
+    7. Intelligence Timeline (Meaningful state changes only)
+    """
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(space_id, current_user, db, min_role="viewer")
+    space_uuid = space.id
+
+    space_response = SpaceResponse(
+        id=str(space.id),
+        user_id=str(space.user_id),
+        name=space.name,
+        slug=space.slug,
+        description=space.description,
+        icon=space.icon,
+        color=space.color,
+        is_default=space.is_default,
+        created_at=space.created_at,
+        updated_at=space.updated_at,
+    )
+
+    # 1. Fetch Documents in this Space
+    res_docs = await db.execute(
+        select(Document).where(Document.space_id == space_uuid).order_by(Document.created_at.desc())
+    )
+    docs = res_docs.scalars().all()
+
+    # 2. Fetch Goals in this Space
+    res_goals = await db.execute(
+        select(Goal).where(Goal.space_id == space_uuid).order_by(Goal.created_at.desc())
+    )
+    goals = res_goals.scalars().all()
+
+    # 3. Fetch Action Proposals in this Space
+    res_props = await db.execute(
+        select(ActionProposal)
+        .where(ActionProposal.space_id == space_uuid)
+        .order_by(ActionProposal.created_at.desc())
+        .limit(20)
+    )
+    proposals = res_props.scalars().all()
+
+    # 4. Fetch Outcomes in this Space
+    res_outcomes = await db.execute(
+        select(Outcome)
+        .where(Outcome.space_id == space_uuid)
+        .order_by(Outcome.created_at.desc())
+        .limit(20)
+    )
+    outcomes = res_outcomes.scalars().all()
+
+    # 5. Fetch Reflections in this Space
+    res_reflections = await db.execute(
+        select(Reflection)
+        .where(Reflection.space_id == space_uuid)
+        .order_by(Reflection.created_at.desc())
+        .limit(20)
+    )
+    reflections = res_reflections.scalars().all()
+
+    # 6. Fetch Memories in this Space
+    res_memories = await db.execute(
+        select(Memory)
+        .where(Memory.space_id == space_uuid)
+        .order_by(Memory.last_reinforced_at.desc())
+        .limit(30)
+    )
+    memories = res_memories.scalars().all()
+
+    # 7. Fetch Connections in this Space
+    res_connections = await db.execute(
+        select(Connection)
+        .where(Connection.space_id == space_uuid)
+        .order_by(Connection.created_at.desc())
+        .limit(30)
+    )
+    connections = res_connections.scalars().all()
+
+    # 8. Fetch Recent Conversations
+    res_convs = await db.execute(
+        select(Conversation)
+        .where(Conversation.space_id == space_uuid)
+        .order_by(Conversation.created_at.desc())
+        .limit(10)
+    )
+    convs = res_convs.scalars().all()
+
+    # Build Title Resolution Lookup Maps
+    doc_map = {d.id: d.title for d in docs}
+    goal_map = {g.id: g.description for g in goals}
+    mem_map = {m.id: (m.content[:50] + "..." if len(m.content) > 50 else m.content) for m in memories}
+    conv_map = {c.id: (c.title or "Conversation") for c in convs}
+
+    def _resolve_title(entity_id: uuid.UUID, entity_type: str) -> str:
+        if entity_type == "document" and entity_id in doc_map:
+            return doc_map[entity_id]
+        elif entity_type == "goal" and entity_id in goal_map:
+            return goal_map[entity_id]
+        elif entity_type == "memory" and entity_id in mem_map:
+            return mem_map[entity_id]
+        elif entity_type == "conversation" and entity_id in conv_map:
+            return conv_map[entity_id]
+        return f"{entity_type.capitalize()} #{str(entity_id)[:8]}"
+
+    # =========================================================================
+    # LAYER 3: OPEN LOOPS (Compute first so Right Now & Next Best Move can select)
+    # =========================================================================
+    open_loops: List[OpenLoopItem] = []
+
+    # A. Uncompleted tasks from active goals
+    for g in goals:
+        if g.status != "completed":
+            tasks = g.tasks or []
+            for t in tasks:
+                if isinstance(t, dict):
+                    if not t.get("completed", False):
+                        task_id = str(t.get("id") or uuid.uuid4().hex[:8])
+                        open_loops.append(
+                            OpenLoopItem(
+                                id=f"loop-task-{g.id}-{task_id}",
+                                loop_type="uncompleted_task",
+                                title=t.get("title", "Unnamed Task"),
+                                context=f"Goal: {g.description}",
+                                age_formatted=_format_relative_time(g.created_at),
+                                created_at=g.created_at,
+                                importance=t.get("priority", g.priority or "medium"),
+                                action=CockpitAction(
+                                    action_type="complete_task",
+                                    label="Mark Complete",
+                                    target_id=str(g.id),
+                                    payload={"task_id": task_id, "goal_id": str(g.id)},
+                                ),
+                            )
+                        )
+                elif isinstance(t, str):
+                    open_loops.append(
+                        OpenLoopItem(
+                            id=f"loop-task-{g.id}-{uuid.uuid4().hex[:8]}",
+                            loop_type="uncompleted_task",
+                            title=t,
+                            context=f"Goal: {g.description}",
+                            age_formatted=_format_relative_time(g.created_at),
+                            created_at=g.created_at,
+                            importance=g.priority or "medium",
+                            action=CockpitAction(
+                                action_type="complete_task",
+                                label="Mark Complete",
+                                target_id=str(g.id),
+                                payload={"task_title": t, "goal_id": str(g.id)},
+                            ),
+                        )
+                    )
+
+    # B. Pending Action Proposals
+    pending_proposals = [p for p in proposals if p.status == "pending"]
+    for p in pending_proposals:
+        open_loops.append(
+            OpenLoopItem(
+                id=f"loop-prop-{p.id}",
+                loop_type="pending_proposal",
+                title=f"Review AI Proposal: {p.action_type.replace('_', ' ').capitalize()}",
+                context=p.reason,
+                age_formatted=_format_relative_time(p.created_at),
+                created_at=p.created_at,
+                importance=p.confidence or "medium",
+                action=CockpitAction(
+                    action_type="approve_proposal",
+                    label="Approve Proposal",
+                    target_id=p.proposal_id,
+                    payload={"proposal_id": p.proposal_id, "message_id": str(p.message_id)},
+                ),
+            )
+        )
+
+    # C. Unverified Outcomes (status == 'unknown')
+    unverified_outcomes = [o for o in outcomes if o.status == "unknown"]
+    for o in unverified_outcomes:
+        open_loops.append(
+            OpenLoopItem(
+                id=f"loop-outc-{o.id}",
+                loop_type="unverified_outcome",
+                title=f"Verify Real-World Outcome: {o.expected_outcome or o.target_entity_type}",
+                context=f"Action initiated by {o.initiated_by} awaiting verification.",
+                age_formatted=_format_relative_time(o.created_at),
+                created_at=o.created_at,
+                importance="medium",
+                action=CockpitAction(
+                    action_type="verify_outcome",
+                    label="Verify Outcome",
+                    target_id=str(o.id),
+                    payload={"outcome_id": str(o.id)},
+                ),
+            )
+        )
+
+    # Sort open loops by importance and recency
+    imp_weight = {"high": 3, "medium": 2, "low": 1}
+    open_loops.sort(key=lambda x: (imp_weight.get(x.importance.lower(), 2), x.created_at), reverse=True)
+
+    # =========================================================================
+    # LAYER 1: RIGHT NOW (Single most important development/priority)
+    # =========================================================================
+    right_now: Optional[RightNowFocus] = None
+
+    # Priority 1: High-urgency reflection (failure analysis or critical tension)
+    critical_reflection = next(
+        (r for r in reflections if r.reflection_type in ("failure_analysis", "lesson")), None
+    )
+    # Priority 2: Highest-confidence pending ActionProposal
+    high_conf_proposal = next(
+        (p for p in pending_proposals if p.confidence == "high"),
+        pending_proposals[0] if pending_proposals else None,
+    )
+    # Priority 3: Highest-priority active goal with open loops
+    high_priority_goal = next(
+        (
+            g for g in goals
+            if g.priority == "high" and g.status == "active" and any(
+                (not t.get("completed", False)) if isinstance(t, dict) else True
+                for t in (g.tasks or [])
+            )
+        ),
+        next((g for g in goals if g.status == "active"), None),
+    )
+
+    if high_conf_proposal:
+        right_now = RightNowFocus(
+            id=f"rn-prop-{high_conf_proposal.id}",
+            headline=f"AI Proposed Action: {high_conf_proposal.action_type.replace('_', ' ').capitalize()}",
+            why_it_matters=high_conf_proposal.reason,
+            evidence=[
+                CockpitEvidence(
+                    title=f"Proposal #{high_conf_proposal.proposal_id}",
+                    type="proposal",
+                    snippet=high_conf_proposal.reason,
+                )
+            ],
+            recommended_action=CockpitAction(
+                action_type="approve_proposal",
+                label="Approve & Execute Now",
+                target_id=high_conf_proposal.proposal_id,
+                payload={"proposal_id": high_conf_proposal.proposal_id, "message_id": str(high_conf_proposal.message_id)},
+            ),
+            urgency="high",
+            source_context=f"Autonomous Agent Recommendation ({high_conf_proposal.confidence.capitalize()} Confidence)",
+        )
+    elif critical_reflection:
+        right_now = RightNowFocus(
+            id=f"rn-ref-{critical_reflection.id}",
+            headline=f"Synthesized Insight: {critical_reflection.title}",
+            why_it_matters=critical_reflection.lesson_learned,
+            evidence=[
+                CockpitEvidence(
+                    title=critical_reflection.title,
+                    type="reflection",
+                    snippet=critical_reflection.lesson_learned[:120],
+                )
+            ],
+            recommended_action=CockpitAction(
+                action_type="create_goal",
+                label="Act on Insight",
+                payload={"description": f"Address: {critical_reflection.title}"},
+            ),
+            urgency="high" if critical_reflection.reflection_type == "failure_analysis" else "medium",
+            source_context=f"Domain Reflection ({critical_reflection.reflection_type.replace('_', ' ').capitalize()})",
+        )
+    elif high_priority_goal:
+        first_task_title = high_priority_goal.description
+        first_task_id = "task-core"
+        for t in (high_priority_goal.tasks or []):
+            if isinstance(t, dict) and not t.get("completed", False):
+                first_task_title = t.get("title") or high_priority_goal.description
+                first_task_id = str(t.get("id") or "task-core")
+                break
+            elif isinstance(t, str):
+                first_task_title = t
+                first_task_id = "task-core"
+                break
+
+        right_now = RightNowFocus(
+            id=f"rn-goal-{high_priority_goal.id}",
+            headline=f"Active Domain Priority: {first_task_title}",
+            why_it_matters=f"Direct blocker for domain objective '{high_priority_goal.description}' (Category: {high_priority_goal.category}).",
+            evidence=[
+                CockpitEvidence(
+                    title=high_priority_goal.description,
+                    type="goal",
+                    snippet=f"Priority: {high_priority_goal.priority} • Category: {high_priority_goal.category}",
+                )
+            ],
+            recommended_action=CockpitAction(
+                action_type="complete_task",
+                label="Mark Task Done",
+                target_id=str(high_priority_goal.id),
+                payload={"task_id": first_task_id, "goal_id": str(high_priority_goal.id)},
+            ),
+            urgency="high",
+            source_context="Core Workspace Objective",
+        )
+    elif docs:
+        right_now = RightNowFocus(
+            id=f"rn-docs-{space_uuid}",
+            headline=f"{len(docs)} Resource(s) Indexed Without Domain Objectives",
+            why_it_matters="Documents are indexed in this domain, but no active goal is directing synthesis or action.",
+            evidence=[CockpitEvidence(title=d.title, type="document") for d in docs[:3]],
+            recommended_action=CockpitAction(
+                action_type="create_goal",
+                label="Set Domain Goal",
+                payload={"description": f"Synthesize and apply insights from {docs[0].title}"},
+            ),
+            urgency="medium",
+            source_context="Knowledge Ingestion Engine",
+        )
+    else:
+        right_now = RightNowFocus(
+            id=f"rn-init-{space_uuid}",
+            headline="Space Initialized — Awaiting First Knowledge Signal",
+            why_it_matters="MYND requires an initial document, goal, or conversation to activate intelligence synthesis.",
+            evidence=[],
+            recommended_action=CockpitAction(
+                action_type="upload_document",
+                label="Upload Initial Resource",
+            ),
+            urgency="low",
+            source_context="Space Initialization",
+        )
+
+    # =========================================================================
+    # LAYER 4: NEXT BEST MOVE (Single highest-leverage action right now)
+    # =========================================================================
+    next_best_move: Optional[NextBestMove] = None
+
+    if high_conf_proposal:
+        next_best_move = NextBestMove(
+            id=f"nbm-prop-{high_conf_proposal.id}",
+            action_type="approve_proposal",
+            headline=f"Approve: {high_conf_proposal.action_type.replace('_', ' ').capitalize()}",
+            why_mynd_recommends=high_conf_proposal.reason,
+            expected_impact="Executes proposed database mutation and progresses agent workflow.",
+            action=CockpitAction(
+                action_type="approve_proposal",
+                label="Execute Action",
+                target_id=high_conf_proposal.proposal_id,
+                payload={"proposal_id": high_conf_proposal.proposal_id, "message_id": str(high_conf_proposal.message_id)},
+            ),
+        )
+    elif open_loops:
+        top_loop = open_loops[0]
+        next_best_move = NextBestMove(
+            id=f"nbm-{top_loop.id}",
+            action_type=top_loop.action.action_type,
+            headline=f"Resolve: {top_loop.title}",
+            why_mynd_recommends=f"This is the highest-priority open loop in this space ({top_loop.context}).",
+            expected_impact="Closes an unfinished loop and updates workspace state.",
+            action=top_loop.action,
+        )
+    elif docs and not goals:
+        next_best_move = NextBestMove(
+            id=f"nbm-init-goal-{space_uuid}",
+            action_type="create_goal",
+            headline="Formulate Objective from Documents",
+            why_mynd_recommends="Transform static reference materials into measurable goals.",
+            expected_impact="Activates multi-agent tracking and autonomous assistance.",
+            action=CockpitAction(
+                action_type="create_goal",
+                label="Define Goal",
+                payload={"description": f"Master and execute on {docs[0].title}"},
+            ),
+        )
+    else:
+        next_best_move = NextBestMove(
+            id=f"nbm-default-{space_uuid}",
+            action_type="upload_document",
+            headline="Upload First Source Document",
+            why_mynd_recommends="Empirical documents provide ground truth for MYND's reasoning.",
+            expected_impact="Enables citations, contradiction checking, and knowledge graphs.",
+            action=CockpitAction(action_type="upload_document", label="Upload Document"),
+        )
+
+    # =========================================================================
+    # LAYER 2: MYND NOTICED (Patterns, contradictions, recurring themes)
+    # =========================================================================
+    mynd_noticed: List[NoticedPattern] = []
+
+    # A. Add from reflections
+    for r in reflections[:4]:
+        pattern_type = "contradiction" if r.reflection_type == "failure_analysis" else "pattern"
+        mynd_noticed.append(
+            NoticedPattern(
+                id=f"notice-ref-{r.id}",
+                type=pattern_type,
+                title=r.title,
+                observation=r.lesson_learned,
+                why_it_matters=r.actionable_guidance or "Observed during automated agent execution and outcome review.",
+                confidence=r.confidence,
+                sources_count=1,
+                evidence=[CockpitEvidence(title=r.title, type="reflection", snippet=r.lesson_learned[:120])],
+                action=CockpitAction(action_type="navigate", label="Review Reflection", target_id=str(r.id)),
+            )
+        )
+
+    # B. Add from reinforced memories
+    for m in memories:
+        if m.reinforcement_count > 1:
+            mynd_noticed.append(
+                NoticedPattern(
+                    id=f"notice-mem-{m.id}",
+                    type="repeated_topic",
+                    title=f"Recurring Pattern: {m.memory_type.capitalize()}",
+                    observation=m.content,
+                    why_it_matters=f"Repeated across {m.source_count} sessions with {m.reinforcement_count} reinforcements.",
+                    confidence=m.confidence,
+                    sources_count=m.source_count,
+                    evidence=[CockpitEvidence(title=f"Memory #{str(m.id)[:6]}", type="memory", snippet=m.content[:120])],
+                )
+            )
+
+    # C. Cross-domain relationship notice
+    if len(docs) >= 2 and len(convs) >= 1:
+        mynd_noticed.append(
+            NoticedPattern(
+                id=f"notice-cross-{space_uuid}",
+                type="pattern",
+                title=f"Multi-Source Grounding ({len(docs)} Docs, {len(convs)} Threads)",
+                observation=f"MYND is actively cross-referencing {len(docs)} documents against {len(convs)} conversation thread(s).",
+                why_it_matters="Ground-truth citations prevent hallucinations across domain queries.",
+                confidence=0.95,
+                sources_count=len(docs) + len(convs),
+                evidence=[CockpitEvidence(title=d.title, type="document") for d in docs[:2]],
+            )
+        )
+
+    # =========================================================================
+    # LAYER 5: KNOWLEDGE GAPS (Areas where the Space appears incomplete)
+    # =========================================================================
+    knowledge_gaps: List[KnowledgeGapItem] = []
+    connected_ids = {c.source_id for c in connections} | {c.target_id for c in connections}
+
+    # A. Orphaned documents with zero connections
+    for d in docs:
+        if d.id not in connected_ids:
+            knowledge_gaps.append(
+                KnowledgeGapItem(
+                    id=f"gap-doc-{d.id}",
+                    known_concept=d.title,
+                    missing_relationship="Document is indexed but isolated — not linked to any active goals or memories.",
+                    related_sources=[d.title],
+                    suggested_action=CockpitAction(
+                        action_type="link_knowledge",
+                        label="Link to Objective",
+                        target_id=str(d.id),
+                    ),
+                )
+            )
+
+    # B. Goals lacking actionable breakdown or supporting documents
+    for g in goals:
+        if not g.tasks or len(g.tasks) == 0:
+            knowledge_gaps.append(
+                KnowledgeGapItem(
+                    id=f"gap-goal-{g.id}",
+                    known_concept=f"Goal: {g.description}",
+                    missing_relationship="Goal has no actionable milestones or broken-down tasks.",
+                    related_sources=[],
+                    suggested_action=CockpitAction(
+                        action_type="generate_tasks",
+                        label="Generate Tasks",
+                        target_id=str(g.id),
+                    ),
+                )
+            )
+
+    # =========================================================================
+    # LAYER 6: CONNECTIONS (Meaningful newly discovered relationships)
+    # =========================================================================
+    resolved_connections: List[ResolvedConnectionItem] = []
+    for c in connections[:20]:
+        resolved_connections.append(
+            ResolvedConnectionItem(
+                id=str(c.id),
+                source_id=str(c.source_id),
+                source_title=_resolve_title(c.source_id, c.source_type),
+                source_type=c.source_type,
+                target_id=str(c.target_id),
+                target_title=_resolve_title(c.target_id, c.target_type),
+                target_type=c.target_type,
+                relation=c.relation,
+                reason=c.reason or "Semantic relationship discovered across workspace assets.",
+                confidence=c.confidence,
+                created_at=c.created_at,
+            )
+        )
+
+    # =========================================================================
+    # LAYER 7: INTELLIGENCE TIMELINE (Meaningful changes detected by MYND)
+    # =========================================================================
+    timeline_items: List[IntelligenceTimelineItem] = []
+
+    # 1. Connections discovered
+    for c in connections[:10]:
+        timeline_items.append(
+            IntelligenceTimelineItem(
+                id=f"time-conn-{c.id}",
+                event_type="new_connection",
+                title=f"Connection: {_resolve_title(c.source_id, c.source_type)} ➔ {_resolve_title(c.target_id, c.target_type)}",
+                detail=c.reason or f"Relation '{c.relation}' discovered by MYND.",
+                timestamp=c.created_at,
+                badge_label="Connection",
+            )
+        )
+
+    # 2. Reflections synthesized
+    for r in reflections[:10]:
+        timeline_items.append(
+            IntelligenceTimelineItem(
+                id=f"time-ref-{r.id}",
+                event_type="reflection_logged",
+                title=f"Insight: {r.title}",
+                detail=r.lesson_learned,
+                timestamp=r.created_at,
+                badge_label=r.reflection_type.capitalize(),
+            )
+        )
+
+    # 3. Actions executed or approved
+    for p in proposals[:10]:
+        if p.status in ("approved", "executed"):
+            timeline_items.append(
+                IntelligenceTimelineItem(
+                    id=f"time-prop-{p.id}",
+                    event_type="action_executed",
+                    title=f"Action {p.status.capitalize()}: {p.action_type.replace('_', ' ')}",
+                    detail=p.reason,
+                    timestamp=p.executed_at or p.approved_at or p.created_at,
+                    status=p.status,
+                    badge_label=f"Action {p.status}",
+                )
+            )
+
+    # 4. Outcomes evaluated
+    for o in outcomes[:10]:
+        if o.evaluated_at:
+            timeline_items.append(
+                IntelligenceTimelineItem(
+                    id=f"time-outc-{o.id}",
+                    event_type="outcome_evaluated",
+                    title=f"Outcome Evaluated: {o.status.upper()}",
+                    detail=o.actual_outcome or o.expected_outcome or "Workspace result evaluated against expectation.",
+                    timestamp=o.evaluated_at,
+                    status=o.status,
+                    badge_label=f"Outcome {o.status}",
+                )
+            )
+
+    # 5. Documents indexed
+    for d in docs[:5]:
+        if d.created_at:
+            timeline_items.append(
+                IntelligenceTimelineItem(
+                    id=f"time-doc-{d.id}",
+                    event_type="document_indexed",
+                    title=f"Indexed: '{d.title}'",
+                    detail=f"Resource format {d.type} parsed into Qdrant vectors.",
+                    timestamp=d.created_at,
+                    badge_label="Document",
+                )
+            )
+
+    # Sort timeline descending by timestamp
+    timeline_items.sort(key=lambda x: x.timestamp, reverse=True)
+    timeline_items = timeline_items[:15]
+
+    return SpaceCockpitResponse(
+        space=space_response,
+        last_synced_at=datetime.now(timezone.utc),
+        right_now=right_now,
+        mynd_noticed=mynd_noticed,
+        open_loops=open_loops,
+        next_best_move=next_best_move,
+        knowledge_gaps=knowledge_gaps,
+        connections=resolved_connections,
+        timeline=timeline_items,
+    )
+

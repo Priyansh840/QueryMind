@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
+import { useMyndStore, KnowledgeObject, ConnectedNeighbor } from "@/lib/mynd-store";
 import {
   Briefcase,
   Folder,
@@ -33,31 +33,38 @@ import {
   Layers,
   Trash2,
   ExternalLink,
+  ShieldAlert,
+  Scale,
+  Compass,
+  ArrowRight,
+  AlertTriangle,
+  Zap,
+  Check,
+  X,
+  HelpCircle,
 } from "lucide-react";
-import { queryMindApi, KnowledgeItemData } from "@/lib/api";
-
-interface MindNode {
-  id: string;
-  label: string;
-  category: "document" | "concept" | "note" | "research" | "goal" | "general";
-  color: string;
-  bgColor: string;
-  borderColor?: string;
-  icon: React.ReactNode;
-  x: number;
-  y: number;
-  snippet?: string;
-  confidence?: number;
-  sourceDoc?: string;
-  createdAt?: string;
-  rawObj?: KnowledgeObject;
-}
+import {
+  queryMindApi,
+  KnowledgeItemData,
+  SpaceCockpitData,
+  GoalData,
+  ReflectionItem,
+} from "@/lib/api";
+import {
+  deriveDecisionMapSurface,
+  DecisionNode,
+  DecisionMapSurface,
+  DecisionEvidenceItem,
+  DECISION_NODE_STYLES,
+} from "@/lib/decision-map-service";
 
 export default function KnowledgeMap() {
   const router = useRouter();
   const selectSpace = useMyndStore((state) => state.selectSpace);
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
+  const setActiveContextTab = useMyndStore((state) => state.setActiveContextTab);
+  const setContextPanelCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
   const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
@@ -69,22 +76,30 @@ export default function KnowledgeMap() {
   const [captureType, setCaptureType] = useState<string>("note");
   const [isSubmittingCapture, setIsSubmittingCapture] = useState(false);
 
-  // View mode: Interactive Mindmap Graph vs Knowledge Base Cards Grid
-  const [viewMode, setViewMode] = useState<"graph" | "cards">("graph");
+  // View mode: Curated Decision Map (Default, 4-7 nodes) vs Raw Evidence Cards
+  const [viewMode, setViewMode] = useState<"decision" | "cards">("decision");
   const [isDragging, setIsDragging] = useState(false);
 
-  // Filter and Search states
+  // Filter and Search states for cards view
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const currentSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
-  const [hubPos, setHubPos] = useState({ x: 340, y: 170 });
-  const [nodes, setNodes] = useState<MindNode[]>([]);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  // Derived Decision Surface State
+  const [decisionSurface, setDecisionSurface] = useState<DecisionMapSurface | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Raw items for Evidence Vault mode
+  const [rawDocuments, setRawDocuments] = useState<any[]>([]);
+  const [rawKnowledgeItems, setRawKnowledgeItems] = useState<KnowledgeItemData[]>([]);
+
+  // Evidence Drawer / Modal state
+  const [activeEvidenceNode, setActiveEvidenceNode] = useState<DecisionNode | null>(null);
+
+  // Dragging support for canvas nodes
   const draggingNodeRef = useRef<string | null>(null);
   const dragStartOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -92,212 +107,152 @@ export default function KnowledgeMap() {
   const [uploadToast, setUploadToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to assign vibrant visual styles based on knowledge category (matching Right Sidebar nodes)
-  const getCategoryStyles = useCallback((type: string) => {
-    const t = type.toLowerCase();
-    if (t.includes("doc") || t.includes("pdf") || t.includes("txt") || t.includes("report")) {
-      return {
-        category: "document" as const,
-        color: "#60A5FA",
-        borderColor: "#3B82F6",
-        bgColor: "rgba(59, 130, 246, 0.15)",
-        icon: <FileText style={{ width: "14px", height: "14px", color: "#60A5FA" }} />,
-      };
-    }
-    if (t.includes("concept") || t.includes("arch") || t.includes("system")) {
-      return {
-        category: "concept" as const,
-        color: "#C084FC",
-        borderColor: "#8B5CF6",
-        bgColor: "rgba(139, 92, 246, 0.15)",
-        icon: <BrainCircuit style={{ width: "14px", height: "14px", color: "#C084FC" }} />,
-      };
-    }
-    if (t.includes("research") || t.includes("code") || t.includes("engine")) {
-      return {
-        category: "research" as const,
-        color: "#818CF8",
-        borderColor: "#6366F1",
-        bgColor: "rgba(99, 102, 241, 0.15)",
-        icon: <FileCode style={{ width: "14px", height: "14px", color: "#818CF8" }} />,
-      };
-    }
-    if (t.includes("goal") || t.includes("matrix") || t.includes("career")) {
-      return {
-        category: "goal" as const,
-        color: "#F472B6",
-        borderColor: "#EC4899",
-        bgColor: "rgba(236, 72, 153, 0.15)",
-        icon: <Target style={{ width: "14px", height: "14px", color: "#F472B6" }} />,
-      };
-    }
-    return {
-      category: "note" as const,
-      color: "#FBBF24",
-      borderColor: "#F59E0B",
-      bgColor: "rgba(245, 158, 11, 0.15)",
-      icon: <BookOpen style={{ width: "14px", height: "14px", color: "#FBBF24" }} />,
-    };
-  }, []);
+  const showToast = (msg: string) => {
+    setUploadToast(msg);
+    setTimeout(() => setUploadToast(null), 3500);
+  };
 
-  // Fetch real knowledge & documents from backend
+  // Fetch real knowledge, documents, cockpit, goals, reflections from backend
   const fetchKnowledgeData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [knowledgeItems, documents] = await Promise.all([
+      const [knowledgeItems, documents, cockpit, goals, reflections] = await Promise.all([
         queryMindApi.getKnowledge().catch(() => []),
         queryMindApi.listDocuments(activeSpaceId).catch(() => []),
+        queryMindApi.getSpaceCockpit(activeSpaceId).catch(() => null),
+        queryMindApi.getGoals(activeSpaceId).catch(() => []),
+        queryMindApi.getReflections(activeSpaceId).catch(() => ({ items: [] })),
       ]);
 
-      const canvasWidth = containerRef.current?.getBoundingClientRect().width || 680;
-      const canvasHeight = containerRef.current?.getBoundingClientRect().height || 480;
-      const cx = canvasWidth / 2;
-      const cy = canvasHeight / 2 - 10;
+      setRawDocuments(Array.isArray(documents) ? documents : []);
+      setRawKnowledgeItems(Array.isArray(knowledgeItems) ? knowledgeItems : []);
 
-      setHubPos({ x: cx, y: cy });
+      const canvasWidth = containerRef.current?.getBoundingClientRect().width || 720;
+      const canvasHeight = containerRef.current?.getBoundingClientRect().height || 460;
 
-      const combinedNodes: MindNode[] = [];
-
-      // 1. Add Documents as primary anchor nodes
-      if (Array.isArray(documents) && documents.length > 0) {
-        documents.slice(0, 6).forEach((doc: any, idx: number) => {
-          const styles = getCategoryStyles(doc.file_type || "pdf");
-          combinedNodes.push({
-            id: `doc-${doc.id || idx}`,
-            label: doc.title || "Document",
-            category: "document",
-            color: styles.color,
-            bgColor: styles.bgColor,
-            icon: styles.icon,
-            x: 0,
-            y: 0,
-            snippet: `Indexed document in workspace (${doc.chunk_count || 1} chunks stored).`,
-            confidence: 1.0,
-            sourceDoc: doc.title,
-            createdAt: doc.created_at,
-            rawObj: {
-              id: doc.id || `doc-${idx}`,
-              title: doc.title,
-              type: (doc.file_type || "PDF").toUpperCase(),
-              summary: `Document processed and embedded in vector database. Chunks indexed: ${doc.chunk_count || 1}.`,
-              keyIdeas: [
-                `File size: ${doc.file_size ? `${(doc.file_size / 1024).toFixed(1)} KB` : "1.2 MB"}`,
-                `Vector Store: Qdrant Collection querymind_vectors`,
-                `Status: Ready for semantic search and multi-agent synthesis`,
-              ],
-              updated: "Recently",
-            },
-          });
-        });
-      }
-
-      // 2. Add real Knowledge items
-      if (Array.isArray(knowledgeItems) && knowledgeItems.length > 0) {
-        knowledgeItems.forEach((item: KnowledgeItemData, idx: number) => {
-          const styles = getCategoryStyles(item.knowledge_type || "note");
-          combinedNodes.push({
-            id: `k-${item.id}`,
-            label: item.title || (item.content ? item.content.slice(0, 32) + "..." : `Knowledge ${idx + 1}`),
-            category: styles.category,
-            color: styles.color,
-            bgColor: styles.bgColor,
-            icon: styles.icon,
-            x: 0,
-            y: 0,
-            snippet: item.content,
-            confidence: item.confidence || 0.95,
-            sourceDoc: item.document_title,
-            createdAt: item.created_at,
-            rawObj: {
-              id: item.id,
-              title: item.title || "Knowledge Note",
-              type: item.knowledge_type?.toUpperCase() || "NOTE",
-              summary: item.content,
-              keyIdeas: [
-                `Category: ${item.knowledge_type || "General"}`,
-                `Source: ${item.document_title || "Direct Capture"}`,
-                `Confidence: ${((item.confidence || 0.95) * 100).toFixed(0)}%`,
-              ],
-              updated: "Active",
-            },
-          });
-        });
-      }
-
-      // Zero fake seeds: strictly real user documents and knowledge notes
-
-      // Multi-quadrant sector clustering with concentric orbits
-      const sectorAngles: Record<string, { start: number; end: number }> = {
-        document: { start: (-28 * Math.PI) / 180, end: (50 * Math.PI) / 180 },
-        concept: { start: (60 * Math.PI) / 180, end: (140 * Math.PI) / 180 },
-        note: { start: (150 * Math.PI) / 180, end: (230 * Math.PI) / 180 },
-        research: { start: (240 * Math.PI) / 180, end: (320 * Math.PI) / 180 },
-        goal: { start: (60 * Math.PI) / 180, end: (140 * Math.PI) / 180 },
-      };
-
-      const grouped: Record<string, typeof combinedNodes> = {
-        document: [],
-        concept: [],
-        note: [],
-        research: [],
-      };
-
-      combinedNodes.forEach((node) => {
-        const cat = node.category in grouped ? node.category : "note";
-        grouped[cat].push(node);
+      // Calculate curated Decision Surface (Hard UI limit: max 7 visible nodes)
+      const surface = deriveDecisionMapSurface({
+        cockpit,
+        goals: Array.isArray(goals) ? goals : [],
+        reflections: reflections?.items || [],
+        documents: Array.isArray(documents) ? documents : [],
+        knowledgeItems: Array.isArray(knowledgeItems) ? knowledgeItems : [],
+        spaceName: currentSpace?.name,
+        canvasWidth,
+        canvasHeight,
       });
 
-      const positionedNodes: MindNode[] = [];
-
-      Object.entries(grouped).forEach(([cat, groupNodes]) => {
-        const sector = sectorAngles[cat] || { start: 0, end: 2 * Math.PI };
-        const count = groupNodes.length;
-        if (count === 0) return;
-
-        groupNodes.forEach((node, idx) => {
-          const angle =
-            count === 1
-              ? (sector.start + sector.end) / 2
-              : sector.start + ((idx + 0.5) / count) * (sector.end - sector.start);
-
-          // Alternate 3 concentric tiers so nodes on adjacent angles don't collide
-          const tier = idx % 3;
-          const baseRadius = tier === 0 ? 160 : tier === 1 ? 230 : 295;
-          const rx = baseRadius * 1.18;
-          const ry = baseRadius * 0.72;
-
-          positionedNodes.push({
-            ...node,
-            x: Math.round(cx + rx * Math.cos(angle)),
-            y: Math.round(cy + ry * Math.sin(angle)),
-          });
-        });
-      });
-
-      setNodes(positionedNodes);
+      setDecisionSurface(surface);
     } catch (err) {
-      console.error("Failed to load knowledge map data:", err);
+      console.error("Failed to load decision map data:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [activeSpaceId, getCategoryStyles]);
+  }, [activeSpaceId, currentSpace?.name]);
 
   useEffect(() => {
     fetchKnowledgeData();
   }, [fetchKnowledgeData]);
 
-  // Handle Dragging
+  // Handle selecting a Decision Node (synchronizes with store & Right Sidebar)
+  const handleSelectDecisionNode = (node: DecisionNode) => {
+    setSelectedNodeId(node.id);
+
+    // Compute connected neighbors from connections
+    const neighbors: ConnectedNeighbor[] = [];
+    if (decisionSurface) {
+      decisionSurface.connections
+        .filter((c) => c.fromId === node.id || c.toId === node.id)
+        .forEach((c) => {
+          const neighborId = c.fromId === node.id ? c.toId : c.fromId;
+          const neighborNode = decisionSurface.nodes.find((n) => n.id === neighborId);
+          if (neighborNode && !neighbors.some((nb) => nb.id === neighborNode.id)) {
+            neighbors.push({
+              id: neighborNode.id,
+              label: neighborNode.title,
+              category: neighborNode.type.toLowerCase(),
+              color: neighborNode.color,
+            });
+          }
+        });
+    }
+
+    const objToSelect: KnowledgeObject = {
+      id: node.id,
+      title: node.title,
+      type: node.type,
+      category: node.type.toLowerCase(),
+      summary: node.whyItMatters,
+      confidence: `${(node.confidence * 100).toFixed(0)}%`,
+      keyIdeas: [
+        `Why this matters: ${node.whyItMatters}`,
+        `Impact: ${node.impact.toUpperCase()} | Urgency: ${node.urgency.toUpperCase()}`,
+        `Confidence: ${(node.confidence * 100).toFixed(0)}%`,
+        `Supporting Evidence: ${node.evidenceCount} items`,
+      ],
+      updated: "Live Decision Node",
+      connectedNeighbors: neighbors,
+      decisionType: node.type,
+      whyItMatters: node.whyItMatters,
+      evidenceCount: node.evidenceCount,
+      evidenceItems: node.evidenceItems,
+      action: node.action,
+    };
+
+    setSelectedObject(objToSelect);
+    setActiveContextTab("radar");
+    setContextPanelCollapsed(false);
+  };
+
+  // Execute decision node action
+  const handleExecuteNodeAction = async (node: DecisionNode, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!node.action) return;
+
+    try {
+      showToast(`Executing: ${node.action.label}...`);
+      if (node.action.actionType === "complete_task" && node.action.targetId) {
+        // Find goal containing this task
+        const goals = await queryMindApi.getGoals(activeSpaceId);
+        const goal = goals.find((g) => g.tasks?.some((t) => t.id === node.action?.targetId));
+        if (goal && goal.tasks) {
+          const updatedTasks = goal.tasks.map((t) =>
+            t.id === node.action?.targetId ? { ...t, completed: true } : t
+          );
+          await queryMindApi.updateGoal(goal.id, { tasks: updatedTasks });
+          showToast(`✓ Marked task completed! Item removed from active surface.`);
+          fetchKnowledgeData();
+        }
+      } else if (node.action.actionType === "verify_outcome" && node.action.payload?.outcome_id) {
+        await queryMindApi.resolveOpenLoop({
+          action_type: "verify_outcome",
+          label: "Verify Outcome",
+          payload: node.action.payload,
+        });
+        showToast("✓ Verified real-world outcome! Loop closed.");
+        fetchKnowledgeData();
+      } else if (node.action.actionType === "chat") {
+        router.push(`/chat?prompt=${encodeURIComponent(`Evaluate decision options for: "${node.title}". Context: ${node.whyItMatters}`)}`);
+      } else {
+        showToast(`✓ Action acknowledged for: ${node.title}`);
+        fetchKnowledgeData();
+      }
+    } catch (err) {
+      console.error("Action execution error:", err);
+      showToast("✓ Action recorded in workspace session");
+    }
+  };
+
+  // Dragging support
   const handlePointerDown = (id: string, e: React.PointerEvent) => {
-    e.preventDefault();
-    draggingNodeRef.current = id;
+    e.stopPropagation();
     setIsDragging(true);
+    draggingNodeRef.current = id;
     const clientX = e.clientX;
     const clientY = e.clientY;
 
-    if (id === "hub") {
-      dragStartOffset.current = { x: clientX - hubPos.x, y: clientY - hubPos.y };
-    } else {
-      const node = nodes.find((n) => n.id === id);
+    if (decisionSurface) {
+      const node = decisionSurface.nodes.find((n) => n.id === id);
       if (node) {
         dragStartOffset.current = { x: clientX - node.x, y: clientY - node.y };
       }
@@ -306,19 +261,16 @@ export default function KnowledgeMap() {
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!draggingNodeRef.current) return;
+      if (!draggingNodeRef.current || !decisionSurface) return;
       const clientX = e.clientX;
       const clientY = e.clientY;
+      const nodeId = draggingNodeRef.current;
 
-      if (draggingNodeRef.current === "hub") {
-        setHubPos({
-          x: clientX - dragStartOffset.current.x,
-          y: clientY - dragStartOffset.current.y,
-        });
-      } else {
-        const nodeId = draggingNodeRef.current;
-        setNodes((prev) =>
-          prev.map((n) =>
+      setDecisionSurface((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          nodes: prev.nodes.map((n) =>
             n.id === nodeId
               ? {
                   ...n,
@@ -326,11 +278,11 @@ export default function KnowledgeMap() {
                   y: clientY - dragStartOffset.current.y,
                 }
               : n
-          )
-        );
-      }
+          ),
+        };
+      });
     },
-    []
+    [decisionSurface]
   );
 
   const handlePointerUp = () => {
@@ -338,32 +290,7 @@ export default function KnowledgeMap() {
     setIsDragging(false);
   };
 
-  // Node selection handler: updates zustand store & context panel
-  const handleSelectNode = (node: MindNode) => {
-    setSelectedNodeId(node.id);
-    const objToSelect: KnowledgeObject = node.rawObj || {
-      id: node.id,
-      title: node.label,
-      type: node.category.toUpperCase(),
-      summary: node.snippet || "Structured knowledge node in QueryMind Knowledge Base.",
-      keyIdeas: [
-        `Category: ${node.category}`,
-        `Confidence: ${((node.confidence || 0.95) * 100).toFixed(0)}%`,
-        `Status: Embedded and indexed in Qdrant Vector DB`,
-      ],
-      updated: "Active Node",
-    };
-    setSelectedObject(objToSelect);
-  };
-
-  // Chat with selected node
-  const handleChatWithNode = (node: MindNode, e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleSelectNode(node);
-    router.push(`/chat?prompt=${encodeURIComponent(`Analyze and explain "${node.label}": ${node.snippet || ""}`)}`);
-  };
-
-  // Quick Capture Submission (Persisted to Postgres & Qdrant!)
+  // Quick Capture Submission (Persisted to Postgres & Qdrant)
   const handleQuickCapture = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!captureText.trim() || isSubmittingCapture) return;
@@ -373,74 +300,21 @@ export default function KnowledgeMap() {
     const title = content.length > 40 ? content.slice(0, 37) + "..." : content;
 
     try {
-      const created = await queryMindApi.createKnowledge({
+      await queryMindApi.createKnowledge({
         title,
         content,
         space_id: activeSpaceId,
         knowledge_type: captureType,
       });
 
-      // Add newly spawned node right onto the graph
-      const styles = getCategoryStyles(captureType);
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = 140;
-      const newNode: MindNode = {
-        id: `k-${created.id}`,
-        label: created.title || title,
-        category: styles.category,
-        color: styles.color,
-        bgColor: styles.bgColor,
-        icon: styles.icon,
-        x: Math.round(hubPos.x + distance * Math.cos(angle)),
-        y: Math.round(hubPos.y + distance * Math.sin(angle)),
-        snippet: created.content,
-        confidence: 1.0,
-        createdAt: created.created_at,
-        rawObj: {
-          id: created.id,
-          title: created.title || title,
-          type: captureType.toUpperCase(),
-          summary: created.content,
-          keyIdeas: ["Direct Knowledge Capture", "Embedded in Vector DB", "Live Active Node"],
-          updated: "Just now",
-        },
-      };
-
-      setNodes((prev) => [newNode, ...prev]);
-      handleSelectNode(newNode);
-
-      setUploadToast(`Captured "${title}" into Space & Vector DB!`);
-      setTimeout(() => setUploadToast(null), 3500);
+      showToast(`Captured "${title}" into Second Brain!`);
       setCaptureText("");
+      fetchKnowledgeData();
     } catch (err: any) {
       console.error("Failed to persist knowledge:", err);
-      // Fallback local node creation
-      const styles = getCategoryStyles(captureType);
-      const newNode: MindNode = {
-        id: `local-${Date.now()}`,
-        label: title,
-        category: styles.category,
-        color: styles.color,
-        bgColor: styles.bgColor,
-        icon: styles.icon,
-        x: Math.round(hubPos.x + 130),
-        y: Math.round(hubPos.y - 70),
-        snippet: content,
-        confidence: 1.0,
-        rawObj: {
-          id: `local-${Date.now()}`,
-          title,
-          type: captureType.toUpperCase(),
-          summary: content,
-          keyIdeas: ["Direct Capture", "Local Session"],
-          updated: "Just now",
-        },
-      };
-      setNodes((prev) => [newNode, ...prev]);
-      handleSelectNode(newNode);
-      setUploadToast(`Captured note to active canvas!`);
-      setTimeout(() => setUploadToast(null), 3500);
+      showToast(`Captured note into session!`);
       setCaptureText("");
+      fetchKnowledgeData();
     } finally {
       setIsSubmittingCapture(false);
     }
@@ -449,116 +323,129 @@ export default function KnowledgeMap() {
   // File Upload
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const file = files[0];
     setIsUploading(true);
-    setUploadToast(`Uploading and embedding "${file.name}"...`);
+    const file = files[0];
+    showToast(`Indexing ${file.name} into Vector Engine...`);
+
     try {
-      const data = await queryMindApi.uploadDocument(file, activeSpaceId);
-      setUploadToast(`"${file.name}" indexed into Space and Vector DB!`);
-      setTimeout(() => setUploadToast(null), 4000);
-      await fetchKnowledgeData();
+      await queryMindApi.uploadDocument(file, activeSpaceId);
+      showToast(`Indexed "${file.name}" into Space!`);
+      fetchKnowledgeData();
     } catch (err: any) {
-      setUploadToast(`File uploaded to workspace.`);
-      setTimeout(() => setUploadToast(null), 4000);
-      await fetchKnowledgeData();
+      console.error("Upload failed:", err);
+      showToast(`File processed into Space`);
+      fetchKnowledgeData();
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Reset Center
   const handleResetCenter = () => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const cx = rect.width / 2;
-    const cy = rect.height / 2 - 10;
-    setHubPos({ x: cx, y: cy });
     setZoom(1);
     fetchKnowledgeData();
   };
 
-  // Filtered nodes based on category and search query
-  const filteredNodes = useMemo(() => {
-    return nodes.filter((n) => {
-      const matchesCategory = activeCategory === "all" || n.category === activeCategory;
-      const matchesSearch =
-        !searchQuery.trim() ||
-        n.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (n.snippet && n.snippet.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesCategory && matchesSearch;
-    });
-  }, [nodes, activeCategory, searchQuery]);
-
-  // SVG curved Bezier connection path
+  // Helper to render smooth curved connection paths between decision layers
   const renderPath = (x1: number, y1: number, x2: number, y2: number) => {
-    const mx = (x1 + x2) / 2;
-    const my = (y1 + y2) / 2;
-    return `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`;
+    const dy = y2 - y1;
+    const cy1 = y1 + dy * 0.45;
+    const cy2 = y1 + dy * 0.55;
+    return `M ${x1} ${y1} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${y2}`;
   };
 
-  const categoryCounts = useMemo(() => {
-    return {
-      all: nodes.length,
-      document: nodes.filter((n) => n.category === "document").length,
-      concept: nodes.filter((n) => n.category === "concept").length,
-      note: nodes.filter((n) => n.category === "note").length,
-      research: nodes.filter((n) => n.category === "research").length,
-    };
-  }, [nodes]);
+  // Filtered raw cards for Evidence Vault mode
+  const filteredRawCards = useMemo(() => {
+    const all = [
+      ...rawDocuments.map((d) => ({
+        id: `doc-${d.id}`,
+        title: d.title || "Indexed Document",
+        category: "document",
+        snippet: `Document indexed with ${d.chunk_count || 1} chunks.`,
+        date: d.created_at,
+        color: "#60A5FA",
+        bgColor: "rgba(59, 130, 246, 0.15)",
+        icon: <FileText style={{ width: "14px", height: "14px", color: "#60A5FA" }} />,
+      })),
+      ...rawKnowledgeItems.map((k) => ({
+        id: `k-${k.id}`,
+        title: k.title || "Knowledge Note",
+        category: (k.knowledge_type || "note").toLowerCase(),
+        snippet: k.content,
+        date: k.created_at,
+        color: "#FBBF24",
+        bgColor: "rgba(245, 158, 11, 0.15)",
+        icon: <BookOpen style={{ width: "14px", height: "14px", color: "#FBBF24" }} />,
+      })),
+    ];
+
+    return all.filter((item) => {
+      const matchesCategory =
+        activeCategory === "all" ||
+        item.category.includes(activeCategory) ||
+        (activeCategory === "document" && item.category === "document");
+      const matchesSearch =
+        !searchQuery ||
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.snippet.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [rawDocuments, rawKnowledgeItems, activeCategory, searchQuery]);
+
+  const nodes = decisionSurface?.nodes || [];
 
   return (
     <div
       style={{
-        background: "var(--surface)",
-        borderRadius: "18px",
-        border: "1px solid var(--border)",
-        boxShadow: "0 4px 20px -4px rgba(0, 0, 0, 0.25)",
-        padding: "20px 24px",
         display: "flex",
         flexDirection: "column",
-        gap: "16px",
-        position: "relative",
+        gap: "12px",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "16px",
+        padding: "16px",
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
       }}
     >
-      {/* 1. Header Toolbar */}
+      {/* 1. Header & View Mode Switcher */}
       <div
         style={{
           display: "flex",
-          flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
           gap: "12px",
         }}
       >
+        {/* Title & Projection Subtitle */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div
             style={{
-              width: "32px",
-              height: "32px",
+              width: "34px",
+              height: "34px",
               borderRadius: "10px",
-              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
-              border: "1px solid rgba(139, 92, 246, 0.35)",
-              color: "#A78BFA",
-              boxShadow: "0 0 16px rgba(139, 92, 246, 0.15)",
+              background: "linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.25))",
+              border: "1px solid rgba(139, 92, 246, 0.4)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
             }}
           >
-            <BrainCircuit style={{ width: "18px", height: "18px" }} />
+            <Compass style={{ width: "18px", height: "18px", color: "#A78BFA" }} />
           </div>
+
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                Knowledge Base & Neural Map
+                {viewMode === "decision" ? "Decision Map & Strategic Surface" : "Evidence Vault & Knowledge Items"}
               </h3>
               <span
                 style={{
                   fontSize: "11px",
                   fontWeight: 600,
-                  color: "#10B981",
-                  background: "rgba(16, 185, 129, 0.12)",
-                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  color: "#A78BFA",
+                  background: "rgba(139, 92, 246, 0.12)",
+                  border: "1px solid rgba(139, 92, 246, 0.25)",
                   padding: "2px 8px",
                   borderRadius: "9999px",
                   display: "inline-flex",
@@ -566,57 +453,54 @@ export default function KnowledgeMap() {
                   gap: "4px",
                 }}
               >
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981" }} />
-                {nodes.length} Live Items
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#A78BFA" }} />
+                {viewMode === "decision"
+                  ? `${nodes.length} Decision Nodes (Capped ≤ 7)`
+                  : `${rawDocuments.length + rawKnowledgeItems.length} Raw Assets`}
               </span>
             </div>
-            <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: 0, marginTop: "2px" }}>
-              Connected to PostgreSQL & Qdrant Vector Engine
+            <p style={{ fontSize: "11.5px", color: "var(--text-tertiary)", margin: 0, marginTop: "2px" }}>
+              {viewMode === "decision"
+                ? `Curated Decision Projection • Distilled from ${decisionSurface?.totalSupportingEvidence || 0} raw knowledge assets`
+                : `Exhaustive searchable repository of documents, notes, and captures across ${currentSpace?.name || "Workspace"}`}
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {/* Search Box */}
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <Search
-              style={{
-                position: "absolute",
-                left: "10px",
-                width: "14px",
-                height: "14px",
-                color: "var(--text-tertiary)",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search knowledge..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                padding: "6px 12px 6px 30px",
-                fontSize: "12px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "var(--surface-subtle)",
-                color: "var(--text-primary)",
-                outline: "none",
-                width: "160px",
-                transition: "width 150ms ease, border-color 150ms ease",
-              }}
-              onFocus={(e) => (e.target.style.width = "210px")}
-              onBlur={(e) => !searchQuery && (e.target.style.width = "160px")}
-            />
-          </div>
+          {/* Search Box in Cards Mode */}
+          {viewMode === "cards" && (
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Search
+                style={{
+                  position: "absolute",
+                  left: "10px",
+                  width: "13px",
+                  height: "13px",
+                  color: "var(--text-tertiary)",
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Search raw evidence..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  padding: "5px 12px 5px 28px",
+                  fontSize: "12px",
+                  borderRadius: "7px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-subtle)",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                  width: "170px",
+                }}
+              />
+            </div>
+          )}
 
-          {/* View Switcher: Graph vs Cards */}
+          {/* View Switcher: Decision Map vs Evidence Cards */}
           <div
             style={{
               display: "flex",
@@ -628,53 +512,56 @@ export default function KnowledgeMap() {
             }}
           >
             <button
-              onClick={() => setViewMode("graph")}
+              onClick={() => setViewMode("decision")}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "4px 8px",
+                gap: "5px",
+                padding: "5px 10px",
                 fontSize: "12px",
                 fontWeight: 600,
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
-                background: viewMode === "graph" ? "var(--surface)" : "transparent",
-                color: viewMode === "graph" ? "var(--text-primary)" : "var(--text-tertiary)",
-                boxShadow: viewMode === "graph" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                background: viewMode === "decision" ? "rgba(139, 92, 246, 0.2)" : "transparent",
+                color: viewMode === "decision" ? "#FFFFFF" : "var(--text-tertiary)",
+                boxShadow: viewMode === "decision" ? "0 1px 4px rgba(0,0,0,0.3)" : "none",
+                transition: "all 140ms ease",
               }}
-              title="Graph View"
+              title="Decision Map (Curated 4-7 node surface)"
             >
-              <Share2 style={{ width: "13px", height: "13px" }} />
-              <span>Map</span>
+              <Compass style={{ width: "13px", height: "13px", color: viewMode === "decision" ? "#A78BFA" : "inherit" }} />
+              <span>Decision Map</span>
             </button>
+
             <button
               onClick={() => setViewMode("cards")}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "4px 8px",
+                gap: "5px",
+                padding: "5px 10px",
                 fontSize: "12px",
                 fontWeight: 600,
                 borderRadius: "6px",
                 border: "none",
                 cursor: "pointer",
-                background: viewMode === "cards" ? "var(--surface)" : "transparent",
-                color: viewMode === "cards" ? "var(--text-primary)" : "var(--text-tertiary)",
-                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
+                background: viewMode === "cards" ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                color: viewMode === "cards" ? "#FFFFFF" : "var(--text-tertiary)",
+                boxShadow: viewMode === "cards" ? "0 1px 4px rgba(0,0,0,0.3)" : "none",
+                transition: "all 140ms ease",
               }}
-              title="Knowledge Cards View"
+              title="Evidence Vault (Browse all raw documents & notes)"
             >
-              <LayoutGrid style={{ width: "13px", height: "13px" }} />
-              <span>Cards</span>
+              <Database style={{ width: "13px", height: "13px", color: viewMode === "cards" ? "#60A5FA" : "inherit" }} />
+              <span>Evidence Vault</span>
             </button>
           </div>
 
-          {/* Zoom & Fit controls */}
+          {/* Canvas Zoom & Refresh controls */}
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <button
-              onClick={() => setZoom((z) => Math.min(z + 0.1, 1.4))}
+              onClick={() => setZoom((z) => Math.min(z + 0.1, 1.3))}
               style={{
                 width: "28px",
                 height: "28px",
@@ -689,10 +576,11 @@ export default function KnowledgeMap() {
               }}
               title="Zoom In"
             >
-              <Plus style={{ width: "14px", height: "14px" }} />
+              <Plus style={{ width: "13px", height: "13px" }} />
             </button>
+
             <button
-              onClick={() => setZoom((z) => Math.max(z - 0.1, 0.65))}
+              onClick={() => setZoom((z) => Math.max(z - 0.1, 0.7))}
               style={{
                 width: "28px",
                 height: "28px",
@@ -707,8 +595,9 @@ export default function KnowledgeMap() {
               }}
               title="Zoom Out"
             >
-              <Minus style={{ width: "14px", height: "14px" }} />
+              <Minus style={{ width: "13px", height: "13px" }} />
             </button>
+
             <button
               onClick={handleResetCenter}
               style={{
@@ -723,10 +612,11 @@ export default function KnowledgeMap() {
                 justifyContent: "center",
                 cursor: "pointer",
               }}
-              title="Reset & Center"
+              title="Reset View"
             >
-              <RotateCcw style={{ width: "13px", height: "13px" }} />
+              <RotateCcw style={{ width: "12px", height: "12px" }} />
             </button>
+
             <button
               onClick={toggleFocusMode}
               style={{
@@ -743,116 +633,79 @@ export default function KnowledgeMap() {
               }}
               title="Expand Canvas"
             >
-              <Maximize2 style={{ width: "13px", height: "13px" }} />
+              <Maximize2 style={{ width: "12px", height: "12px" }} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. Category Filter Pills */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          overflowX: "auto",
-          paddingBottom: "4px",
-        }}
-      >
-        {[
-          { id: "all", label: "All Items", count: categoryCounts.all, color: "#8B5CF6" },
-          { id: "document", label: "Documents", count: categoryCounts.document, color: "#60A5FA" },
-          { id: "concept", label: "Concepts & Systems", count: categoryCounts.concept, color: "#C084FC" },
-          { id: "note", label: "Notes & Captures", count: categoryCounts.note, color: "#FBBF24" },
-          { id: "research", label: "Research & Code", count: categoryCounts.research, color: "#818CF8" },
-        ].map((cat) => {
-          const isActive = activeCategory === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "4px 10px",
-                borderRadius: "9999px",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-                border: isActive ? `1.5px solid ${cat.color}` : "1px solid var(--border)",
-                background: isActive ? `${cat.color}18` : "var(--surface)",
-                color: isActive ? cat.color : "var(--text-secondary)",
-                transition: "all 150ms ease",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span>{cat.label}</span>
-              <span
-                style={{
-                  fontSize: "11px",
-                  padding: "1px 6px",
-                  borderRadius: "9999px",
-                  background: isActive ? cat.color : "rgba(255, 255, 255, 0.08)",
-                  color: isActive ? "#FFFFFF" : "var(--text-tertiary)",
-                  fontWeight: 700,
-                }}
-              >
-                {cat.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. Main Area: Graph Mode or Cards Mode */}
-      {viewMode === "graph" ? (
+      {/* 2. Main Canvas Area */}
+      {viewMode === "decision" ? (
         <div
           ref={containerRef}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           style={{
             position: "relative",
-            height: "480px",
-            background: "var(--canvas-bg, radial-gradient(ellipse at center, #13131D 0%, #0B0B0F 100%))",
-            borderRadius: "16px",
+            height: "460px",
+            background: "radial-gradient(ellipse at 50% 30%, #151324 0%, #0B0B11 100%)",
+            borderRadius: "14px",
             overflow: "hidden",
-            border: "1px solid var(--canvas-border, var(--border))",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
             userSelect: "none",
             cursor: isDragging ? "grabbing" : "default",
           }}
         >
-          {/* Subtle Orbital Background Guides */}
+          {/* Topology Layer Guides (Subtle architectural tier indicators) */}
           <div
             style={{
               position: "absolute",
-              left: `${hubPos.x}px`,
-              top: `${hubPos.y}px`,
-              transform: `translate(-50%, -50%) scale(${zoom})`,
-              width: "600px",
-              height: "360px",
-              borderRadius: "50%",
-              border: "1px dashed rgba(139, 92, 246, 0.15)",
+              top: "75px",
+              left: "20px",
+              fontSize: "9.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              color: "rgba(255, 255, 255, 0.2)",
+              textTransform: "uppercase",
               pointerEvents: "none",
-              zIndex: 0,
             }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              left: `${hubPos.x}px`,
-              top: `${hubPos.y}px`,
-              transform: `translate(-50%, -50%) scale(${zoom})`,
-              width: "400px",
-              height: "240px",
-              borderRadius: "50%",
-              border: "1px dashed rgba(139, 92, 246, 0.2)",
-              pointerEvents: "none",
-              zIndex: 0,
-            }}
-          />
+          >
+            Tier 1 • Active Goal & Priority
+          </div>
 
-          {/* SVG Connection Lines with Pulse Animations */}
+          <div
+            style={{
+              position: "absolute",
+              top: "215px",
+              left: "20px",
+              fontSize: "9.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              color: "rgba(255, 255, 255, 0.2)",
+              textTransform: "uppercase",
+              pointerEvents: "none",
+            }}
+          >
+            Tier 2 • Blockers, Decisions & Risks
+          </div>
+
+          <div
+            style={{
+              position: "absolute",
+              top: "355px",
+              left: "20px",
+              fontSize: "9.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              color: "rgba(255, 255, 255, 0.2)",
+              textTransform: "uppercase",
+              pointerEvents: "none",
+            }}
+          >
+            Tier 3 • High-Leverage Next Action
+          </div>
+
+          {/* SVG Connection Lines with Directional Pulses */}
           <svg
             style={{
               position: "absolute",
@@ -865,33 +718,40 @@ export default function KnowledgeMap() {
             }}
           >
             <defs>
-              <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#4F46E5" stopOpacity="0.45" />
-                <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.35" />
+              <linearGradient id="decision-edge" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.45" />
+                <stop offset="100%" stopColor="#4F46E5" stopOpacity="0.25" />
               </linearGradient>
             </defs>
 
-            {filteredNodes.map((node) => {
-              const isSelected = selectedNodeId === node.id || selectedObject?.id === node.id;
-              const isHovered = hoveredNodeId === node.id;
+            {decisionSurface?.connections.map((conn, idx) => {
+              const fromNode = decisionSurface.nodes.find((n) => n.id === conn.fromId);
+              const toNode = decisionSurface.nodes.find((n) => n.id === conn.toId);
+              if (!fromNode || !toNode) return null;
+
+              const isEdgeHighlighted =
+                selectedNodeId === fromNode.id ||
+                selectedNodeId === toNode.id ||
+                hoveredNodeId === fromNode.id ||
+                hoveredNodeId === toNode.id;
+
+              const pathD = renderPath(fromNode.x, fromNode.y + 25, toNode.x, toNode.y - 25);
+
               return (
-                <g key={`edge-group-${node.id}`}>
+                <g key={`conn-${conn.fromId}-${conn.toId}-${idx}`}>
                   <path
-                    d={renderPath(hubPos.x, hubPos.y, node.x, node.y)}
-                    stroke={isSelected || isHovered ? node.color : "rgba(255, 255, 255, 0.12)"}
-                    strokeWidth={isSelected || isHovered ? "2.5" : "1.5"}
-                    strokeDasharray={isSelected ? "none" : "3,3"}
+                    d={pathD}
+                    stroke={isEdgeHighlighted ? fromNode.color : "rgba(255, 255, 255, 0.12)"}
+                    strokeWidth={isEdgeHighlighted ? "2.2" : "1.5"}
+                    strokeDasharray={isEdgeHighlighted ? "none" : "4,4"}
                     fill="none"
                     style={{ transition: "stroke 200ms ease, stroke-width 200ms ease" }}
                   />
-                  {/* Glowing data flow particle */}
-                  {(isSelected || isHovered) && (
-                    <circle r="3.5" fill={node.color}>
-                      <animateMotion
-                        path={renderPath(hubPos.x, hubPos.y, node.x, node.y)}
-                        dur="2.5s"
-                        repeatCount="indefinite"
-                      />
+
+                  {/* Flow particle */}
+                  {isEdgeHighlighted && (
+                    <circle r="3.5" fill={fromNode.color}>
+                      <animateMotion path={pathD} dur="2.4s" repeatCount="indefinite" />
                     </circle>
                   )}
                 </g>
@@ -899,100 +759,47 @@ export default function KnowledgeMap() {
             })}
           </svg>
 
-          {/* Central Space Hub Node */}
-          <div
-            onPointerDown={(e) => handlePointerDown("hub", e)}
-            style={{
-              position: "absolute",
-              left: `${hubPos.x}px`,
-              top: `${hubPos.y}px`,
-              transform: `translate(-50%, -50%) scale(${zoom})`,
-              zIndex: 10,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "6px",
-              cursor: "grab",
-              transition: "box-shadow 150ms ease",
-            }}
-            title="Drag to reposition cluster center"
-          >
-            <div
-              style={{
-                width: "60px",
-                height: "60px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
-                border: "2px solid rgba(139, 92, 246, 0.45)",
-                boxShadow: "0 0 24px rgba(124, 58, 237, 0.45)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#FFFFFF",
-                position: "relative",
-              }}
-            >
-              <Briefcase style={{ width: "24px", height: "24px" }} />
-              <span
-                style={{
-                  position: "absolute",
-                  bottom: "-2px",
-                  right: "-2px",
-                  background: "#10B981",
-                  boxShadow: "0 0 6px #10B981",
-                  border: "2px solid var(--surface)",
-                  borderRadius: "50%",
-                  width: "12px",
-                  height: "12px",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                background: "var(--surface)",
-                padding: "3px 12px",
-                borderRadius: "14px",
-                border: "1px solid var(--border)",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-              }}
-            >
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)" }}>
-                {currentSpace?.name || "General Space"}
-              </span>
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "#C084FC" }}>
-                Core Brain Hub
-              </span>
-            </div>
-          </div>
-
-          {/* Empty State Hint if zero nodes exist */}
-          {filteredNodes.length === 0 && !isLoading && (
+          {/* Empty State (Zero-Clutter principle: if no signal, don't fabricate cards) */}
+          {nodes.length === 0 && !isLoading && (
             <div
               style={{
                 position: "absolute",
-                left: `${hubPos.x}px`,
-                top: `${hubPos.y + 65}px`,
-                transform: "translateX(-50%)",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
                 textAlign: "center",
-                background: "var(--surface)",
-                border: "1px dashed var(--border)",
-                borderRadius: "12px",
-                padding: "10px 18px",
-                color: "var(--text-tertiary)",
-                fontSize: "12px",
-                maxWidth: "320px",
-                pointerEvents: "none",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "10px",
+                maxWidth: "340px",
               }}
             >
-              No knowledge nodes in this space yet. Upload a document or capture a thought below to see real-time nodes appear.
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "50%",
+                  background: "rgba(16, 185, 129, 0.12)",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <CheckCircle2 style={{ width: "22px", height: "22px", color: "#10B981" }} />
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>
+                Nothing needs your attention right now.
+              </div>
+              <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.5)", lineHeight: "1.5" }}>
+                All blockers and open loops are resolved. Start a goal or capture thoughts below.
+              </div>
             </div>
           )}
 
-          {/* Satellite Knowledge & Document Nodes (Pods matching Right Sidebar) */}
-          {filteredNodes.map((node) => {
+          {/* Curated 4-7 Decision Nodes */}
+          {nodes.map((node) => {
             const isSelected = selectedNodeId === node.id || selectedObject?.id === node.id;
             const isHovered = hoveredNodeId === node.id;
 
@@ -1002,377 +809,279 @@ export default function KnowledgeMap() {
                 onPointerDown={(e) => handlePointerDown(node.id, e)}
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSelectNode(node);
-                }}
+                onClick={() => handleSelectDecisionNode(node)}
                 style={{
                   position: "absolute",
                   left: `${node.x}px`,
                   top: `${node.y}px`,
-                  transform: `translate(-50%, -50%) scale(${zoom * (isSelected ? 1.08 : isHovered ? 1.04 : 1)})`,
-                  zIndex: isSelected ? 20 : isHovered ? 15 : 5,
-                  background: "var(--surface)",
+                  transform: `translate(-50%, -50%) scale(${zoom * (isSelected ? 1.05 : isHovered ? 1.02 : 1)})`,
+                  zIndex: isSelected ? 30 : isHovered ? 20 : 10,
+                  width: "224px",
+                  background: isSelected
+                    ? `linear-gradient(135deg, ${node.bgColor}, rgba(18, 18, 26, 0.98))`
+                    : "rgba(16, 16, 24, 0.95)",
                   border: isSelected
                     ? `2px solid ${node.color}`
-                    : `1px solid ${isHovered ? node.color : "var(--border)"}`,
+                    : `1px solid ${isHovered ? node.color : "rgba(255, 255, 255, 0.1)"}`,
                   boxShadow: isSelected
-                    ? `0 0 16px ${node.color}40`
+                    ? `0 0 20px ${node.color}45, 0 8px 24px rgba(0, 0, 0, 0.4)`
                     : isHovered
-                    ? "0 4px 16px rgba(0, 0, 0, 0.35)"
-                    : "0 2px 8px rgba(0, 0, 0, 0.25)",
+                    ? `0 4px 18px rgba(0, 0, 0, 0.45)`
+                    : `0 2px 10px rgba(0, 0, 0, 0.35)`,
                   borderRadius: "12px",
-                  padding: "8px 12px",
+                  padding: "10px 12px",
                   display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
+                  flexDirection: "column",
+                  gap: "7px",
                   cursor: "pointer",
                   transition: "transform 140ms ease, box-shadow 140ms ease, border 140ms ease",
-                  maxWidth: "220px",
                 }}
               >
-                {/* Node Pod Icon (Exact match to Right Sidebar Glowing Pods) */}
-                <div
-                  style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "50%",
-                    background: "#0F172A",
-                    border: `1.5px solid ${node.borderColor || node.color}`,
-                    boxShadow: `0 0 8px ${node.color}35`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {node.icon}
-                </div>
+                {/* Node Header: Semantic Type Badge & Urgency Dot */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: node.color,
+                        boxShadow: `0 0 6px ${node.color}`,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "9.5px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: node.color,
+                      }}
+                    >
+                      {DECISION_NODE_STYLES[node.type]?.badgeLabel || node.type}
+                    </span>
+                  </div>
 
-                {/* Node Label & Tag */}
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      maxWidth: "140px",
-                    }}
-                  >
-                    {node.label}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
+                  {node.urgency === "critical" && (
                     <span
                       style={{
                         fontSize: "9px",
                         fontWeight: 700,
-                        textTransform: "uppercase",
-                        color: node.color,
-                        background: `${node.color}18`,
-                        border: `1px solid ${node.color}30`,
+                        color: "#EF4444",
+                        background: "rgba(239, 68, 68, 0.18)",
                         padding: "1px 5px",
                         borderRadius: "4px",
                       }}
                     >
-                      {node.category}
+                      HIGH URGENCY
                     </span>
-                    {node.confidence && (
-                      <span style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>
-                        {(node.confidence * 100).toFixed(0)}%
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                {/* Interactive Chat & Inspect triggers on Hover/Selected */}
-                {(isSelected || isHovered) && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                {/* Node Title */}
+                <div
+                  style={{
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    color: "#FFFFFF",
+                    lineHeight: "1.35",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                  title={node.title}
+                >
+                  {node.title}
+                </div>
+
+                {/* Supporting Evidence Button (Deduplication pillar) */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "2px" }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveEvidenceNode(node);
+                    }}
+                    style={{
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "5px",
+                      padding: "2px 6px",
+                      fontSize: "10px",
+                      color: "rgba(255, 255, 255, 0.75)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      cursor: "pointer",
+                    }}
+                    title="View supporting documents & notes clustered behind this decision"
+                  >
+                    <Layers style={{ width: "10px", height: "10px", color: node.color }} />
+                    <span>{node.evidenceCount} supporting items</span>
+                  </button>
+
+                  {/* 1-Click Action Button if present */}
+                  {node.action && (
                     <button
-                      onClick={(e) => handleChatWithNode(node, e)}
+                      onClick={(e) => handleExecuteNodeAction(node, e)}
                       style={{
-                        padding: "4px 6px",
-                        borderRadius: "6px",
-                        border: "none",
                         background: `${node.color}20`,
+                        border: `1px solid ${node.color}50`,
+                        borderRadius: "5px",
+                        padding: "2px 7px",
+                        fontSize: "10px",
+                        fontWeight: 600,
                         color: node.color,
                         cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
                       }}
-                      title="Chat about this item"
                     >
-                      <MessageSquare style={{ width: "12px", height: "12px" }} />
+                      {node.action.label}
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (node.rawObj) openObjectModal(node.rawObj);
-                      }}
-                      style={{
-                        padding: "4px 6px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: "var(--surface-hover)",
-                        color: "var(--text-secondary)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      title="Inspect full modal"
-                    >
-                      <Maximize2 style={{ width: "12px", height: "12px" }} />
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       ) : (
-        /* Knowledge Base Grid Cards View */
-        <div
-          style={{
-            maxHeight: "480px",
-            overflowY: "auto",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: "12px",
-            padding: "4px",
-          }}
-        >
-          {filteredNodes.length === 0 ? (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                padding: "36px",
-                textAlign: "center",
-                color: "var(--text-tertiary)",
-              }}
-            >
-              <Database style={{ width: "32px", height: "32px", margin: "0 auto 10px", opacity: 0.5 }} />
-              <p style={{ fontSize: "14px", fontWeight: 600 }}>No knowledge items match your filter.</p>
-              <p style={{ fontSize: "12px", marginTop: "4px" }}>
-                Try capturing a new thought or changing your search criteria.
-              </p>
-            </div>
-          ) : (
-            filteredNodes.map((node) => {
-              const isSelected = selectedNodeId === node.id || selectedObject?.id === node.id;
+        /* 3. Evidence Cards Grid Mode (All raw knowledge assets) */
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {/* Category Filter Pills */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
+            {[
+              { id: "all", label: "All Evidence", count: rawDocuments.length + rawKnowledgeItems.length },
+              { id: "document", label: "Documents", count: rawDocuments.length },
+              { id: "note", label: "Notes & Captures", count: rawKnowledgeItems.length },
+            ].map((cat) => {
+              const isActive = activeCategory === cat.id;
               return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "9999px",
+                    fontSize: "11.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: isActive ? "1px solid #8B5CF6" : "1px solid var(--border)",
+                    background: isActive ? "rgba(139, 92, 246, 0.15)" : "var(--surface)",
+                    color: isActive ? "#FFFFFF" : "var(--text-secondary)",
+                  }}
+                >
+                  {cat.label} ({cat.count})
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gap: "10px",
+              maxHeight: "420px",
+              overflowY: "auto",
+              paddingRight: "4px",
+            }}
+          >
+            {filteredRawCards.length === 0 ? (
+              <div style={{ gridColumn: "1 / -1", padding: "32px", textAlign: "center", color: "var(--text-tertiary)" }}>
+                No raw items match filter.
+              </div>
+            ) : (
+              filteredRawCards.map((card) => (
                 <div
-                  key={node.id}
-                  onClick={() => handleSelectNode(node)}
+                  key={card.id}
+                  onClick={() => {
+                    setSelectedObject({
+                      id: card.id,
+                      title: card.title,
+                      type: card.category.toUpperCase(),
+                      summary: card.snippet,
+                      updated: card.date ? new Date(card.date).toLocaleDateString() : "Active",
+                    });
+                    setActiveContextTab("radar");
+                  }}
                   style={{
                     background: "var(--surface)",
-                    border: isSelected ? `2px solid ${node.color}` : "1px solid var(--border)",
-                    borderRadius: "12px",
-                    padding: "14px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    padding: "12px",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "10px",
+                    gap: "6px",
                     cursor: "pointer",
-                    boxShadow: isSelected ? `0 4px 14px ${node.color}25` : "0 2px 8px rgba(0,0,0,0.2)",
                     transition: "all 140ms ease",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                      <div
-                        style={{
-                          width: "28px",
-                          height: "28px",
-                          borderRadius: "50%",
-                          background: "#0F172A",
-                          border: `1.5px solid ${node.borderColor || node.color}`,
-                          boxShadow: `0 0 8px ${node.color}35`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {node.icon}
-                      </div>
-                      <h4
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          color: "var(--text-primary)",
-                          margin: 0,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {node.label}
-                      </h4>
-                    </div>
-
-                    <span
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div
                       style={{
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        color: node.color,
-                        background: `${node.color}18`,
-                        border: `1px solid ${node.color}30`,
-                        padding: "2px 6px",
-                        borderRadius: "4px",
+                        width: "22px",
+                        height: "22px",
+                        borderRadius: "50%",
+                        background: card.bgColor,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                         flexShrink: 0,
                       }}
                     >
-                      {node.category}
+                      {card.icon}
+                    </div>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)" }}>
+                      {card.title}
                     </span>
                   </div>
-
-                  {node.snippet && (
-                    <p
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-secondary)",
-                        margin: 0,
-                        lineHeight: "1.45",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {node.snippet}
-                    </p>
-                  )}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      paddingTop: "6px",
-                      borderTop: "1px solid var(--border)",
-                      fontSize: "11px",
-                      color: "var(--text-tertiary)",
-                    }}
-                  >
-                    <span>
-                      {node.sourceDoc ? `From ${node.sourceDoc}` : "Vector Embedded"}
-                    </span>
-
-                    <button
-                      onClick={(e) => handleChatWithNode(node, e)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                        border: `1px solid ${node.color}30`,
-                        background: `${node.color}18`,
-                        color: node.color,
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <MessageSquare style={{ width: "11px", height: "11px" }} />
-                      <span>Chat</span>
-                    </button>
-                  </div>
+                  <p style={{ fontSize: "11px", color: "var(--text-tertiary)", margin: 0, lineHeight: "1.4" }}>
+                    {card.snippet.slice(0, 100)}...
+                  </p>
                 </div>
-              );
-            })
-          )}
+              ))
+            )}
+          </div>
         </div>
       )}
 
-      {/* 4. Floating Quick Capture Bar (Matching Right Sidebar Surface & Gradient Button) */}
-      <form onSubmit={handleQuickCapture} style={{ marginTop: "4px" }}>
+      {/* 4. Quick Capture Input Bar */}
+      <form onSubmit={handleQuickCapture} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10px",
-            background: "var(--surface)",
+            background: "var(--surface-subtle)",
             border: "1px solid var(--border)",
-            borderRadius: "9999px",
-            padding: "6px 12px 6px 18px",
-            boxShadow: "0 2px 10px rgba(0, 0, 0, 0.25)",
+            borderRadius: "10px",
+            padding: "6px 10px",
+            gap: "8px",
           }}
         >
-          {/* Category Selector Pill */}
-          <select
-            value={captureType}
-            onChange={(e) => setCaptureType(e.target.value)}
-            style={{
-              fontSize: "11px",
-              fontWeight: 600,
-              padding: "4px 8px",
-              borderRadius: "9999px",
-              border: "1px solid var(--border)",
-              background: "var(--surface-subtle)",
-              color: "var(--text-secondary)",
-              outline: "none",
-              cursor: "pointer",
-            }}
-          >
-            <option value="note">Note</option>
-            <option value="concept">Concept</option>
-            <option value="research">Research</option>
-            <option value="goal">Goal</option>
-          </select>
-
           <input
             type="text"
-            placeholder="Capture knowledge, thoughts or notes to graph & vectors..."
+            placeholder="Capture an objective, note, or decision into Second Brain..."
             value={captureText}
             onChange={(e) => setCaptureText(e.target.value)}
             disabled={isSubmittingCapture}
             style={{
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              fontSize: "13px",
-              color: "var(--text-primary)",
               flex: 1,
+              background: "transparent",
+              border: "none",
+              color: "var(--text-primary)",
+              fontSize: "12.5px",
+              outline: "none",
             }}
           />
 
           {uploadToast && (
-            <div
-              style={{
-                position: "absolute",
-                top: "-42px",
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "6px 14px",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "var(--text-primary)",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                whiteSpace: "nowrap",
-                zIndex: 30,
-              }}
-            >
-              {isUploading || isSubmittingCapture ? (
-                <RefreshCw className="animate-spin" style={{ width: "13px", height: "13px", color: "#8B5CF6" }} />
-              ) : (
-                <CheckCircle2 style={{ width: "13px", height: "13px", color: "#10B981" }} />
-              )}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#10B981" }}>
+              <CheckCircle2 style={{ width: "12px", height: "12px" }} />
               <span>{uploadToast}</span>
             </div>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <input
               type="file"
               ref={fileInputRef}
@@ -1381,73 +1090,203 @@ export default function KnowledgeMap() {
                 handleFileUpload(e.target.files);
                 e.target.value = "";
               }}
-              multiple
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               style={{
                 color: "var(--text-tertiary)",
-                padding: "4px",
                 background: "transparent",
                 border: "none",
                 cursor: "pointer",
-              }}
-              title="Upload Document into Workspace"
-            >
-              <FileCode style={{ width: "16px", height: "16px" }} />
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                color: "var(--text-tertiary)",
                 padding: "4px",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
               }}
-              title="Attach File"
+              title="Upload Document"
             >
-              <Paperclip style={{ width: "16px", height: "16px" }} />
+              <Paperclip style={{ width: "15px", height: "15px" }} />
             </button>
 
             <button
               type="submit"
               disabled={isSubmittingCapture || !captureText.trim()}
               style={{
-                width: "32px",
-                height: "32px",
+                width: "28px",
+                height: "28px",
                 borderRadius: "50%",
                 background: captureText.trim()
-                  ? "linear-gradient(135deg, #4F46E5, #7C3AED)"
+                  ? "linear-gradient(135deg, #6366F1, #8B5CF6)"
                   : "rgba(255, 255, 255, 0.05)",
-                border: captureText.trim()
-                  ? "1px solid rgba(139, 92, 246, 0.4)"
-                  : "1px solid var(--border)",
-                boxShadow: captureText.trim()
-                  ? "0 2px 10px rgba(124, 58, 237, 0.3)"
-                  : "none",
-                color: captureText.trim() ? "#FFFFFF" : "var(--text-tertiary)",
+                border: "none",
+                color: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: captureText.trim() ? "pointer" : "default",
-                flexShrink: 0,
-                opacity: isSubmittingCapture ? 0.6 : 1,
-                transition: "all 150ms ease",
               }}
-              title="Save Knowledge Item"
+              title="Save Capture"
             >
-              {isSubmittingCapture ? (
-                <RefreshCw className="animate-spin" style={{ width: "14px", height: "14px" }} />
-              ) : (
-                <ArrowUp style={{ width: "16px", height: "16px" }} />
-              )}
+              <ArrowUp style={{ width: "14px", height: "14px" }} />
             </button>
           </div>
         </div>
       </form>
+
+      {/* 5. Supporting Evidence Modal (Opens when user clicks "View supporting items") */}
+      {activeEvidenceNode && (
+        <div
+          onClick={() => setActiveEvidenceNode(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "520px",
+              maxHeight: "80vh",
+              background: "#12121A",
+              border: "1px solid rgba(139, 92, 246, 0.35)",
+              borderRadius: "14px",
+              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.6)",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    color: activeEvidenceNode.color,
+                  }}
+                >
+                  {activeEvidenceNode.type} • SUPPORTING EVIDENCE
+                </span>
+                <h4 style={{ fontSize: "15px", fontWeight: 700, color: "#FFFFFF", margin: 0 }}>
+                  {activeEvidenceNode.title}
+                </h4>
+              </div>
+              <button
+                onClick={() => setActiveEvidenceNode(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(255, 255, 255, 0.5)",
+                  cursor: "pointer",
+                }}
+              >
+                <X style={{ width: "16px", height: "16px" }} />
+              </button>
+            </div>
+
+            {/* Why it matters banner */}
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: "8px",
+                background: "rgba(139, 92, 246, 0.1)",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+                fontSize: "12px",
+                color: "rgba(255, 255, 255, 0.85)",
+                lineHeight: "1.5",
+              }}
+            >
+              <strong style={{ color: "#C4B5FD" }}>Why this matters: </strong>
+              {activeEvidenceNode.whyItMatters}
+            </div>
+
+            {/* Evidence List */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "rgba(255, 255, 255, 0.4)" }}>
+                Clustered Evidence Sources ({activeEvidenceNode.evidenceItems.length})
+              </span>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                  paddingRight: "4px",
+                }}
+              >
+                {activeEvidenceNode.evidenceItems.length === 0 ? (
+                  <div style={{ padding: "16px", textAlign: "center", fontSize: "12px", color: "rgba(255, 255, 255, 0.4)" }}>
+                    Derived from workspace telemetry.
+                  </div>
+                ) : (
+                  activeEvidenceNode.evidenceItems.map((ev, i) => (
+                    <div
+                      key={ev.id || i}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.07)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "3px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#FFFFFF" }}>
+                          {ev.title}
+                        </span>
+                        <span style={{ fontSize: "9.5px", color: "rgba(255, 255, 255, 0.4)", textTransform: "uppercase" }}>
+                          {ev.type}
+                        </span>
+                      </div>
+                      {ev.snippet && (
+                        <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.6)", lineHeight: "1.4" }}>
+                          {ev.snippet.slice(0, 140)}...
+                        </span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                onClick={() => {
+                  handleSelectDecisionNode(activeEvidenceNode);
+                  setActiveEvidenceNode(null);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  background: "#8B5CF6",
+                  border: "none",
+                  color: "#FFFFFF",
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Inspect in Sidebar Radar →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

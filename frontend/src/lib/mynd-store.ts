@@ -2,6 +2,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { queryMindApi, authApi } from "./api";
 
+export interface ConnectedNeighbor {
+  id: string;
+  label: string;
+  category?: string;
+  color?: string;
+}
+
 export interface KnowledgeObject {
   id: string;
   title: string;
@@ -32,6 +39,15 @@ export interface KnowledgeObject {
   size?: string;
   chunks?: number;
   vectorsStored?: number;
+  category?: "document" | "concept" | "note" | "research" | "goal" | "general" | string;
+  sourceDoc?: string;
+  connectedNeighbors?: ConnectedNeighbor[];
+  decisionType?: string;
+  whyItMatters?: string;
+  evidenceCount?: number;
+  evidenceItems?: Array<{ id?: string; title: string; type: string; snippet?: string }>;
+  urgency?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | string;
+  action?: { label: string; action_type?: string; actionType?: string; target_id?: string; targetId?: string; payload?: any };
 }
 
 export interface SpaceMilestone {
@@ -162,6 +178,8 @@ export interface MyndState {
   isContextPanelCollapsed: boolean;
   toggleContextPanel: () => void;
   setContextPanelCollapsed: (collapsed: boolean) => void;
+  activeContextTab: "now" | "goals" | "decisions" | "radar" | "briefing";
+  setActiveContextTab: (tab: "now" | "goals" | "decisions" | "radar" | "briefing") => void;
 
   isFocusMode: boolean;
   isZenMode: boolean;
@@ -584,6 +602,8 @@ export const useMyndStore = create<MyndState>()(
       isContextPanelCollapsed: false,
       toggleContextPanel: () => set((state) => ({ isContextPanelCollapsed: !state.isContextPanelCollapsed })),
       setContextPanelCollapsed: (collapsed) => set({ isContextPanelCollapsed: collapsed }),
+      activeContextTab: "now",
+      setActiveContextTab: (tab) => set({ activeContextTab: tab }),
 
       isFocusMode: false,
       isZenMode: false,
