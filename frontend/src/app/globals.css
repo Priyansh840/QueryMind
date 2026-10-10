@@ -3,6 +3,21 @@
 @import "../styles/components.css";
 @import "tailwindcss";
 
+:root {
+  --bg-app: #000000;
+  --surface-primary: #141414;
+  --surface-secondary: #1C1C1C;
+  --surface-hover: #262626;
+  --border-subtle: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.12);
+  --accent-hover: #4f46e5;
+  --text-primary: #FFFFFF;
+  --text-secondary: #D4D4D4;
+  --text-tertiary: #A3A3A3;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

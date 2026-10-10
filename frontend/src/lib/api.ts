@@ -568,6 +568,7 @@ export const queryMindApi = {
       goal_description?: string;
       progress?: number;
       tasks?: Array<any>;
+      sub_goals?: string[];
       document_ids?: string[];
       target_date?: string;
       space_ids?: string[];
