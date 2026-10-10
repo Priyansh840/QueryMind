@@ -70,6 +70,11 @@ class IngestionEngine:
                 docs = self._load_document(file_path, content_type)
                 if not docs:
                     raise ValueError(f"Failed to extract text from {filename}")
+                
+                # Sanitize null bytes (PostgreSQL UTF-8 strictly rejects 0x00 bytes)
+                for d in docs:
+                    if d.page_content and "\x00" in d.page_content:
+                        d.page_content = d.page_content.replace("\x00", "")
                     
                 # 4. Chunk Text
                 text_splitter = RecursiveCharacterTextSplitter(
@@ -89,13 +94,14 @@ class IngestionEngine:
                     if page_num is not None:
                         page_num = int(page_num) + 1  # LangChain uses 0-indexed pages
                         
+                    clean_content = (doc.page_content or "").replace("\x00", "")
                     chunk_record = DocumentChunk(
                         id=uuid.uuid4(),
                         document_id=doc_record.id,
                         chunk_index=i,
-                        content_text=doc.page_content,
+                        content_text=clean_content,
                         page_number=page_num,
-                        token_count=len(doc.page_content) // 4,
+                        token_count=len(clean_content) // 4,
                         embedding_status="processing"
                     )
                     db.add(chunk_record)
@@ -105,7 +111,7 @@ class IngestionEngine:
 
                 # 6. Embed Chunks
                 embeddings_model = get_embeddings()
-                chunks_text = [d.page_content for d in split_docs]
+                chunks_text = [(d.page_content or "").replace("\x00", "") for d in split_docs]
                 logger.info(f"Generating embeddings for {len(chunks_text)} chunks...")
                 vectors = await embeddings_model.aembed_documents(chunks_text)
                 
@@ -380,6 +386,9 @@ class IngestionEngine:
 
                 total_chars = sum(len(d.page_content.strip()) for d in docs) if docs else 0
                 if total_chars >= 50:
+                    for d in docs:
+                        if d.page_content and "\x00" in d.page_content:
+                            d.page_content = d.page_content.replace("\x00", "")
                     return docs
 
                 logger.info(
@@ -387,9 +396,15 @@ class IngestionEngine:
                 )
                 ocr_docs = self._ocr_pdf(file_path)
                 if ocr_docs and sum(len(d.page_content.strip()) for d in ocr_docs) > 0:
+                    for d in ocr_docs:
+                        if d.page_content and "\x00" in d.page_content:
+                            d.page_content = d.page_content.replace("\x00", "")
                     return ocr_docs
 
                 if docs:
+                    for d in docs:
+                        if d.page_content and "\x00" in d.page_content:
+                            d.page_content = d.page_content.replace("\x00", "")
                     return docs
                 return []
             elif "word" in content_type or lower_path.endswith(".docx") or lower_path.endswith(".doc"):

@@ -539,12 +539,18 @@
 body.focus-mode-active #app-root {
   grid-template-columns: 1fr;
 }
+body.focus-mode-active {
+  background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 70%), #0A0A0A !important;
+}
 body.focus-mode-active .app-sidebar,
 body.focus-mode-active .app-context-panel {
   display: none !important;
 }
 body.focus-mode-active .app-body {
   grid-template-columns: 1fr;
+}
+body.focus-mode-active .workspace-scroll-container {
+  padding-top: 74px;
 }
 
 body.zen-mode-active #app-root {

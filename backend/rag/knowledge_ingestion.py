@@ -75,6 +75,8 @@ async def ingest_document_knowledge(
     for item in understanding_result.knowledge_items:
         k_id = uuid.uuid4()
         chunk_uuid = uuid.UUID(item.source_chunk_id) if item.source_chunk_id else None
+        safe_title = (item.title or "").replace("\x00", "")
+        safe_content = (item.content or "").replace("\x00", "")
 
         record = Knowledge(
             id=k_id,
@@ -83,8 +85,8 @@ async def ingest_document_knowledge(
             document_id=document.id,
             source_chunk_id=chunk_uuid,
             source_id=document.id,
-            title=item.title,
-            content=item.content,
+            title=safe_title,
+            content=safe_content,
             knowledge_type=item.knowledge_type,
             page_number=item.page_number,
             confidence=item.confidence,
@@ -94,7 +96,7 @@ async def ingest_document_knowledge(
         )
         db.add(record)
         knowledge_records.append(record)
-        knowledge_texts.append(item.content)
+        knowledge_texts.append(safe_content)
 
     await db.flush()
 

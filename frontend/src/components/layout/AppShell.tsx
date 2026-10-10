@@ -11,6 +11,7 @@ import SettingsModal from "../modals/SettingsModal";
 import EditProfileModal from "../modals/EditProfileModal";
 import ObjectDetailModal from "../modals/ObjectDetailModal";
 import CreateSpaceModal from "../modals/CreateSpaceModal";
+import DeepWorkFocusHud from "./DeepWorkFocusHud";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi } from "@/lib/api";
 
@@ -192,6 +193,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <EditProfileModal />
       <ObjectDetailModal />
       <CreateSpaceModal />
+      <DeepWorkFocusHud />
 
       {/* Zen Mode Exit Button */}
       {isZenMode && (

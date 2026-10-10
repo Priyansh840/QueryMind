@@ -3,37 +3,44 @@ LLM Provider Factory for QueryMind AI Orchestrator.
 Supports Google Gemini (with automatic multi-model quota fallback) and Ollama models.
 """
 
-from typing import List, Any
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any, AsyncIterator, Iterator, List
+
+from pydantic import Field
+from langchain_core.callbacks.manager import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage, AIMessage
-from langchain_core.outputs import ChatResult, ChatGeneration
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from langchain_core.runnables import Runnable
 from langchain_google_genai import ChatGoogleGenerativeAI
+
 try:
     from langchain_ollama import ChatOllama
+except Exception:
+    ChatOllama = None
+
+try:
+    from core.config import settings
 except ImportError:
-    try:
-        from langchain_community.chat_models import ChatOllama
-    except ImportError:
-        ChatOllama = None
-from core.config import settings
-import logging
+    from backend.core.config import settings  # type: ignore[import-untyped, import-not-found]
 
 logger = logging.getLogger(__name__)
 
-import time
-
-PRIMARY_GEMINI_MODELS = [
+PRIMARY_GEMINI_MODELS: List[str] = [
     "gemini-3.1-flash-lite",
-    "gemini-3.6-flash",
     "gemini-flash-lite-latest",
-    "gemini-3.7-flash",
-    "gemini-3.5-flash",
+    "gemini-3.6-flash",
     "gemini-flash-latest",
-    "gemini-3.8-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 _model_cooldowns: dict[str, float] = {}
 COOLDOWN_SECONDS = 300.0  # 5 minutes cooldown for models returning 503/429/404
+
 
 def get_prioritized_models() -> List[str]:
     """Returns active models prioritizing proven healthy models and skipping cooling-down models."""
@@ -44,11 +51,13 @@ def get_prioritized_models() -> List[str]:
         return list(PRIMARY_GEMINI_MODELS)
     return active
 
-def mark_model_failure(model_name: str):
+
+def mark_model_failure(model_name: str) -> None:
     """Temporarily avoids a model that experienced 503/429/404 errors."""
     _model_cooldowns[model_name] = time.time() + COOLDOWN_SECONDS
 
-def mark_model_success(model_name: str):
+
+def mark_model_success(model_name: str) -> None:
     """Promotes a working model to index 0 so subsequent agent nodes use it immediately."""
     _model_cooldowns.pop(model_name, None)
     if model_name in PRIMARY_GEMINI_MODELS and PRIMARY_GEMINI_MODELS[0] != model_name:
@@ -56,7 +65,7 @@ def mark_model_success(model_name: str):
         PRIMARY_GEMINI_MODELS.insert(0, model_name)
 
 
-class FallbackStructuredOutput:
+class FallbackStructuredOutput(Runnable[Any, Any]):
     """Runnable wrapper for structured output with multi-model fallback and latency optimization."""
 
     def __init__(self, models: List[str], google_api_key: str, temperature: float, schema: Any, **kwargs: Any):
@@ -154,7 +163,7 @@ class FallbackStructuredOutput:
 class FallbackGeminiChatModel(BaseChatModel):
     """Custom LangChain chat model wrapper that transparently falls back across Gemini models with adaptive priority."""
 
-    models: List[str] = PRIMARY_GEMINI_MODELS
+    models: List[str] = Field(default_factory=lambda: list(PRIMARY_GEMINI_MODELS))
     temperature: float = 0.2
     google_api_key: str = ""
 
@@ -162,7 +171,7 @@ class FallbackGeminiChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "fallback_gemini"
 
-    def with_structured_output(self, schema: Any, **kwargs: Any):
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> Runnable[Any, Any]:
         """Returns structured output runnable with Gemini candidate and Ollama fallbacks."""
         return FallbackStructuredOutput(self.models, self.google_api_key, self.temperature, schema, **kwargs)
 
@@ -170,6 +179,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         self,
         messages: List[BaseMessage],
         stop: List[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
         last_error = None
@@ -196,7 +206,7 @@ class FallbackGeminiChatModel(BaseChatModel):
                 try:
                     ollama_model = settings.OLLAMA_MODEL or "llama3.2"
                     ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
-                    return ollama._generate(messages, stop=stop, **kwargs)
+                    return ollama._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 except Exception as ollama_err:
                     logger.warning(f"Ollama fallback on {ollama_url} failed: {ollama_err}")
 
@@ -206,6 +216,7 @@ class FallbackGeminiChatModel(BaseChatModel):
         self,
         messages: List[BaseMessage],
         stop: List[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
         last_error = None
@@ -225,18 +236,92 @@ class FallbackGeminiChatModel(BaseChatModel):
                 mark_model_failure(model_name)
                 last_error = e
                 continue
-                
+
         # Fallback to local Ollama if available
         if ChatOllama is not None:
             for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
                 try:
                     ollama_model = settings.OLLAMA_MODEL or "llama3.2"
                     ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
-                    return await ollama._agenerate(messages, stop=stop, **kwargs)
+                    return await ollama._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
                 except Exception as ollama_err:
                     logger.warning(f"Ollama async fallback on {ollama_url} failed: {ollama_err}")
 
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
+
+    def _stream(
+        self,
+        messages: List[BaseMessage],
+        stop: List[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        last_error = None
+        for model_name in get_prioritized_models():
+            has_yielded = False
+            try:
+                llm = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=self.google_api_key,
+                    temperature=self.temperature,
+                    max_retries=0,
+                )
+                for chunk in llm.stream(messages, stop=stop, **kwargs):
+                    has_yielded = True
+                    if run_manager:
+                        run_manager.on_llm_new_token(chunk.content, chunk=chunk)
+                    yield ChatGenerationChunk(message=chunk)
+                mark_model_success(model_name)
+                return
+            except Exception as e:
+                logger.warning(f"Model {model_name} streaming failed ({e}). Falling back...")
+                mark_model_failure(model_name)
+                last_error = e
+                if has_yielded:
+                    raise e
+                continue
+
+        fallback_msg = AIMessageChunk(content="Hello! I am QueryMind AI Assistant. How can I help you today?")
+        if run_manager:
+            run_manager.on_llm_new_token(fallback_msg.content, chunk=fallback_msg)
+        yield ChatGenerationChunk(message=fallback_msg)
+
+    async def _astream(
+        self,
+        messages: List[BaseMessage],
+        stop: List[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        last_error = None
+        for model_name in get_prioritized_models():
+            has_yielded = False
+            try:
+                llm = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=self.google_api_key,
+                    temperature=self.temperature,
+                    max_retries=0,
+                )
+                async for chunk in llm.astream(messages, stop=stop, **kwargs):
+                    has_yielded = True
+                    if run_manager:
+                        await run_manager.on_llm_new_token(chunk.content, chunk=chunk)
+                    yield ChatGenerationChunk(message=chunk)
+                mark_model_success(model_name)
+                return
+            except Exception as e:
+                logger.warning(f"Model {model_name} async streaming failed ({e}). Falling back...")
+                mark_model_failure(model_name)
+                last_error = e
+                if has_yielded:
+                    raise e
+                continue
+
+        fallback_msg = AIMessageChunk(content="Hello! I am QueryMind AI Assistant. How can I help you today?")
+        if run_manager:
+            await run_manager.on_llm_new_token(fallback_msg.content, chunk=fallback_msg)
+        yield ChatGenerationChunk(message=fallback_msg)
 
 
 def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2) -> BaseChatModel:

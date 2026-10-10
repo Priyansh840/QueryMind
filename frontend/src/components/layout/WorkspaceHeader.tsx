@@ -1,21 +1,25 @@
 "use client";
 
 import React from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function WorkspaceHeader() {
+  const router = useRouter();
   const pathname = usePathname();
   const isChat = pathname === "/chat" || pathname?.startsWith("/chat/");
 
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
-  const openAskAi = useMyndStore((state) => state.openAskAi);
-  const openSettings = useMyndStore((state) => state.openSettings);
   const isFocusMode = useMyndStore((state) => state.isFocusMode);
   const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
-  const isContextPanelCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
-  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
   const userProfile = useMyndStore((state) => state.userProfile);
+
+  const initials = (() => {
+    const name = userProfile?.name?.trim() || "User";
+    const parts = name.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  })();
 
   return (
     <header className="workspace-header-bar">
@@ -53,7 +57,6 @@ export default function WorkspaceHeader() {
         </div>
       )}
 
-
       {/* Header Right Actions */}
       <div className="workspace-header-actions">
         <button
@@ -86,42 +89,13 @@ export default function WorkspaceHeader() {
           )}
         </button>
 
-        <button
-          className="workspace-notification-btn"
-          title="Notifications"
-          onClick={() => openSettings("general")}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-        </button>
-
-        {/* Toggle Right Sidebar Button */}
-        {!isChat && (
-          <button
-            className="workspace-notification-btn"
-            title={isContextPanelCollapsed ? "Open Right Sidebar (Copilot / Essentials)" : "Collapse Right Sidebar"}
-            onClick={toggleContextPanel}
-            style={{
-              background: !isContextPanelCollapsed ? "rgba(255, 255, 255, 0.08)" : undefined,
-              borderColor: !isContextPanelCollapsed ? "rgba(255, 255, 255, 0.2)" : undefined,
-              color: !isContextPanelCollapsed ? "#FFFFFF" : "var(--text-secondary)",
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M15 3v18" />
-              <path d="m10 9-3 3 3 3" />
-            </svg>
-          </button>
-        )}
-
+        {/* User DP / Profile Avatar */}
         <div
           className="text-avatar"
+          title="View Profile"
           style={{
-            width: "28px",
-            height: "28px",
+            width: "30px",
+            height: "30px",
             borderRadius: "9999px",
             background: "linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28))",
             color: "#A78BFA",
@@ -130,13 +104,24 @@ export default function WorkspaceHeader() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "12px",
+            fontSize: "11px",
             fontWeight: 700,
             cursor: "pointer",
+            overflow: "hidden",
+            flexShrink: 0,
+            transition: "transform 0.15s ease, box-shadow 0.15s ease",
           }}
-          onClick={() => openSettings("general")}
+          onClick={() => router.push("/profile")}
         >
-          {userProfile.name.charAt(0)}
+          {userProfile?.avatarUrl ? (
+            <img
+              src={userProfile.avatarUrl}
+              alt={userProfile.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            initials
+          )}
         </div>
       </div>
     </header>

@@ -105,6 +105,7 @@ export interface UserProfile {
   name: string;
   username?: string;
   avatarUrl?: string;
+  bio?: string;
   email: string;
   role: string;
   timezone: string;
@@ -155,6 +156,19 @@ export const defaultPersonalizationSettings: PersonalizationSettings = {
   customDirectives: "",
 };
 
+export interface FocusSessionState {
+  isRunning: boolean;
+  secondsRemaining: number;
+  durationMinutes: number;
+  sessionMode: "focus" | "break";
+  currentObjective: string;
+  scratchpad: string;
+  sessionsCompletedToday: number;
+  totalFocusMinutesToday: number;
+  isScratchpadOpen: boolean;
+  isExpanded: boolean;
+}
+
 export interface MyndState {
   theme: "dark" | "light" | "zen" | "cyberpunk" | "sepia" | "arctic";
   accentColor: string;
@@ -183,6 +197,7 @@ export interface MyndState {
 
   isFocusMode: boolean;
   isZenMode: boolean;
+  focusSession: FocusSessionState;
   isSpotlightOpen: boolean;
   isAskAiOpen: boolean;
   askAiTarget: string | null;
@@ -234,6 +249,18 @@ export interface MyndState {
 
   toggleFocusMode: () => void;
   toggleZenMode: () => void;
+
+  startFocusTimer: () => void;
+  pauseFocusTimer: () => void;
+  resetFocusTimer: () => void;
+  tickFocusTimer: () => void;
+  setFocusDuration: (minutes: number, mode?: "focus" | "break") => void;
+  addFocusTime: (extraMinutes: number) => void;
+  setFocusObjective: (objective: string) => void;
+  setFocusScratchpad: (note: string) => void;
+  toggleFocusScratchpad: () => void;
+  toggleFocusHudExpanded: () => void;
+  completeFocusSession: () => void;
 
   openSpotlight: () => void;
   closeSpotlight: () => void;
@@ -562,6 +589,7 @@ const initialProfile: UserProfile = {
   name: "",
   username: "",
   avatarUrl: "",
+  bio: "",
   email: "",
   role: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
@@ -607,6 +635,18 @@ export const useMyndStore = create<MyndState>()(
 
       isFocusMode: false,
       isZenMode: false,
+      focusSession: {
+        isRunning: false,
+        secondsRemaining: 25 * 60,
+        durationMinutes: 25,
+        sessionMode: "focus",
+        currentObjective: "",
+        scratchpad: "",
+        sessionsCompletedToday: 0,
+        totalFocusMinutesToday: 0,
+        isScratchpadOpen: false,
+        isExpanded: true,
+      },
       isSpotlightOpen: false,
       isAskAiOpen: false,
       askAiTarget: null,
@@ -704,8 +744,104 @@ export const useMyndStore = create<MyndState>()(
       setCodeExecution: (enabled) => set({ codeExecution: enabled }),
       setDefaultSpaceId: (id) => set({ defaultSpaceId: id }),
       setLanguage: (lang) => set({ language: lang }),
-      toggleFocusMode: () => set((s) => ({ isFocusMode: !s.isFocusMode })),
+      toggleFocusMode: () =>
+        set((s) => ({
+          isFocusMode: !s.isFocusMode,
+          // Auto start or maintain timer
+          focusSession: {
+            ...s.focusSession,
+            isExpanded: true,
+          },
+        })),
       toggleZenMode: () => set((s) => ({ isZenMode: !s.isZenMode })),
+
+      startFocusTimer: () =>
+        set((s) => ({
+          focusSession: { ...s.focusSession, isRunning: true },
+        })),
+      pauseFocusTimer: () =>
+        set((s) => ({
+          focusSession: { ...s.focusSession, isRunning: false },
+        })),
+      resetFocusTimer: () =>
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            isRunning: false,
+            secondsRemaining: s.focusSession.durationMinutes * 60,
+          },
+        })),
+      tickFocusTimer: () => {
+        const current = get().focusSession;
+        if (!current.isRunning) return;
+        if (current.secondsRemaining <= 1) {
+          get().completeFocusSession();
+        } else {
+          set((s) => ({
+            focusSession: {
+              ...s.focusSession,
+              secondsRemaining: s.focusSession.secondsRemaining - 1,
+            },
+          }));
+        }
+      },
+      setFocusDuration: (minutes, mode = "focus") =>
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            durationMinutes: minutes,
+            sessionMode: mode,
+            secondsRemaining: minutes * 60,
+            isRunning: false,
+          },
+        })),
+      addFocusTime: (extraMinutes) =>
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            secondsRemaining: s.focusSession.secondsRemaining + extraMinutes * 60,
+          },
+        })),
+      setFocusObjective: (objective) =>
+        set((s) => ({
+          focusSession: { ...s.focusSession, currentObjective: objective },
+        })),
+      setFocusScratchpad: (note) =>
+        set((s) => ({
+          focusSession: { ...s.focusSession, scratchpad: note },
+        })),
+      toggleFocusScratchpad: () =>
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            isScratchpadOpen: !s.focusSession.isScratchpadOpen,
+          },
+        })),
+      toggleFocusHudExpanded: () =>
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            isExpanded: !s.focusSession.isExpanded,
+          },
+        })),
+      completeFocusSession: () => {
+        const current = get().focusSession;
+        const minutesAdded = current.sessionMode === "focus" ? current.durationMinutes : 0;
+        set((s) => ({
+          focusSession: {
+            ...s.focusSession,
+            isRunning: false,
+            sessionsCompletedToday:
+              current.sessionMode === "focus"
+                ? s.focusSession.sessionsCompletedToday + 1
+                : s.focusSession.sessionsCompletedToday,
+            totalFocusMinutesToday: s.focusSession.totalFocusMinutesToday + minutesAdded,
+            secondsRemaining: current.sessionMode === "focus" ? 5 * 60 : 25 * 60,
+            durationMinutes: current.sessionMode === "focus" ? 5 : 25,
+            sessionMode: current.sessionMode === "focus" ? "break" : "focus",
+          },
+        }));
+      },
 
       openSpotlight: () => set({ isSpotlightOpen: true }),
       closeSpotlight: () => set({ isSpotlightOpen: false }),
@@ -1239,6 +1375,20 @@ export const useMyndStore = create<MyndState>()(
           state.personalization = defaultPersonalizationSettings;
         } else {
           state.personalization = { ...defaultPersonalizationSettings, ...state.personalization };
+        }
+        if (!state.focusSession) {
+          state.focusSession = {
+            isRunning: false,
+            secondsRemaining: 25 * 60,
+            durationMinutes: 25,
+            sessionMode: "focus",
+            currentObjective: "",
+            scratchpad: "",
+            sessionsCompletedToday: 0,
+            totalFocusMinutesToday: 0,
+            isScratchpadOpen: false,
+            isExpanded: true,
+          };
         }
         const dedupe = <T extends { id?: string }>(arr: T[] | undefined): T[] => {
           if (!Array.isArray(arr)) return [];

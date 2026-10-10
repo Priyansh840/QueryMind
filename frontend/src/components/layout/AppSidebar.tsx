@@ -375,7 +375,7 @@ export default function AppSidebar() {
               className="chatgpt-popover-item"
               onClick={() => {
                 setIsMenuOpen(false);
-                openEditProfile();
+                router.push("/profile");
               }}
               style={{ justifyContent: "space-between" }}
             >
@@ -440,7 +440,7 @@ export default function AppSidebar() {
               className="chatgpt-popover-item"
               onClick={() => {
                 setIsMenuOpen(false);
-                openEditProfile();
+                router.push("/profile");
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>

@@ -3,7 +3,10 @@ QueryMind - Application Settings
 Loaded from environment variables using Pydantic Settings.
 """
 
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -63,7 +66,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     class Config:
-        env_file = ".env"
+        env_file = (str(_BACKEND_DIR / ".env"), ".env")
         case_sensitive = True
         extra = "ignore"
 
