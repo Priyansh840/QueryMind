@@ -252,11 +252,21 @@ export interface GoalData {
   project_id?: string;
   description: string;
   status: string;
-  tasks?: Array<{ id: string; title: string; completed: boolean; sub_goal?: string; priority?: "high" | "medium" | "low" }>;
+  tasks?: Array<{
+    id: string;
+    title: string;
+    completed: boolean;
+    sub_goal?: string;
+    priority?: "high" | "medium" | "low";
+    estimated_time?: string;
+    time_phase?: string;
+    reasoning?: string;
+  }>;
   document_ids?: string[];
   category?: string;
   priority?: "high" | "medium" | "low";
   target_date?: string;
+  timeframe?: string;
   created_at: string;
 }
 
@@ -360,11 +370,21 @@ export const queryMindApi = {
     description: string;
     space_id?: string;
     project_id?: string;
-    tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+    tasks?: Array<{
+      id: string;
+      title: string;
+      completed: boolean;
+      sub_goal?: string;
+      priority?: "high" | "medium" | "low";
+      estimated_time?: string;
+      time_phase?: string;
+      reasoning?: string;
+    }>;
     document_ids?: string[];
     category?: string;
     priority?: "high" | "medium" | "low";
     target_date?: string;
+    timeframe?: string;
   }): Promise<GoalData> => {
     const res = await api.post<GoalData>("/goals", data);
     return res.data;
@@ -374,11 +394,21 @@ export const queryMindApi = {
     data: {
       description?: string;
       status?: string;
-      tasks?: Array<{ id: string; title: string; completed: boolean; priority?: "high" | "medium" | "low" }>;
+      tasks?: Array<{
+        id: string;
+        title: string;
+        completed: boolean;
+        sub_goal?: string;
+        priority?: "high" | "medium" | "low";
+        estimated_time?: string;
+        time_phase?: string;
+        reasoning?: string;
+      }>;
       document_ids?: string[];
       category?: string;
       priority?: "high" | "medium" | "low";
       target_date?: string;
+      timeframe?: string;
     }
   ): Promise<GoalData> => {
     const res = await api.patch<GoalData>(`/goals/${goalId}`, data);
@@ -394,9 +424,18 @@ export const queryMindApi = {
     space_ids?: string[];
     document_ids?: string[];
     category?: string;
+    timeframe?: string;
+    target_date?: string;
   }): Promise<{
     goal: string;
-    suggested_tasks: Array<{ title: string; sub_goal?: string; priority: "high" | "medium" | "low"; reasoning?: string }>;
+    suggested_tasks: Array<{
+      title: string;
+      sub_goal?: string;
+      priority: "high" | "medium" | "low";
+      estimated_time?: string;
+      time_phase?: string;
+      reasoning?: string;
+    }>;
     context_used?: string;
   }> => {
     const res = await api.post("/goals/recommend-tasks", data);

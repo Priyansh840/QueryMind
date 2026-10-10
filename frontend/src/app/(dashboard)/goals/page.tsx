@@ -42,6 +42,9 @@ interface GoalTask {
   completed: boolean;
   sub_goal?: string;
   priority?: "high" | "medium" | "low";
+  estimated_time?: string;
+  time_phase?: string;
+  reasoning?: string;
 }
 
 const CATEGORIES = [
@@ -137,7 +140,18 @@ function GoalsPageContent() {
   const [newGoalCategory, setNewGoalCategory] = useState("engineering");
   const [newGoalPriority, setNewGoalPriority] = useState<"high" | "medium" | "low">("medium");
   const [newGoalTargetDate, setNewGoalTargetDate] = useState("");
-  const [stagedTasks, setStagedTasks] = useState<Array<{ title: string; sub_goal: string; priority: "high" | "medium" | "low" }>>([]);
+  const [newGoalTimeframe, setNewGoalTimeframe] = useState<string>("2 weeks");
+  const [customTimeframeInput, setCustomTimeframeInput] = useState<string>("");
+  const [stagedTasks, setStagedTasks] = useState<
+    Array<{
+      title: string;
+      sub_goal: string;
+      priority: "high" | "medium" | "low";
+      estimated_time?: string;
+      time_phase?: string;
+      reasoning?: string;
+    }>
+  >([]);
   const [stagedTaskInput, setStagedTaskInput] = useState("");
   const [stagedSubGoalInput, setStagedSubGoalInput] = useState("Core Objectives");
   const [isDecomposingWithAi, setIsDecomposingWithAi] = useState(false);
@@ -533,6 +547,7 @@ function GoalsPageContent() {
         goal_description: selectedGoal.description,
         space_id: selectedGoal.space_id || undefined,
         category: selectedGoal.category,
+        timeframe: selectedGoal.timeframe || selectedGoal.target_date || "2 weeks",
       });
 
       if (res && Array.isArray(res.suggested_tasks) && res.suggested_tasks.length > 0) {
@@ -547,6 +562,9 @@ function GoalsPageContent() {
             sub_goal: st.sub_goal || "Core Objectives",
             completed: false,
             priority: (st.priority as any) || "medium",
+            estimated_time: st.estimated_time,
+            time_phase: st.time_phase,
+            reasoning: st.reasoning,
           }));
 
         if (newTasks.length > 0) {
@@ -661,11 +679,20 @@ function GoalsPageContent() {
       return;
     }
     setIsDecomposingWithAi(true);
+    const effectiveTf =
+      newGoalTimeframe === "custom" && customTimeframeInput.trim()
+        ? customTimeframeInput.trim()
+        : newGoalTimeframe === "custom"
+        ? newGoalTargetDate || "2 weeks"
+        : newGoalTimeframe;
+
     try {
       const res = await queryMindApi.recommendGoalTasks({
         goal_description: newGoalDesc.trim(),
         space_id: verifiedSpaceId || undefined,
         category: newGoalCategory,
+        timeframe: effectiveTf,
+        target_date: newGoalTargetDate || undefined,
       });
 
       if (res && Array.isArray(res.suggested_tasks) && res.suggested_tasks.length > 0) {
@@ -673,14 +700,33 @@ function GoalsPageContent() {
           title: t.title,
           sub_goal: t.sub_goal || "Core Objectives",
           priority: (t.priority as any) || "medium",
+          estimated_time: t.estimated_time,
+          time_phase: t.time_phase,
+          reasoning: t.reasoning,
         }));
         setStagedTasks((prev) => [...prev, ...newTasks]);
       }
     } catch (err: any) {
+      const defaultTime = effectiveTf.toLowerCase().includes("day") ? "~1.5 hrs" : "~3 hrs";
       setStagedTasks((prev) => [
-        { title: `Conduct space document audit for ${newGoalDesc.slice(0, 30)}`, sub_goal: "Phase 1: Foundations", priority: "high" },
-        { title: `Implement core architectural prototype`, sub_goal: "Phase 2: Execution", priority: "medium" },
-        { title: `Validate telemetry & benchmark deliverable outcomes`, sub_goal: "Phase 3: Validation", priority: "low" },
+        {
+          title: `Conduct space document audit for ${newGoalDesc.slice(0, 30)}`,
+          sub_goal: "Phase 1: Foundations",
+          priority: "high",
+          estimated_time: defaultTime,
+        },
+        {
+          title: `Implement core architectural prototype`,
+          sub_goal: "Phase 2: Execution",
+          priority: "medium",
+          estimated_time: defaultTime,
+        },
+        {
+          title: `Validate telemetry & benchmark deliverable outcomes`,
+          sub_goal: "Phase 3: Validation",
+          priority: "low",
+          estimated_time: "~1 hr",
+        },
       ]);
     } finally {
       setIsDecomposingWithAi(false);
@@ -693,12 +739,22 @@ function GoalsPageContent() {
     if (!newGoalDesc.trim() || isSubmittingGoal) return;
     setIsSubmittingGoal(true);
 
+    const effectiveTf =
+      newGoalTimeframe === "custom" && customTimeframeInput.trim()
+        ? customTimeframeInput.trim()
+        : newGoalTimeframe === "custom"
+        ? newGoalTargetDate || "2 weeks"
+        : newGoalTimeframe;
+
     const formattedTasks: GoalTask[] = stagedTasks.map((t, i) => ({
       id: `task-${Date.now()}-${i}`,
       title: t.title,
       sub_goal: t.sub_goal || "Core Objectives",
       completed: false,
       priority: t.priority,
+      estimated_time: t.estimated_time,
+      time_phase: t.time_phase,
+      reasoning: t.reasoning,
     }));
 
     try {
@@ -707,7 +763,8 @@ function GoalsPageContent() {
         space_id: verifiedSpaceId || (spaces[0]?.id ?? undefined),
         category: newGoalCategory,
         priority: newGoalPriority,
-        target_date: newGoalTargetDate || undefined,
+        target_date: newGoalTargetDate || effectiveTf,
+        timeframe: effectiveTf,
         tasks: formattedTasks,
       });
 
@@ -716,6 +773,8 @@ function GoalsPageContent() {
       setStagedTasks([]);
       setStagedTaskInput("");
       setNewGoalTargetDate("");
+      setNewGoalTimeframe("2 weeks");
+      setCustomTimeframeInput("");
       setIsSpaceVerified(false);
       setIsCreateModalOpen(false);
       handleSelectGoal(created);
@@ -864,6 +923,26 @@ function GoalsPageContent() {
                 }}
               >
                 {selectedGoal.priority} Priority
+              </span>
+            )}
+
+            {(selectedGoal.timeframe || selectedGoal.target_date) && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  padding: "3px 8px",
+                  borderRadius: "6px",
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: "rgba(59, 130, 246, 0.12)",
+                  color: "#60a5fa",
+                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                }}
+              >
+                <Calendar size={11} />
+                <span>{selectedGoal.timeframe || selectedGoal.target_date}</span>
               </span>
             )}
           </div>
@@ -1297,6 +1376,25 @@ function GoalsPageContent() {
                                     }}
                                   >
                                     {task.priority}
+                                  </span>
+                                )}
+
+                                {task.estimated_time && (
+                                  <span
+                                    style={{
+                                      fontSize: "10px",
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      fontWeight: 500,
+                                      color: "var(--text-secondary)",
+                                      background: "var(--surface-secondary)",
+                                      border: "1px solid var(--border-subtle)",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "3px",
+                                    }}
+                                  >
+                                    ⏱️ {task.estimated_time}
                                   </span>
                                 )}
 
@@ -2197,6 +2295,26 @@ function GoalsPageContent() {
                           <span>Synergy</span>
                         </span>
                       )}
+
+                      {(goal.timeframe || goal.target_date) && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            padding: "1px 6px",
+                            borderRadius: "4px",
+                            background: "rgba(59, 130, 246, 0.12)",
+                            color: "#60a5fa",
+                            border: "1px solid rgba(59, 130, 246, 0.25)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          <Calendar size={9} />
+                          <span>{goal.timeframe || goal.target_date}</span>
+                        </span>
+                      )}
                     </div>
 
                     <button
@@ -2425,6 +2543,80 @@ function GoalsPageContent() {
                 </div>
               </div>
 
+              {/* Target Timeframe & AI Pacing Selector */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    Target Timeframe & AI Pacing
+                  </label>
+                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                    Sub-goals & tasks strictly calibrated to this duration
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "8px" }}>
+                  {[
+                    { id: "3 days", label: "3 Days", sub: "Crash Sprint (Daily ~1-2h)" },
+                    { id: "1 week", label: "1 Week", sub: "Fast Sprint (Daily/Phased)" },
+                    { id: "2 weeks", label: "2 Weeks", sub: "Standard (Weekly Phases)" },
+                    { id: "1 month", label: "1 Month", sub: "Deep Mastery (4 Weeks)" },
+                    { id: "3 months", label: "3 Months", sub: "Macro Roadmap (Phased)" },
+                    { id: "custom", label: "Custom", sub: "Specific Date or Pace" },
+                  ].map((preset) => {
+                    const isSelected = newGoalTimeframe === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setNewGoalTimeframe(preset.id);
+                          if (preset.id !== "custom") {
+                            setCustomTimeframeInput("");
+                          }
+                        }}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          background: isSelected ? "var(--accent-soft)" : "var(--surface-secondary)",
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-subtle)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>
+                          {preset.label}
+                        </div>
+                        <div style={{ fontSize: "10px", color: isSelected ? "var(--accent)" : "var(--text-tertiary)", marginTop: "2px" }}>
+                          {preset.sub}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {newGoalTimeframe === "custom" && (
+                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    <input
+                      type="text"
+                      placeholder="Enter custom duration (e.g. 5 days, 45 days, 6 months)..."
+                      value={customTimeframeInput}
+                      onChange={(e) => setCustomTimeframeInput(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--surface-secondary)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-primary)",
+                        fontSize: "12px",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Category, Priority & Target Date */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
                 <div>
@@ -2478,7 +2670,7 @@ function GoalsPageContent() {
 
                 <div>
                   <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "6px" }}>
-                    Target Date
+                    Target Completion Date
                   </label>
                   <input
                     type="date"
@@ -2531,7 +2723,11 @@ function GoalsPageContent() {
                     }}
                   >
                     <Bot size={13} className={isDecomposingWithAi ? "animate-spin" : ""} />
-                    <span>{isDecomposingWithAi ? "Analyzing Space..." : "Decompose with AI"}</span>
+                    <span>
+                      {isDecomposingWithAi
+                        ? `Pacing for ${newGoalTimeframe}...`
+                        : `AI Breakdown (${newGoalTimeframe})`}
+                    </span>
                   </button>
                 </div>
 
@@ -2558,6 +2754,11 @@ function GoalsPageContent() {
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {t.title}
                           </span>
+                          {t.estimated_time && (
+                            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", border: "1px solid var(--border-subtle)", padding: "1px 5px", borderRadius: "4px", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                              ⏱️ {t.estimated_time}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"

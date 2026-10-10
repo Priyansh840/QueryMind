@@ -33,6 +33,7 @@ class GoalCreateRequest(BaseModel):
     category: Optional[str] = "career"
     priority: Optional[str] = "medium"
     target_date: Optional[str] = None
+    timeframe: Optional[str] = None
 
 
 class GoalUpdateRequest(BaseModel):
@@ -43,6 +44,7 @@ class GoalUpdateRequest(BaseModel):
     category: Optional[str] = None
     priority: Optional[str] = None
     target_date: Optional[str] = None
+    timeframe: Optional[str] = None
 
 
 class GoalResponse(BaseModel):
@@ -57,6 +59,7 @@ class GoalResponse(BaseModel):
     category: Optional[str] = "career"
     priority: Optional[str] = "medium"
     target_date: Optional[str] = None
+    timeframe: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -69,17 +72,22 @@ class RecommendTasksRequest(BaseModel):
     space_ids: Optional[List[str]] = None
     document_ids: Optional[List[str]] = None
     category: Optional[str] = "career"
+    timeframe: Optional[str] = None  # e.g. "3 days", "1 week", "2 weeks", "1 month", "3 months", "6 months"
+    target_date: Optional[str] = None
 
 
 class RecommendedTaskItem(BaseModel):
     title: str
     sub_goal: Optional[str] = Field("Core Objectives", description="Name of the specific sub-goal/module this task belongs to")
     priority: str = Field("medium", description="high, medium, or low")
+    estimated_time: Optional[str] = Field(None, description="e.g. ~2 hrs, ~45 mins, Day 1")
+    time_phase: Optional[str] = Field(None, description="e.g. Day 1, Week 1, Month 1")
     reasoning: Optional[str] = None
 
 
 class RecommendTasksResponse(BaseModel):
     goal: str
+    timeframe: Optional[str] = None
     suggested_tasks: List[RecommendedTaskItem]
     context_used: Optional[str] = None
 
@@ -176,7 +184,7 @@ async def create_goal(
         document_ids=request.document_ids or [],
         category=request.category or "career",
         priority=request.priority or "medium",
-        target_date=request.target_date,
+        target_date=request.timeframe or request.target_date,
         created_at=datetime.now(timezone.utc)
     )
     db.add(new_goal)
@@ -235,6 +243,7 @@ async def create_goal(
         category=new_goal.category or "career",
         priority=new_goal.priority or "medium",
         target_date=new_goal.target_date,
+        timeframe=new_goal.target_date,
         created_at=new_goal.created_at,
     )
 
@@ -298,6 +307,7 @@ async def list_goals(
             category=g.category or "career",
             priority=g.priority or "medium",
             target_date=g.target_date,
+            timeframe=g.target_date,
             created_at=g.created_at,
         )
         for g in goals
@@ -345,6 +355,7 @@ async def get_goal(
         category=goal.category or "career",
         priority=goal.priority or "medium",
         target_date=goal.target_date,
+        timeframe=goal.target_date,
         created_at=goal.created_at,
     )
 
@@ -406,6 +417,8 @@ async def update_goal(
         goal.priority = request.priority
     if request.target_date is not None:
         goal.target_date = request.target_date
+    elif request.timeframe is not None:
+        goal.target_date = request.timeframe
 
     state_after = {
         "id": str(goal.id),
@@ -461,6 +474,7 @@ async def update_goal(
         category=goal.category or "career",
         priority=goal.priority or "medium",
         target_date=goal.target_date,
+        timeframe=goal.target_date,
         created_at=goal.created_at,
     )
 
@@ -547,24 +561,47 @@ async def recommend_goal_tasks(
 
     rag_context = "\n---\n".join(context_snippets) if context_snippets else "No directly matching workspace documents found for this goal."
 
+    effective_timeframe = (request.timeframe or request.target_date or "Flexible pace (approx. 2-3 weeks)").strip()
+
     system_prompt = (
         "You are an elite strategic curriculum architect and technical mentor for QueryMind.\n"
-        "Your task is to decompose a high-level goal statement into 3 to 4 tightly-scoped, 100% reasonable SUB-GOALS (Modules/Topics), "
+        "Your task is to decompose a high-level goal statement into 3 to 4 tightly-scoped, 100% reasonable SUB-GOALS (Milestones/Phases), "
         "and assign 2 to 3 bite-sized, specific actionable tasks strictly related to each sub-goal.\n\n"
+        "CRITICAL TIME-PACING REQUIREMENT:\n"
+        f"The user has specified an overall timeframe of: '{effective_timeframe}'.\n"
+        "All generated sub-goals and tasks MUST strictly reflect this timeframe in their structure, pacing, and time estimates:\n"
+        "1. For Short Timeframes (e.g. 1 to 5 days, Crash Sprint):\n"
+        "   - Break down sub-goals day-by-day (e.g. 'Day 1: Foundations & Architecture', 'Day 2: Core Implementation', 'Day 3: Testing & Delivery').\n"
+        "   - Tasks must have tight, realistic hour estimates ('~1 hr', '~2 hrs', '~3 hrs').\n"
+        "   - 'time_phase' should be 'Day 1', 'Day 2', etc.\n"
+        "2. For Medium Timeframes (e.g. 1 to 4 weeks):\n"
+        "   - Break down sub-goals week-by-week (e.g. 'Week 1: Core Fundamentals', 'Week 2: Advanced Techniques', 'Week 3: Production Polish').\n"
+        "   - Tasks must have session estimates ('~3-4 hrs', '~1 day').\n"
+        "   - 'time_phase' should be 'Week 1', 'Week 2', etc.\n"
+        "3. For Long Timeframes (e.g. 2 to 6 months):\n"
+        "   - Break down sub-goals into monthly/strategic phases (e.g. 'Phase 1 (Month 1): Theoretical Mastery', 'Phase 2 (Month 2): High-Scale Implementation').\n"
+        "   - Tasks must have phase estimates ('~2-3 days', '~1 week').\n"
+        "   - 'time_phase' should be 'Phase 1', 'Phase 2', etc.\n\n"
         "STRICT SUB-GOAL & TASK SCOPING RULES:\n"
         "1. PERFECT COHESION (ZERO TOPIC LEAKAGE):\n"
         "   - Tasks inside a sub-goal MUST exclusively belong to that sub-goal's concept.\n"
-        "   - Example: If the Sub-Goal is 'Arrays & Strings', tasks must ONLY cover Array/String techniques (e.g. 'Two-Pointer Technique', 'Sliding Window', 'Prefix Sums'). NEVER mention Linked Lists, Trees, or Graphs in an Array sub-goal!\n"
-        "   - Example: If the Sub-Goal is 'Search Algorithms', tasks must ONLY cover search algorithms (e.g. 'Uninformed BFS & DFS Traversals', 'A* Search with Admissible Heuristics', 'Minimax with Alpha-Beta Pruning').\n"
-        "2. CONCRETE & ACTIONABLE (NO ESSAYS, NO RUN-ON SENTENCES):\n"
-        "   - Keep task titles concise, concrete, and high-impact (3 to 8 words). Focus on key patterns, mechanics, or deliverables.\n"
+        "   - Example: If the Sub-Goal is 'Day 1: Arrays & Strings', tasks must ONLY cover Array/String techniques. NEVER mention Trees or Graphs in an Array sub-goal!\n"
+        "2. CONCRETE & ACTIONABLE:\n"
+        "   - Keep task titles concise, concrete, and high-impact (3 to 8 words).\n"
         "3. NO REDUNDANT/DUPLICATE TASKS:\n"
-        "   - Do NOT create multiple tasks that mean the same thing (e.g., 'Master AI' and 'Define AI' and 'Explore AI'). Give each task a unique, crisp focus.\n"
+        "   - Do NOT create multiple tasks that mean the same thing. Give each task a unique, crisp focus.\n"
         "4. STRUCTURED SCHEMA:\n"
         "   Return ONLY a valid JSON object matching this schema:\n"
         "   {\n"
         '     "tasks": [\n'
-        '       {"sub_goal": "Sub-Goal Name (e.g. Arrays & Strings)", "title": "Bite-sized Actionable Task Title", "priority": "high"|"medium"|"low", "reasoning": "Crisp 1-sentence value explanation"}\n'
+        '       {\n'
+        '         "sub_goal": "Sub-Goal Name (e.g. Week 1: Core Architecture)",\n'
+        '         "title": "Bite-sized Actionable Task Title",\n'
+        '         "priority": "high"|"medium"|"low",\n'
+        '         "estimated_time": "~2 hrs",\n'
+        '         "time_phase": "Week 1",\n'
+        '         "reasoning": "Crisp 1-sentence value explanation"\n'
+        '       }\n'
         "     ]\n"
         "   }\n"
         "   Do NOT wrap in markdown formatting or code blocks."
@@ -572,9 +609,10 @@ async def recommend_goal_tasks(
 
     user_prompt = (
         f"Goal Objective: {request.goal_description}\n"
+        f"Allocated Timeframe: {effective_timeframe}\n"
         f"Domain Category: {request.category or 'General'}\n\n"
         f"Relevant Knowledge Base Context from User Workspace:\n{rag_context}\n\n"
-        "Generate the structured, high-yield task breakdown with strict sub-goal scoping in the specified JSON format."
+        "Generate the structured, time-paced task breakdown with strict sub-goal scoping in the specified JSON format."
     )
 
     suggested_tasks: List[RecommendedTaskItem] = []
@@ -596,6 +634,7 @@ async def recommend_goal_tasks(
     full_prompt = (
         f"{system_prompt}\n\n"
         f"Goal: {request.goal_description}\n"
+        f"Allocated Timeframe: {effective_timeframe}\n"
         f"Category: {request.category or 'General'}\n"
         f"Relevant Context:\n{rag_context}\n\n"
         "Generate the breakdown of recommended tasks in the specified JSON format."
@@ -603,7 +642,7 @@ async def recommend_goal_tasks(
 
     for model_name in gemini_candidates:
         try:
-            logger.info(f"Attempting task recommendation using Gemini model: {model_name}")
+            logger.info(f"Attempting task recommendation using Gemini model: {model_name} for timeframe: {effective_timeframe}")
             gen_model = genai.GenerativeModel(model_name=model_name)
             # Run synchronous generate_content in thread pool with 12s timeout
             response = await asyncio.wait_for(
@@ -628,11 +667,13 @@ async def recommend_goal_tasks(
                         title=t.get("title", "Action Item"),
                         sub_goal=t.get("sub_goal") or "Core Objectives",
                         priority=prio,
+                        estimated_time=t.get("estimated_time") or ("~2 hrs" if any(k in effective_timeframe.lower() for k in ["day", "sprint"]) else "~3-4 hrs"),
+                        time_phase=t.get("time_phase"),
                         reasoning=t.get("reasoning"),
                     )
                 )
             if suggested_tasks:
-                logger.info(f"Successfully generated {len(suggested_tasks)} dynamic tasks with {model_name}")
+                logger.info(f"Successfully generated {len(suggested_tasks)} dynamic time-paced tasks with {model_name}")
                 break
         except Exception as cand_err:
             logger.warning(f"Candidate {model_name} failed or timed out: {cand_err}")
@@ -659,6 +700,8 @@ async def recommend_goal_tasks(
                             title=t.get("title", "Action Item"),
                             sub_goal=t.get("sub_goal") or "Core Objectives",
                             priority=prio,
+                            estimated_time=t.get("estimated_time") or ("~2 hrs" if any(k in effective_timeframe.lower() for k in ["day", "sprint"]) else "~3-4 hrs"),
+                            time_phase=t.get("time_phase"),
                             reasoning=t.get("reasoning"),
                         )
                     )
