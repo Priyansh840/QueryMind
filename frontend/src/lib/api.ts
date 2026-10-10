@@ -360,6 +360,8 @@ export interface GoalData {
     priority?: "high" | "medium" | "low";
     estimated_time?: string;
     time_phase?: string;
+    deliverable?: string;
+    tools?: string[];
     reasoning?: string;
   }>;
   document_ids?: string[];
@@ -536,6 +538,8 @@ export const queryMindApi = {
       priority?: "high" | "medium" | "low";
       estimated_time?: string;
       time_phase?: string;
+      deliverable?: string;
+      tools?: string[];
       reasoning?: string;
     }>;
     document_ids?: string[];
@@ -560,6 +564,8 @@ export const queryMindApi = {
         priority?: "high" | "medium" | "low";
         estimated_time?: string;
         time_phase?: string;
+        deliverable?: string;
+        tools?: string[];
         reasoning?: string;
       }>;
       document_ids?: string[];
@@ -584,6 +590,7 @@ export const queryMindApi = {
     category?: string;
     timeframe?: string;
     target_date?: string;
+    learning_style?: string;
   }): Promise<{
     goal: string;
     suggested_tasks: Array<{
@@ -592,6 +599,8 @@ export const queryMindApi = {
       priority: "high" | "medium" | "low";
       estimated_time?: string;
       time_phase?: string;
+      deliverable?: string;
+      tools?: string[];
       reasoning?: string;
     }>;
     context_used?: string;

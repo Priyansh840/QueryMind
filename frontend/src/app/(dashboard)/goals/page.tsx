@@ -44,6 +44,8 @@ interface GoalTask {
   priority?: "high" | "medium" | "low";
   estimated_time?: string;
   time_phase?: string;
+  deliverable?: string;
+  tools?: string[];
   reasoning?: string;
 }
 
@@ -141,6 +143,7 @@ function GoalsPageContent() {
   const [newGoalPriority, setNewGoalPriority] = useState<"high" | "medium" | "low">("medium");
   const [newGoalTargetDate, setNewGoalTargetDate] = useState("");
   const [newGoalTimeframe, setNewGoalTimeframe] = useState<string>("2 weeks");
+  const [newGoalLearningStyle, setNewGoalLearningStyle] = useState<"hands_on" | "fast_track" | "academic">("hands_on");
   const [customTimeframeInput, setCustomTimeframeInput] = useState<string>("");
   const [stagedTasks, setStagedTasks] = useState<
     Array<{
@@ -149,6 +152,8 @@ function GoalsPageContent() {
       priority: "high" | "medium" | "low";
       estimated_time?: string;
       time_phase?: string;
+      deliverable?: string;
+      tools?: string[];
       reasoning?: string;
     }>
   >([]);
@@ -564,6 +569,8 @@ function GoalsPageContent() {
             priority: (st.priority as any) || "medium",
             estimated_time: st.estimated_time,
             time_phase: st.time_phase,
+            deliverable: st.deliverable,
+            tools: st.tools || [],
             reasoning: st.reasoning,
           }));
 
@@ -672,6 +679,66 @@ function GoalsPageContent() {
     copilotEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [copilotMessages, isSendingCopilot]);
 
+  // Trigger Quickstart Guide for an individual task via Goal Copilot
+  const triggerTaskQuickstart = async (task: GoalTask) => {
+    if (!selectedGoal || isSendingCopilot) return;
+    const prompt = `Provide a 3-minute tactical quickstart roadmap for task: "${task.title}" (under sub-goal "${task.sub_goal || "Core Objectives"}").
+${task.deliverable ? `Target Deliverable: ${task.deliverable}\n` : ""}${task.tools && task.tools.length > 0 ? `Target Tools/Platforms: ${task.tools.join(", ")}\n` : ""}
+Include:
+1. Immediate CLI commands or practical setup steps.
+2. Best free direct practice labs or tools (e.g. TryHackMe / OverTheWire / PortSwigger / Wireshark).
+3. Exact verification checklist to mark this task complete.`;
+
+    setCopilotMessages((prev) => [
+      ...prev,
+      { role: "user", content: `⚡ Quickstart guide for: **${task.title}**`, timestamp: "Just now" },
+    ]);
+    setIsSendingCopilot(true);
+
+    try {
+      const history = copilotMessages.map((m) => ({ role: m.role, content: m.content }));
+      const subGoalNames = Object.keys(
+        (selectedGoal.tasks || []).reduce((acc, t) => {
+          const groupName = t.sub_goal?.trim() || "Core Objectives";
+          acc[groupName] = true;
+          return acc;
+        }, {} as Record<string, boolean>)
+      );
+      if (subGoalNames.length === 0) subGoalNames.push("Core Objectives");
+
+      const res = await queryMindApi.sendGoalChatMessage(selectedGoal.id, {
+        message: prompt,
+        history,
+        goal_description: selectedGoal.description,
+        progress: computeProgress(selectedGoal.tasks, selectedGoal.status),
+        tasks: selectedGoal.tasks,
+        sub_goals: subGoalNames,
+        space_ids: selectedGoal.space_id ? [selectedGoal.space_id] : [],
+      });
+
+      setCopilotMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: res.response || "No guide received from reasoning copilot.",
+          citations: res.citations || [],
+          timestamp: "Just now",
+        },
+      ]);
+    } catch (err: any) {
+      setCopilotMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Unable to generate tactical quickstart: ${err.message || "Endpoint error"}`,
+          timestamp: "Just now",
+        },
+      ]);
+    } finally {
+      setIsSendingCopilot(false);
+    }
+  };
+
   // AI Task Decomposition for modal creation
   const handleModalDecompose = async () => {
     if (!newGoalDesc.trim()) {
@@ -693,6 +760,7 @@ function GoalsPageContent() {
         category: newGoalCategory,
         timeframe: effectiveTf,
         target_date: newGoalTargetDate || undefined,
+        learning_style: newGoalLearningStyle,
       });
 
       if (res && Array.isArray(res.suggested_tasks) && res.suggested_tasks.length > 0) {
@@ -702,6 +770,8 @@ function GoalsPageContent() {
           priority: (t.priority as any) || "medium",
           estimated_time: t.estimated_time,
           time_phase: t.time_phase,
+          deliverable: t.deliverable,
+          tools: t.tools || [],
           reasoning: t.reasoning,
         }));
         setStagedTasks((prev) => [...prev, ...newTasks]);
@@ -714,18 +784,23 @@ function GoalsPageContent() {
           sub_goal: "Phase 1: Foundations",
           priority: "high",
           estimated_time: defaultTime,
+          deliverable: "Audit document index and architecture specs",
+          tools: ["DocSearch"],
         },
         {
-          title: `Implement core architectural prototype`,
+          title: `Implement core prototype workflow`,
           sub_goal: "Phase 2: Execution",
           priority: "medium",
           estimated_time: defaultTime,
+          deliverable: "Working functional deliverable verified locally",
+          tools: ["CLI"],
         },
         {
-          title: `Validate telemetry & benchmark deliverable outcomes`,
+          title: `Validate deliverable outcomes`,
           sub_goal: "Phase 3: Validation",
           priority: "low",
           estimated_time: "~1 hr",
+          deliverable: "Test checklist verified",
         },
       ]);
     } finally {
@@ -754,6 +829,8 @@ function GoalsPageContent() {
       priority: t.priority,
       estimated_time: t.estimated_time,
       time_phase: t.time_phase,
+      deliverable: t.deliverable,
+      tools: t.tools || [],
       reasoning: t.reasoning,
     }));
 
@@ -774,6 +851,7 @@ function GoalsPageContent() {
       setStagedTaskInput("");
       setNewGoalTargetDate("");
       setNewGoalTimeframe("2 weeks");
+      setNewGoalLearningStyle("hands_on");
       setCustomTimeframeInput("");
       setIsSpaceVerified(false);
       setIsCreateModalOpen(false);
@@ -1346,17 +1424,43 @@ function GoalsPageContent() {
                                   {task.completed ? <CheckSquare size={16} /> : <Square size={16} />}
                                 </button>
 
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    fontSize: "13px",
-                                    color: task.completed ? "var(--text-tertiary)" : "var(--text-primary)",
-                                    textDecoration: task.completed ? "line-through" : "none",
-                                    lineHeight: 1.4,
-                                  }}
-                                >
-                                  {task.title}
-                                </span>
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "3px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                    <span
+                                      style={{
+                                        fontSize: "13px",
+                                        fontWeight: 500,
+                                        color: task.completed ? "var(--text-tertiary)" : "var(--text-primary)",
+                                        textDecoration: task.completed ? "line-through" : "none",
+                                        lineHeight: 1.4,
+                                      }}
+                                    >
+                                      {task.title}
+                                    </span>
+                                    {task.tools && task.tools.length > 0 && task.tools.map((tool, tIdx) => (
+                                      <span
+                                        key={tIdx}
+                                        style={{
+                                          fontSize: "10px",
+                                          padding: "1px 6px",
+                                          borderRadius: "4px",
+                                          background: "rgba(99, 102, 241, 0.12)",
+                                          color: "#818cf8",
+                                          border: "1px solid rgba(99, 102, 241, 0.25)",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {tool}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  {task.deliverable && (
+                                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                                      <span>🎯</span>
+                                      <span>{task.deliverable}</span>
+                                    </span>
+                                  )}
+                                </div>
 
                                 {task.priority && (
                                   <span
@@ -1397,6 +1501,31 @@ function GoalsPageContent() {
                                     ⏱️ {task.estimated_time}
                                   </span>
                                 )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => triggerTaskQuickstart(task)}
+                                  disabled={isSendingCopilot}
+                                  title="Get 3-min AI Quickstart Cheat Sheet & Practice Lab for this task"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    padding: "3px 8px",
+                                    borderRadius: "6px",
+                                    background: "rgba(245, 158, 11, 0.12)",
+                                    border: "1px solid rgba(245, 158, 11, 0.28)",
+                                    color: "#fbbf24",
+                                    fontSize: "11px",
+                                    fontWeight: 600,
+                                    cursor: isSendingCopilot ? "not-allowed" : "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                  className="hover:bg-[rgba(245,158,11,0.22)]"
+                                >
+                                  <Zap size={11} />
+                                  <span>Guide</span>
+                                </button>
 
                                 <button
                                   onClick={() => handleDeleteSubTask(task.id)}
@@ -2617,6 +2746,51 @@ function GoalsPageContent() {
                 )}
               </div>
 
+              {/* Execution Style Selector */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    Execution Style & Methodology
+                  </label>
+                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                    Calibrates tasks to be hands-on or conceptual
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                  {[
+                    { id: "hands_on", label: "🛠️ Hands-On Labs", sub: "Tools, CTFs & zero fluff" },
+                    { id: "fast_track", label: "⚡ 80/20 Fast Track", sub: "Top 20% high-yield essentials" },
+                    { id: "academic", label: "📚 Deep Academic", sub: "Conceptual rigor & architecture" },
+                  ].map((style) => {
+                    const isSelected = newGoalLearningStyle === style.id;
+                    return (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => setNewGoalLearningStyle(style.id as any)}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          background: isSelected ? "var(--accent-soft)" : "var(--surface-secondary)",
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-subtle)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>
+                          {style.label}
+                        </div>
+                        <div style={{ fontSize: "10px", color: isSelected ? "var(--accent)" : "var(--text-tertiary)", marginTop: "2px" }}>
+                          {style.sub}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Category, Priority & Target Date */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
                 <div>
@@ -2747,16 +2921,40 @@ function GoalsPageContent() {
                           color: "var(--text-primary)",
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: "10px", color: "var(--accent)", background: "var(--accent-soft)", padding: "1px 5px", borderRadius: "4px" }}>
-                            {t.sub_goal}
-                          </span>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {t.title}
-                          </span>
-                          {t.estimated_time && (
-                            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", border: "1px solid var(--border-subtle)", padding: "1px 5px", borderRadius: "4px", marginLeft: "auto", whiteSpace: "nowrap" }}>
-                              ⏱️ {t.estimated_time}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "10px", color: "var(--accent)", background: "var(--accent-soft)", padding: "1px 5px", borderRadius: "4px" }}>
+                              {t.sub_goal}
+                            </span>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {t.title}
+                            </span>
+                            {t.tools && t.tools.length > 0 && t.tools.map((tool, toolIdx) => (
+                              <span
+                                key={toolIdx}
+                                style={{
+                                  fontSize: "9px",
+                                  padding: "1px 5px",
+                                  borderRadius: "4px",
+                                  background: "rgba(99, 102, 241, 0.12)",
+                                  color: "#818cf8",
+                                  border: "1px solid rgba(99, 102, 241, 0.25)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {tool}
+                              </span>
+                            ))}
+                            {t.estimated_time && (
+                              <span style={{ fontSize: "10px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", border: "1px solid var(--border-subtle)", padding: "1px 5px", borderRadius: "4px", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                                ⏱️ {t.estimated_time}
+                              </span>
+                            )}
+                          </div>
+                          {t.deliverable && (
+                            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                              <span>🎯</span>
+                              <span>{t.deliverable}</span>
                             </span>
                           )}
                         </div>

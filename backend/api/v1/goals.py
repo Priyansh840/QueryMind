@@ -74,6 +74,7 @@ class RecommendTasksRequest(BaseModel):
     category: Optional[str] = "career"
     timeframe: Optional[str] = None  # e.g. "3 days", "1 week", "2 weeks", "1 month", "3 months", "6 months"
     target_date: Optional[str] = None
+    learning_style: Optional[str] = "hands_on"  # "hands_on", "fast_track", "academic"
 
 
 class RecommendedTaskItem(BaseModel):
@@ -82,6 +83,8 @@ class RecommendedTaskItem(BaseModel):
     priority: str = Field("medium", description="high, medium, or low")
     estimated_time: Optional[str] = Field(None, description="e.g. ~2 hrs, ~45 mins, Day 1")
     time_phase: Optional[str] = Field(None, description="e.g. Day 1, Week 1, Month 1")
+    deliverable: Optional[str] = Field(None, description="Concrete output, proof of completion, or deliverable")
+    tools: Optional[List[str]] = Field(default_factory=list, description="Relevant tools, platforms, or commands e.g. Wireshark, Nmap")
     reasoning: Optional[str] = None
 
 
@@ -562,11 +565,35 @@ async def recommend_goal_tasks(
     rag_context = "\n---\n".join(context_snippets) if context_snippets else "No directly matching workspace documents found for this goal."
 
     effective_timeframe = (request.timeframe or request.target_date or "Flexible pace (approx. 2-3 weeks)").strip()
+    learning_style = (request.learning_style or "hands_on").lower()
+
+    if learning_style == "hands_on":
+        style_directive = (
+            "PEDAGOGICAL DIRECTIVE - HANDS-ON LABS & DELIVERABLES (STRICT ZERO-FLUFF):\n"
+            "- BAN PASSIVE ACADEMIC WORDS: NEVER use 'Study', 'Learn', 'Understand', or 'Read' as task verbs!\n"
+            "- USE ACTION & TOOL VERBS: Use aggressive, practical verbs: 'Capture', 'Scan', 'Exploit', 'Crack', 'Configure', 'Build', 'Deploy', 'Solve'.\n"
+            "- INTEGRATE REAL-WORLD TOOLS & PLATFORMS: Identify concrete industry tools in the 'tools' list and task titles (e.g. Wireshark, Nmap, OverTheWire, PortSwigger, Burp Suite, CyberChef, Metasploit, Docker, Postman).\n"
+            "- DEFINITION OF DONE (DELIVERABLE): Every single task MUST define a measurable 'deliverable' (proof of completion), e.g. 'Sniff and filter 3-way handshake SYN/ACK packets on port 80'.\n"
+        )
+    elif learning_style == "fast_track":
+        style_directive = (
+            "PEDAGOGICAL DIRECTIVE - 80/20 FAST TRACK SPRINT:\n"
+            "- Focus exclusively on the 20% high-yield concepts that provide 80% of practical capability.\n"
+            "- Bypass theoretical edge cases and history; focus on immediate tactical payoff.\n"
+            "- Every task MUST include a concise 'deliverable' and practical 'tools'.\n"
+        )
+    else:
+        style_directive = (
+            "PEDAGOGICAL DIRECTIVE - RIGOROUS ACADEMIC & ARCHITECTURAL FOUNDATIONS:\n"
+            "- Emphasize foundational architecture, mathematical/algorithmic rigor, and formal concepts.\n"
+            "- Tasks should produce analytical deliverables and include essential tools.\n"
+        )
 
     system_prompt = (
         "You are an elite strategic curriculum architect and technical mentor for QueryMind.\n"
         "Your task is to decompose a high-level goal statement into 3 to 4 tightly-scoped, 100% reasonable SUB-GOALS (Milestones/Phases), "
         "and assign 2 to 3 bite-sized, specific actionable tasks strictly related to each sub-goal.\n\n"
+        f"{style_directive}\n"
         "CRITICAL TIME-PACING REQUIREMENT:\n"
         f"The user has specified an overall timeframe of: '{effective_timeframe}'.\n"
         "All generated sub-goals and tasks MUST strictly reflect this timeframe in their structure, pacing, and time estimates:\n"
@@ -579,13 +606,12 @@ async def recommend_goal_tasks(
         "   - Tasks must have session estimates ('~3-4 hrs', '~1 day').\n"
         "   - 'time_phase' should be 'Week 1', 'Week 2', etc.\n"
         "3. For Long Timeframes (e.g. 2 to 6 months):\n"
-        "   - Break down sub-goals into monthly/strategic phases (e.g. 'Phase 1 (Month 1): Theoretical Mastery', 'Phase 2 (Month 2): High-Scale Implementation').\n"
+        "   - Break down sub-goals into monthly/strategic phases (e.g. 'Phase 1 (Month 1): Core Competency', 'Phase 2 (Month 2): Production Mastery').\n"
         "   - Tasks must have phase estimates ('~2-3 days', '~1 week').\n"
         "   - 'time_phase' should be 'Phase 1', 'Phase 2', etc.\n\n"
         "STRICT SUB-GOAL & TASK SCOPING RULES:\n"
         "1. PERFECT COHESION (ZERO TOPIC LEAKAGE):\n"
         "   - Tasks inside a sub-goal MUST exclusively belong to that sub-goal's concept.\n"
-        "   - Example: If the Sub-Goal is 'Day 1: Arrays & Strings', tasks must ONLY cover Array/String techniques. NEVER mention Trees or Graphs in an Array sub-goal!\n"
         "2. CONCRETE & ACTIONABLE:\n"
         "   - Keep task titles concise, concrete, and high-impact (3 to 8 words).\n"
         "3. NO REDUNDANT/DUPLICATE TASKS:\n"
@@ -595,11 +621,13 @@ async def recommend_goal_tasks(
         "   {\n"
         '     "tasks": [\n'
         '       {\n'
-        '         "sub_goal": "Sub-Goal Name (e.g. Week 1: Core Architecture)",\n'
+        '         "sub_goal": "Sub-Goal Name (e.g. Week 1: Network & Protocol Defense)",\n'
         '         "title": "Bite-sized Actionable Task Title",\n'
         '         "priority": "high"|"medium"|"low",\n'
         '         "estimated_time": "~2 hrs",\n'
         '         "time_phase": "Week 1",\n'
+        '         "deliverable": "Measurable proof of completion (e.g. Filter SYN/ACK pcap packets on port 80)",\n'
+        '         "tools": ["Wireshark", "Nmap"],\n'
         '         "reasoning": "Crisp 1-sentence value explanation"\n'
         '       }\n'
         "     ]\n"
@@ -610,6 +638,7 @@ async def recommend_goal_tasks(
     user_prompt = (
         f"Goal Objective: {request.goal_description}\n"
         f"Allocated Timeframe: {effective_timeframe}\n"
+        f"Learning Execution Style: {learning_style}\n"
         f"Domain Category: {request.category or 'General'}\n\n"
         f"Relevant Knowledge Base Context from User Workspace:\n{rag_context}\n\n"
         "Generate the structured, time-paced task breakdown with strict sub-goal scoping in the specified JSON format."
@@ -635,6 +664,7 @@ async def recommend_goal_tasks(
         f"{system_prompt}\n\n"
         f"Goal: {request.goal_description}\n"
         f"Allocated Timeframe: {effective_timeframe}\n"
+        f"Learning Execution Style: {learning_style}\n"
         f"Category: {request.category or 'General'}\n"
         f"Relevant Context:\n{rag_context}\n\n"
         "Generate the breakdown of recommended tasks in the specified JSON format."
@@ -642,7 +672,7 @@ async def recommend_goal_tasks(
 
     for model_name in gemini_candidates:
         try:
-            logger.info(f"Attempting task recommendation using Gemini model: {model_name} for timeframe: {effective_timeframe}")
+            logger.info(f"Attempting task recommendation using Gemini model: {model_name} for timeframe: {effective_timeframe} style: {learning_style}")
             gen_model = genai.GenerativeModel(model_name=model_name)
             # Run synchronous generate_content in thread pool with 12s timeout
             response = await asyncio.wait_for(
@@ -662,6 +692,10 @@ async def recommend_goal_tasks(
                 prio = str(t.get("priority", "medium")).lower()
                 if prio not in ("high", "medium", "low"):
                     prio = "medium"
+                
+                raw_tools = t.get("tools") or []
+                tools_list = [str(x) for x in raw_tools] if isinstance(raw_tools, list) else ([str(raw_tools)] if raw_tools else [])
+
                 suggested_tasks.append(
                     RecommendedTaskItem(
                         title=t.get("title", "Action Item"),
@@ -669,6 +703,8 @@ async def recommend_goal_tasks(
                         priority=prio,
                         estimated_time=t.get("estimated_time") or ("~2 hrs" if any(k in effective_timeframe.lower() for k in ["day", "sprint"]) else "~3-4 hrs"),
                         time_phase=t.get("time_phase"),
+                        deliverable=t.get("deliverable"),
+                        tools=tools_list,
                         reasoning=t.get("reasoning"),
                     )
                 )
@@ -695,6 +731,8 @@ async def recommend_goal_tasks(
                     prio = str(t.get("priority", "medium")).lower()
                     if prio not in ("high", "medium", "low"):
                         prio = "medium"
+                    raw_tools = t.get("tools") or []
+                    tools_list = [str(x) for x in raw_tools] if isinstance(raw_tools, list) else ([str(raw_tools)] if raw_tools else [])
                     suggested_tasks.append(
                         RecommendedTaskItem(
                             title=t.get("title", "Action Item"),
@@ -702,6 +740,8 @@ async def recommend_goal_tasks(
                             priority=prio,
                             estimated_time=t.get("estimated_time") or ("~2 hrs" if any(k in effective_timeframe.lower() for k in ["day", "sprint"]) else "~3-4 hrs"),
                             time_phase=t.get("time_phase"),
+                            deliverable=t.get("deliverable"),
+                            tools=tools_list,
                             reasoning=t.get("reasoning"),
                         )
                     )
