@@ -591,6 +591,7 @@ export const queryMindApi = {
     timeframe?: string;
     target_date?: string;
     learning_style?: string;
+    daily_commitment?: string;
   }): Promise<{
     goal: string;
     suggested_tasks: Array<{
@@ -605,7 +606,7 @@ export const queryMindApi = {
     }>;
     context_used?: string;
   }> => {
-    const res = await api.post("/goals/recommend-tasks", data);
+    const res = await api.post("/goals/recommend-tasks", data, { timeout: 180000 });
     return res.data;
   },
   sendGoalChatMessage: async (

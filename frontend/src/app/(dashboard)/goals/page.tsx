@@ -144,7 +144,13 @@ function GoalsPageContent() {
   const [newGoalTargetDate, setNewGoalTargetDate] = useState("");
   const [newGoalTimeframe, setNewGoalTimeframe] = useState<string>("2 weeks");
   const [newGoalLearningStyle, setNewGoalLearningStyle] = useState<"hands_on" | "fast_track" | "academic">("hands_on");
+  const [newGoalDailyCommitment, setNewGoalDailyCommitment] = useState<string>("2 hrs/day");
   const [customTimeframeInput, setCustomTimeframeInput] = useState<string>("");
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
+  const [regenTimeframe, setRegenTimeframe] = useState<string>("2 weeks");
+  const [regenCustomTimeframe, setRegenCustomTimeframe] = useState<string>("");
+  const [regenDailyCommitment, setRegenDailyCommitment] = useState<string>("2 hrs/day");
   const [stagedTasks, setStagedTasks] = useState<
     Array<{
       title: string;
@@ -543,50 +549,61 @@ function GoalsPageContent() {
     }
   };
 
-  // Decompose tasks inside the workspace using AI with Sub-Goals
-  const handleWorkspaceDecompose = async () => {
+  // Open the roadmap calibration modal
+  const handleOpenRegenerateModal = () => {
+    if (!selectedGoal) return;
+    if (selectedGoal.timeframe) {
+      setRegenTimeframe(selectedGoal.timeframe);
+    } else {
+      setRegenTimeframe("2 weeks");
+    }
+    setIsRegenerateModalOpen(true);
+  };
+
+  // Execute AI roadmap regeneration with custom timeframe and daily dedication
+  const handleExecuteRegenerate = async () => {
     if (!selectedGoal) return;
     setIsWorkspaceDecomposing(true);
+
+    const effectiveTf =
+      regenTimeframe === "custom" && regenCustomTimeframe.trim()
+        ? regenCustomTimeframe.trim()
+        : regenTimeframe;
+
     try {
       const res = await queryMindApi.recommendGoalTasks({
         goal_description: selectedGoal.description,
         space_id: selectedGoal.space_id || undefined,
         category: selectedGoal.category,
-        timeframe: selectedGoal.timeframe || selectedGoal.target_date || "2 weeks",
+        timeframe: effectiveTf,
+        daily_commitment: regenDailyCommitment,
+        learning_style: "hands_on",
       });
 
       if (res && Array.isArray(res.suggested_tasks) && res.suggested_tasks.length > 0) {
-        const existingTasks = selectedGoal.tasks || [];
-        const existingTitles = new Set(existingTasks.map((t) => t.title.toLowerCase().trim()));
+        const newTasks: GoalTask[] = res.suggested_tasks.map((st, i) => ({
+          id: `task-${Date.now()}-${i}`,
+          title: st.title,
+          sub_goal: st.sub_goal || "Core Objectives",
+          completed: false,
+          priority: (st.priority as any) || "medium",
+          estimated_time: st.estimated_time,
+          time_phase: st.time_phase,
+          deliverable: st.deliverable,
+          tools: st.tools || [],
+          reasoning: st.reasoning,
+        }));
 
-        const newTasks: GoalTask[] = res.suggested_tasks
-          .filter((st) => !existingTitles.has(st.title.toLowerCase().trim()))
-          .map((st, i) => ({
-            id: `task-${Date.now()}-${i}`,
-            title: st.title,
-            sub_goal: st.sub_goal || "Core Objectives",
-            completed: false,
-            priority: (st.priority as any) || "medium",
-            estimated_time: st.estimated_time,
-            time_phase: st.time_phase,
-            deliverable: st.deliverable,
-            tools: st.tools || [],
-            reasoning: st.reasoning,
-          }));
-
-        if (newTasks.length > 0) {
-          const combined = [...existingTasks, ...newTasks];
-          const updated = await queryMindApi.updateGoal(selectedGoal.id, {
-            tasks: combined,
-          });
-          setGoals((prev) => prev.map((g) => (g.id === selectedGoal.id ? updated : g)));
-          setSelectedGoal(updated);
-        } else {
-          alert("All recommended tasks are already in this goal.");
-        }
+        const updated = await queryMindApi.updateGoal(selectedGoal.id, {
+          tasks: newTasks,
+          timeframe: effectiveTf,
+        });
+        setGoals((prev) => prev.map((g) => (g.id === selectedGoal.id ? updated : g)));
+        setSelectedGoal(updated);
+        setIsRegenerateModalOpen(false);
       }
     } catch (err: any) {
-      alert("Failed to decompose tasks: " + (err.message || err));
+      alert("Failed to regenerate roadmap: " + (err.message || err));
     } finally {
       setIsWorkspaceDecomposing(false);
     }
@@ -610,6 +627,11 @@ function GoalsPageContent() {
   // Select a goal to enter focus workspace
   const handleSelectGoal = (goal: GoalData) => {
     setSelectedGoal(goal);
+    if (goal.timeframe) {
+      setRegenTimeframe(goal.timeframe);
+    } else {
+      setRegenTimeframe("2 weeks");
+    }
     setCopilotMessages([
       {
         role: "assistant",
@@ -760,6 +782,7 @@ Include:
         category: newGoalCategory,
         timeframe: effectiveTf,
         target_date: newGoalTargetDate || undefined,
+        daily_commitment: newGoalDailyCommitment,
         learning_style: newGoalLearningStyle,
       });
 
@@ -774,35 +797,11 @@ Include:
           tools: t.tools || [],
           reasoning: t.reasoning,
         }));
-        setStagedTasks((prev) => [...prev, ...newTasks]);
+        setStagedTasks(newTasks);
       }
     } catch (err: any) {
-      const defaultTime = effectiveTf.toLowerCase().includes("day") ? "~1.5 hrs" : "~3 hrs";
-      setStagedTasks((prev) => [
-        {
-          title: `Conduct space document audit for ${newGoalDesc.slice(0, 30)}`,
-          sub_goal: "Phase 1: Foundations",
-          priority: "high",
-          estimated_time: defaultTime,
-          deliverable: "Audit document index and architecture specs",
-          tools: ["DocSearch"],
-        },
-        {
-          title: `Implement core prototype workflow`,
-          sub_goal: "Phase 2: Execution",
-          priority: "medium",
-          estimated_time: defaultTime,
-          deliverable: "Working functional deliverable verified locally",
-          tools: ["CLI"],
-        },
-        {
-          title: `Validate deliverable outcomes`,
-          sub_goal: "Phase 3: Validation",
-          priority: "low",
-          estimated_time: "~1 hr",
-          deliverable: "Test checklist verified",
-        },
-      ]);
+      console.error("AI breakdown failed:", err);
+      alert("AI Roadmap Generation Error: " + (err.message || "Unable to generate tasks. Please try again."));
     } finally {
       setIsDecomposingWithAi(false);
     }
@@ -1004,25 +1003,29 @@ Include:
               </span>
             )}
 
-            {(selectedGoal.timeframe || selectedGoal.target_date) && (
-              <span
-                style={{
-                  fontSize: "11px",
-                  padding: "3px 8px",
-                  borderRadius: "6px",
-                  fontWeight: 600,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  background: "rgba(59, 130, 246, 0.12)",
-                  color: "#60a5fa",
-                  border: "1px solid rgba(59, 130, 246, 0.25)",
-                }}
-              >
-                <Calendar size={11} />
-                <span>{selectedGoal.timeframe || selectedGoal.target_date}</span>
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={handleOpenRegenerateModal}
+              style={{
+                fontSize: "11px",
+                padding: "3px 8px",
+                borderRadius: "6px",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "rgba(59, 130, 246, 0.12)",
+                color: "#60a5fa",
+                border: "1px solid rgba(59, 130, 246, 0.25)",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              className="hover:bg-[rgba(59,130,246,0.22)]"
+              title="Click to recalibrate timeframe & daily dedication"
+            >
+              <Calendar size={11} />
+              <span>{selectedGoal.timeframe || selectedGoal.target_date || "⏱️ 2 Weeks"}</span>
+            </button>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1237,7 +1240,7 @@ Include:
 
                   <button
                     type="button"
-                    onClick={handleWorkspaceDecompose}
+                    onClick={handleOpenRegenerateModal}
                     disabled={isWorkspaceDecomposing}
                     style={{
                       padding: "6px 12px",
@@ -1254,8 +1257,20 @@ Include:
                     }}
                     className="hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"
                   >
-                    <Bot size={13} className={isWorkspaceDecomposing ? "animate-spin" : ""} />
-                    <span>{isWorkspaceDecomposing ? "Decomposing..." : "AI Decompose"}</span>
+                    {isWorkspaceDecomposing ? (
+                      <RefreshCw size={13} className="animate-spin" />
+                    ) : (selectedGoal.tasks || []).length > 0 ? (
+                      <RefreshCw size={13} />
+                    ) : (
+                      <Bot size={13} />
+                    )}
+                    <span>
+                      {isWorkspaceDecomposing
+                        ? "Regenerating..."
+                        : (selectedGoal.tasks || []).length > 0
+                        ? "Regenerate Roadmap"
+                        : "AI Decompose"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1396,38 +1411,60 @@ Include:
                       {!isCollapsed && (
                         <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
                           {subGoalTasks.length > 0 ? (
-                            subGoalTasks.map((task) => (
-                              <div
-                                key={task.id}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "10px",
-                                  padding: "9px 12px",
-                                  borderRadius: "8px",
-                                  background: "var(--surface-primary)",
-                                  border: "1px solid var(--border-subtle)",
-                                }}
-                              >
-                                <button
-                                  onClick={() => handleToggleSubTask(selectedGoal, task.id)}
+                            subGoalTasks.map((task) => {
+                              const isExpanded = expandedTaskId === task.id;
+                              const hasDetails = Boolean(task.deliverable || (task.tools && task.tools.length > 0));
+
+                              return (
+                                <div
+                                  key={task.id}
+                                  className="group"
                                   style={{
-                                    background: "none",
-                                    border: "none",
-                                    padding: 0,
-                                    cursor: "pointer",
-                                    color: task.completed ? "#10b981" : "var(--text-tertiary)",
-                                    display: "flex",
-                                    alignItems: "center",
+                                    borderRadius: "8px",
+                                    background: isExpanded ? "var(--surface-secondary)" : "var(--surface-primary)",
+                                    border: isExpanded ? "1px solid var(--border-medium)" : "1px solid var(--border-subtle)",
+                                    transition: "all 0.15s ease",
+                                    overflow: "hidden",
                                   }}
                                 >
-                                  {task.completed ? <CheckSquare size={16} /> : <Square size={16} />}
-                                </button>
+                                  {/* Main Single Clean Row */}
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "10px",
+                                      padding: "8px 12px",
+                                      cursor: hasDetails ? "pointer" : "default",
+                                    }}
+                                    onClick={() => {
+                                      if (hasDetails) {
+                                        setExpandedTaskId(isExpanded ? null : task.id);
+                                      }
+                                    }}
+                                  >
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleSubTask(selectedGoal, task.id);
+                                      }}
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        padding: 0,
+                                        cursor: "pointer",
+                                        color: task.completed ? "#10b981" : "var(--text-tertiary)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {task.completed ? <CheckSquare size={16} /> : <Square size={16} />}
+                                    </button>
 
-                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "3px" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                                     <span
                                       style={{
+                                        flex: 1,
+                                        minWidth: 0,
                                         fontSize: "13px",
                                         fontWeight: 500,
                                         color: task.completed ? "var(--text-tertiary)" : "var(--text-primary)",
@@ -1437,112 +1474,131 @@ Include:
                                     >
                                       {task.title}
                                     </span>
-                                    {task.tools && task.tools.length > 0 && task.tools.map((tool, tIdx) => (
+
+                                    {task.estimated_time && (
                                       <span
-                                        key={tIdx}
                                         style={{
-                                          fontSize: "10px",
-                                          padding: "1px 6px",
-                                          borderRadius: "4px",
-                                          background: "rgba(99, 102, 241, 0.12)",
-                                          color: "#818cf8",
-                                          border: "1px solid rgba(99, 102, 241, 0.25)",
-                                          fontWeight: 600,
+                                          fontSize: "11px",
+                                          color: "var(--text-tertiary)",
+                                          whiteSpace: "nowrap",
+                                          flexShrink: 0,
                                         }}
                                       >
-                                        {tool}
+                                        {task.estimated_time}
                                       </span>
-                                    ))}
+                                    )}
+
+                                    {hasDetails && (
+                                      <span
+                                        style={{
+                                          color: "var(--text-tertiary)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          flexShrink: 0,
+                                          transition: "transform 0.15s ease",
+                                          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                                        }}
+                                      >
+                                        <ChevronDown size={14} />
+                                      </span>
+                                    )}
+
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSubTask(task.id);
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400"
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        padding: 0,
+                                        color: "var(--text-tertiary)",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        flexShrink: 0,
+                                        marginLeft: "4px",
+                                      }}
+                                      title="Delete task"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
                                   </div>
-                                  {task.deliverable && (
-                                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                                      <span>🎯</span>
-                                      <span>{task.deliverable}</span>
-                                    </span>
+
+                                  {/* Expanded Drawer for Deliverables & Guide */}
+                                  {isExpanded && (
+                                    <div
+                                      style={{
+                                        padding: "8px 12px 10px 38px",
+                                        borderTop: "1px solid var(--border-subtle)",
+                                        background: "rgba(0, 0, 0, 0.08)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "8px",
+                                      }}
+                                    >
+                                      {task.deliverable && (
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: "6px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                                          <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--accent)" }}>Output:</span>
+                                          <span>{task.deliverable}</span>
+                                        </div>
+                                      )}
+
+                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                                        {task.tools && task.tools.length > 0 && (
+                                          <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
+                                            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", fontWeight: 500 }}>Tools:</span>
+                                            {task.tools.map((tool, tIdx) => (
+                                              <span
+                                                key={tIdx}
+                                                style={{
+                                                  fontSize: "10px",
+                                                  padding: "1px 6px",
+                                                  borderRadius: "4px",
+                                                  background: "rgba(99, 102, 241, 0.12)",
+                                                  color: "#818cf8",
+                                                  fontWeight: 500,
+                                                }}
+                                              >
+                                                {tool}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            triggerTaskQuickstart(task);
+                                          }}
+                                          disabled={isSendingCopilot}
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            padding: "4px 8px",
+                                            borderRadius: "6px",
+                                            background: "rgba(245, 158, 11, 0.1)",
+                                            border: "1px solid rgba(245, 158, 11, 0.2)",
+                                            color: "#fbbf24",
+                                            fontSize: "11px",
+                                            fontWeight: 500,
+                                            cursor: isSendingCopilot ? "not-allowed" : "pointer",
+                                            marginLeft: "auto",
+                                          }}
+                                          className="hover:bg-[rgba(245,158,11,0.2)]"
+                                        >
+                                          <Zap size={11} />
+                                          <span>3-Min Quickstart Guide</span>
+                                        </button>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
-
-                                {task.priority && (
-                                  <span
-                                    style={{
-                                      fontSize: "10px",
-                                      padding: "2px 5px",
-                                      borderRadius: "4px",
-                                      textTransform: "uppercase",
-                                      fontWeight: 600,
-                                      color:
-                                        task.priority === "high"
-                                          ? "#f87171"
-                                          : task.priority === "medium"
-                                          ? "var(--accent)"
-                                          : "var(--text-tertiary)",
-                                      background: "rgba(255, 255, 255, 0.04)",
-                                    }}
-                                  >
-                                    {task.priority}
-                                  </span>
-                                )}
-
-                                {task.estimated_time && (
-                                  <span
-                                    style={{
-                                      fontSize: "10px",
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      fontWeight: 500,
-                                      color: "var(--text-secondary)",
-                                      background: "var(--surface-secondary)",
-                                      border: "1px solid var(--border-subtle)",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "3px",
-                                    }}
-                                  >
-                                    ⏱️ {task.estimated_time}
-                                  </span>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={() => triggerTaskQuickstart(task)}
-                                  disabled={isSendingCopilot}
-                                  title="Get 3-min AI Quickstart Cheat Sheet & Practice Lab for this task"
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    padding: "3px 8px",
-                                    borderRadius: "6px",
-                                    background: "rgba(245, 158, 11, 0.12)",
-                                    border: "1px solid rgba(245, 158, 11, 0.28)",
-                                    color: "#fbbf24",
-                                    fontSize: "11px",
-                                    fontWeight: 600,
-                                    cursor: isSendingCopilot ? "not-allowed" : "pointer",
-                                    transition: "all 0.15s ease",
-                                  }}
-                                  className="hover:bg-[rgba(245,158,11,0.22)]"
-                                >
-                                  <Zap size={11} />
-                                  <span>Guide</span>
-                                </button>
-
-                                <button
-                                  onClick={() => handleDeleteSubTask(task.id)}
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    padding: 0,
-                                    color: "var(--text-tertiary)",
-                                    cursor: "pointer",
-                                  }}
-                                  className="hover:text-red-400"
-                                  title="Delete task"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <p style={{ fontSize: "12px", color: "var(--text-tertiary)", fontStyle: "italic", margin: "4px 0" }}>
                               No tasks in this sub-goal yet.
@@ -1837,6 +1893,220 @@ Include:
             </form>
           </div>
         </div>
+
+        {/* Regenerate Roadmap Calibration Modal */}
+        {isRegenerateModalOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0, 0, 0, 0.75)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 100,
+              padding: "20px",
+            }}
+            onClick={() => !isWorkspaceDecomposing && setIsRegenerateModalOpen(false)}
+          >
+            <div
+              style={{
+                background: "var(--surface-primary)",
+                border: "1px solid var(--border-medium)",
+                borderRadius: "16px",
+                width: "100%",
+                maxWidth: "540px",
+                padding: "24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px",
+                boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                    Recalibrate & Regenerate Roadmap
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: "4px 0 0 0" }}>
+                    Calibrate your duration and daily commitment. AI will sequence a prerequisite-true roadmap.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRegenerateModalOpen(false)}
+                  disabled={isWorkspaceDecomposing}
+                  style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: "4px" }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Target Duration */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    Target Duration
+                  </label>
+                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                    Total span of the objective
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                  {[
+                    { id: "1 week", label: "1 Week", sub: "Fast Sprint" },
+                    { id: "2 weeks", label: "2 Weeks", sub: "Standard Pace" },
+                    { id: "1 month", label: "1 Month", sub: "Deep Focus (4 Wks)" },
+                    { id: "2 months", label: "2 Months", sub: "Curriculum Paced" },
+                    { id: "3 months", label: "3 Months", sub: "Comprehensive" },
+                    { id: "custom", label: "Custom", sub: "Specific Duration" },
+                  ].map((preset) => {
+                    const isSelected = regenTimeframe === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setRegenTimeframe(preset.id);
+                          if (preset.id !== "custom") setRegenCustomTimeframe("");
+                        }}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          background: isSelected ? "var(--accent-soft)" : "var(--surface-secondary)",
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-subtle)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>
+                          {preset.label}
+                        </div>
+                        <div style={{ fontSize: "10px", color: isSelected ? "var(--accent)" : "var(--text-tertiary)", marginTop: "2px" }}>
+                          {preset.sub}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {regenTimeframe === "custom" && (
+                  <div style={{ marginTop: "8px" }}>
+                    <input
+                      type="text"
+                      placeholder="Enter duration (e.g. 45 days, 4 months)..."
+                      value={regenCustomTimeframe}
+                      onChange={(e) => setRegenCustomTimeframe(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--surface-secondary)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-primary)",
+                        fontSize: "12px",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Daily Commitment / Bandwidth */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    Daily Dedication
+                  </label>
+                  <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                    Hours available per day
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                  {[
+                    { id: "1-2 hrs/day", label: "☕ 1–2 hrs / day", sub: "Balanced / Working" },
+                    { id: "3-4 hrs/day", label: "⚡ 3–4 hrs / day", sub: "Focused Sprint" },
+                    { id: "6-8 hrs/day", label: "🔥 6–8 hrs / day", sub: "Bootcamp Mode" },
+                  ].map((tier) => {
+                    const isSelected = regenDailyCommitment === tier.id;
+                    return (
+                      <button
+                        key={tier.id}
+                        type="button"
+                        onClick={() => setRegenDailyCommitment(tier.id)}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          background: isSelected ? "var(--accent-soft)" : "var(--surface-secondary)",
+                          border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border-subtle)",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>
+                          {tier.label}
+                        </div>
+                        <div style={{ fontSize: "10px", color: isSelected ? "var(--accent)" : "var(--text-tertiary)", marginTop: "2px" }}>
+                          {tier.sub}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Confirmation warning note */}
+              <div style={{ fontSize: "11px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
+                💡 <em>Regenerating replaces the current task list with a clean, prerequisite-true curriculum matching your total available hours budget.</em>
+              </div>
+
+              {/* Footer Buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsRegenerateModalOpen(false)}
+                  disabled={isWorkspaceDecomposing}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    background: "transparent",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteRegenerate}
+                  disabled={isWorkspaceDecomposing}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    background: "var(--accent)",
+                    border: "none",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: isWorkspaceDecomposing ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  {isWorkspaceDecomposing && <RefreshCw size={13} className="animate-spin" />}
+                  <span>{isWorkspaceDecomposing ? "Generating Paced Plan..." : "Regenerate Roadmap"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2746,29 +3016,29 @@ Include:
                 )}
               </div>
 
-              {/* Execution Style Selector */}
+              {/* Daily Dedication Selector */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
                   <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                    Execution Style & Methodology
+                    Daily Dedication / Bandwidth
                   </label>
                   <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                    Calibrates tasks to be hands-on or conceptual
+                    Calibrates topic depth and prerequisite ladder
                   </span>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
                   {[
-                    { id: "hands_on", label: "🛠️ Hands-On Labs", sub: "Tools, CTFs & zero fluff" },
-                    { id: "fast_track", label: "⚡ 80/20 Fast Track", sub: "Top 20% high-yield essentials" },
-                    { id: "academic", label: "📚 Deep Academic", sub: "Conceptual rigor & architecture" },
-                  ].map((style) => {
-                    const isSelected = newGoalLearningStyle === style.id;
+                    { id: "1-2 hrs/day", label: "☕ 1–2 hrs / day", sub: "Balanced / Working pace" },
+                    { id: "3-4 hrs/day", label: "⚡ 3–4 hrs / day", sub: "Focused accelerated sprint" },
+                    { id: "6-8 hrs/day", label: "🔥 6–8 hrs / day", sub: "Bootcamp / Full-time immersion" },
+                  ].map((tier) => {
+                    const isSelected = newGoalDailyCommitment === tier.id;
                     return (
                       <button
-                        key={style.id}
+                        key={tier.id}
                         type="button"
-                        onClick={() => setNewGoalLearningStyle(style.id as any)}
+                        onClick={() => setNewGoalDailyCommitment(tier.id)}
                         style={{
                           padding: "8px 10px",
                           borderRadius: "8px",
@@ -2780,10 +3050,10 @@ Include:
                         }}
                       >
                         <div style={{ fontSize: "11px", fontWeight: 600, color: isSelected ? "var(--accent)" : "var(--text-primary)" }}>
-                          {style.label}
+                          {tier.label}
                         </div>
                         <div style={{ fontSize: "10px", color: isSelected ? "var(--accent)" : "var(--text-tertiary)", marginTop: "2px" }}>
-                          {style.sub}
+                          {tier.sub}
                         </div>
                       </button>
                     );
@@ -2921,47 +3191,25 @@ Include:
                           color: "var(--text-primary)",
                         }}
                       >
-                        <div style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <span style={{ fontSize: "10px", color: "var(--accent)", background: "var(--accent-soft)", padding: "1px 5px", borderRadius: "4px" }}>
-                              {t.sub_goal}
-                            </span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {t.title}
-                            </span>
-                            {t.tools && t.tools.length > 0 && t.tools.map((tool, toolIdx) => (
-                              <span
-                                key={toolIdx}
-                                style={{
-                                  fontSize: "9px",
-                                  padding: "1px 5px",
-                                  borderRadius: "4px",
-                                  background: "rgba(99, 102, 241, 0.12)",
-                                  color: "#818cf8",
-                                  border: "1px solid rgba(99, 102, 241, 0.25)",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {tool}
-                              </span>
-                            ))}
-                            {t.estimated_time && (
-                              <span style={{ fontSize: "10px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", border: "1px solid var(--border-subtle)", padding: "1px 5px", borderRadius: "4px", marginLeft: "auto", whiteSpace: "nowrap" }}>
-                                ⏱️ {t.estimated_time}
-                              </span>
-                            )}
-                          </div>
-                          {t.deliverable && (
-                            <span style={{ fontSize: "10px", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                              <span>🎯</span>
-                              <span>{t.deliverable}</span>
-                            </span>
-                          )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: "10px", color: "var(--accent)", background: "var(--accent-soft)", padding: "1px 6px", borderRadius: "4px", flexShrink: 0 }}>
+                            {t.sub_goal}
+                          </span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                            {t.title}
+                          </span>
                         </div>
+                        {t.estimated_time && (
+                          <span style={{ fontSize: "10px", color: "var(--text-tertiary)", whiteSpace: "nowrap", flexShrink: 0, marginLeft: "8px" }}>
+                            {t.estimated_time}
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => setStagedTasks((prev) => prev.filter((_, i) => i !== idx))}
-                          style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", marginLeft: "6px" }}
+                          style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", marginLeft: "6px", display: "flex", alignItems: "center" }}
+                          className="hover:text-red-400"
+                          title="Remove task"
                         >
                           <X size={12} />
                         </button>

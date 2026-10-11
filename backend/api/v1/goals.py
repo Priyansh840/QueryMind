@@ -75,6 +75,7 @@ class RecommendTasksRequest(BaseModel):
     timeframe: Optional[str] = None  # e.g. "3 days", "1 week", "2 weeks", "1 month", "3 months", "6 months"
     target_date: Optional[str] = None
     learning_style: Optional[str] = "hands_on"  # "hands_on", "fast_track", "academic"
+    daily_commitment: Optional[str] = "2 hrs/day"  # e.g. "1-2 hrs/day", "3-4 hrs/day", "6-8 hrs/day"
 
 
 class RecommendedTaskItem(BaseModel):
@@ -565,6 +566,7 @@ async def recommend_goal_tasks(
     rag_context = "\n---\n".join(context_snippets) if context_snippets else "No directly matching workspace documents found for this goal."
 
     effective_timeframe = (request.timeframe or request.target_date or "Flexible pace (approx. 2-3 weeks)").strip()
+    daily_commitment = (request.daily_commitment or "2 hrs/day").strip()
     learning_style = (request.learning_style or "hands_on").lower()
 
     if learning_style == "hands_on":
@@ -590,54 +592,96 @@ async def recommend_goal_tasks(
         )
 
     system_prompt = (
-        "You are an elite strategic curriculum architect and technical mentor for QueryMind.\n"
-        "Your task is to decompose a high-level goal statement into 3 to 4 tightly-scoped, 100% reasonable SUB-GOALS (Milestones/Phases), "
-        "and assign 2 to 3 bite-sized, specific actionable tasks strictly related to each sub-goal.\n\n"
+        "You are an elite principal technical curriculum architect and real-world mentor for QueryMind.\n"
+        "Your mission is to decompose a user's high-level goal into an authentic, highly practical, end-to-end LEARNING & EXECUTION ROADMAP.\n"
+        "Every phase, sub-goal, task, and time estimate MUST BE 100% REALISTIC, RIGOROUS, AND GROUNDED IN REAL-WORLD ENGINEERING TIMELINES.\n\n"
         f"{style_directive}\n"
-        "CRITICAL TIME-PACING REQUIREMENT:\n"
-        f"The user has specified an overall timeframe of: '{effective_timeframe}'.\n"
-        "All generated sub-goals and tasks MUST strictly reflect this timeframe in their structure, pacing, and time estimates:\n"
-        "1. For Short Timeframes (e.g. 1 to 5 days, Crash Sprint):\n"
-        "   - Break down sub-goals day-by-day (e.g. 'Day 1: Foundations & Architecture', 'Day 2: Core Implementation', 'Day 3: Testing & Delivery').\n"
-        "   - Tasks must have tight, realistic hour estimates ('~1 hr', '~2 hrs', '~3 hrs').\n"
-        "   - 'time_phase' should be 'Day 1', 'Day 2', etc.\n"
-        "2. For Medium Timeframes (e.g. 1 to 4 weeks):\n"
-        "   - Break down sub-goals week-by-week (e.g. 'Week 1: Core Fundamentals', 'Week 2: Advanced Techniques', 'Week 3: Production Polish').\n"
-        "   - Tasks must have session estimates ('~3-4 hrs', '~1 day').\n"
-        "   - 'time_phase' should be 'Week 1', 'Week 2', etc.\n"
-        "3. For Long Timeframes (e.g. 2 to 6 months):\n"
-        "   - Break down sub-goals into monthly/strategic phases (e.g. 'Phase 1 (Month 1): Core Competency', 'Phase 2 (Month 2): Production Mastery').\n"
-        "   - Tasks must have phase estimates ('~2-3 days', '~1 week').\n"
-        "   - 'time_phase' should be 'Phase 1', 'Phase 2', etc.\n\n"
-        "STRICT SUB-GOAL & TASK SCOPING RULES:\n"
-        "1. PERFECT COHESION (ZERO TOPIC LEAKAGE):\n"
-        "   - Tasks inside a sub-goal MUST exclusively belong to that sub-goal's concept.\n"
-        "2. CONCRETE & ACTIONABLE:\n"
-        "   - Keep task titles concise, concrete, and high-impact (3 to 8 words).\n"
-        "3. NO REDUNDANT/DUPLICATE TASKS:\n"
-        "   - Do NOT create multiple tasks that mean the same thing. Give each task a unique, crisp focus.\n"
-        "4. STRUCTURED SCHEMA:\n"
-        "   Return ONLY a valid JSON object matching this schema:\n"
-        "   {\n"
-        '     "tasks": [\n'
-        '       {\n'
-        '         "sub_goal": "Sub-Goal Name (e.g. Week 1: Network & Protocol Defense)",\n'
-        '         "title": "Bite-sized Actionable Task Title",\n'
-        '         "priority": "high"|"medium"|"low",\n'
-        '         "estimated_time": "~2 hrs",\n'
-        '         "time_phase": "Week 1",\n'
-        '         "deliverable": "Measurable proof of completion (e.g. Filter SYN/ACK pcap packets on port 80)",\n'
-        '         "tools": ["Wireshark", "Nmap"],\n'
-        '         "reasoning": "Crisp 1-sentence value explanation"\n'
-        '       }\n'
-        "     ]\n"
-        "   }\n"
-        "   Do NOT wrap in markdown formatting or code blocks."
+        "CORE ARCHITECTURAL PRINCIPLES (ZERO COMPROMISES ON REALISM):\n"
+        "1. FULL CALENDAR COVERAGE (ABSOLUTELY ZERO ABANDONED WEEKS OR GHOST DAYS):\n"
+        f"   - Total Timeframe: '{effective_timeframe}'\n"
+        f"   - User Daily Dedication: '{daily_commitment}'\n"
+        "   - CALENDAR SPAN INVARIANT: The generated sub-goals and tasks MUST span the ENTIRE chronological duration of the goal from start to finish!\n"
+        "     * If the timeframe is ~1 Month (4 weeks / 30 days):\n"
+        "       You MUST create 4 distinct, consecutive weekly Sub-Goals spanning the full month:\n"
+        "         - 'Week 1: [Core Foundations & Initial Mechanics]'\n"
+        "         - 'Week 2: [Intermediate Patterns & Practical Drills]'\n"
+        "         - 'Week 3: [Advanced Implementations & Complex Architectures]'\n"
+        "         - 'Week 4: [Real-world System Integration & Portfolio Capstone]'\n"
+        "       Each week MUST contain 3 to 4 actionable, focused tasks that account for that week's work.\n"
+        "       DO NOT stop after Week 1 and leave Weeks 2, 3, 4 empty! The user must receive a complete, unbroken 4-week roadmap.\n"
+        "     * If the timeframe is ~2 Weeks (14 days):\n"
+        "       You MUST create 2 distinct weekly Sub-Goals ('Week 1: ...', 'Week 2: ...') with 3 to 4 tasks each covering all 14 days.\n"
+        "     * If the timeframe is ~3 Months (or multi-month):\n"
+        "       You MUST create 3 comprehensive monthly Sub-Goals ('Phase 1 (Month 1): ...', 'Phase 2 (Month 2): ...', 'Phase 3 (Month 3): ...') covering the full 90-day trajectory.\n"
+        "       Assign 4 to 5 substantial milestone tasks per monthly phase (total 12 to 15 flagship deliverables across the entire roadmap) to maintain strategic clarity.\n"
+        "     * If the timeframe is a Short Sprint (1 to 7 days):\n"
+        "       Break down day-by-day ('Day 1: ...', 'Day 2: ...', etc.) accounting for every scheduled day.\n\n"
+        "   - GLOBAL TASK COUNT ENVELOPE: Regardless of duration, generate between 12 to 16 total high-impact tasks across all sub-goals so the roadmap is exhaustive yet razor-focused and executes promptly without bloat.\n\n"
+        "2. ORGANIC EFFORT & TIME DERIVATION (ZERO HARDCODED NUMBER TEMPLATES):\n"
+        "   - Calculate the user's available time budget: (Days in Phase) × (Daily Dedication Hours).\n"
+        "     * For example, at 2 hrs/day, 1 week = ~14 hours of focused work.\n"
+        "     * At 6 hrs/day, 1 week = ~42 hours of deep work (allowing much faster progression and higher task density).\n"
+        "   - Derive each task's 'estimated_time' organically based on how long that real engineering topic actually takes an engineer to absorb and implement:\n"
+        "     * For daily/weekly sprints: realistic session times such as '~2 hrs', '~3.5 hrs', '~4 hrs', '~1.5 hrs'.\n"
+        "     * For multi-day projects: realistic project windows such as '2 days (~4 hrs)', '3 days (~8 hrs)'.\n"
+        "     * The tasks within each Sub-Goal must collectively match the user's available bandwidth for that phase.\n"
+        "   - NO ARBITRARY FORMULAS: Do NOT force rigid repetitive splits (e.g. no fake '2, 2, 3' day templates). Durations must feel authentic to the subject matter.\n\n"
+        "3. STRICT REAL-WORLD PREREQUISITE LADDERS (NO IMPOSSIBLE COGNITIVE LEAPS):\n"
+        "   - NEVER skip foundational prerequisite tiers within a technical domain!\n"
+        "   - Strictly use ONLY modern 2026 industry-standard technologies. Banish obsolete/toy libraries (e.g. NEVER suggest PyKnow, Theano, or outdated tools).\n"
+        "   - In Data Structures & Algorithms (DSA):\n"
+        "     * Step 1: Linear Arrays & Two Pointers (Two Sum II, 3Sum, Container With Most Water, Trapping Rain Water)\n"
+        "     * Step 2: Sliding Window (Variable & Fixed size) & HashMaps / Frequency Tables\n"
+        "     * Step 3: Prefix Sums & Binary Search (on Sorted Arrays and Monotonic Answer Spaces)\n"
+        "     * Step 4: Stacks (Monotonic Stack patterns) & Linked Lists\n"
+        "     * Step 5: Recursion, Backtracking & Binary Trees (BFS/DFS Traversals, BSTs)\n"
+        "     * Step 6: Heaps / Priority Queues & Graph Algorithms (BFS/DFS, Topological Sort, Shortest Path)\n"
+        "     * Step 7: Dynamic Programming (Memoization -> 1D Tabulation -> 2D Grid DP)\n"
+        "     NEVER jump straight from Two Pointers to Graphs or DP in Week 1! Follow the natural cognitive ladder.\n"
+        "   - In Machine Learning & AI Engineering:\n"
+        "     * Step 1: Vectorized Data Wrangling & Analysis (NumPy matrix operations, Pandas data cleaning, Exploratory Data Analysis with Matplotlib/Seaborn)\n"
+        "     * Step 2: Classical Machine Learning (Scikit-Learn: Regression, Decision Trees, Random Forests, XGBoost, Cross-Validation, ROC-AUC)\n"
+        "     * Step 3: Deep Learning Core (PyTorch: Tensors, Autograd, Custom Datasets, MLP & CNN/Transformer architectures)\n"
+        "     * Step 4: Production Deployment & Inference (FastAPI model serving, Docker containerization, Vector DB / RAG integration)\n"
+        "     NEVER put Graph search algorithms in Tier 1 data foundations, and NEVER use obsolete tools!\n"
+        "   - In Full Stack & Backend Engineering:\n"
+        "     * Step 1: Application Architecture, REST/GraphQL API Contracts & Data Validation\n"
+        "     * Step 2: Relational Databases, Schema Migrations, Indexing & ACID Transactions\n"
+        "     * Step 3: Caching Layers (Redis), Authentication (JWT/OAuth), Rate Limiting\n"
+        "     * Step 4: Asynchronous Task Queues (Celery/BullMQ/Kafka) & Background Processing\n"
+        "     * Step 5: Containerization (Docker), CI/CD & Cloud Production Deployment\n"
+        "   - In Cybersecurity:\n"
+        "     * Step 1: Linux CLI, TCP/IP, OSI Model, Packet Sniffing & Analysis (Wireshark)\n"
+        "     * Step 2: Network Reconnaissance, Port Scanning (Nmap), Service Enumeration\n"
+        "     * Step 3: Web Security Foundations, HTTP Headers, OWASP Top 10 (SQLi, XSS, CSRF)\n"
+        "     * Step 4: Authentication Bypass & Burp Suite Proxy Interception\n"
+        "     * Step 5: Exploitation Drills, Privilege Escalation & Defensive Hardening\n\n"
+        "4. TANGIBLE DELIVERABLES & REAL TOOLS:\n"
+        "   - Every task MUST produce a verifiable deliverable (code written, problem solved, pipeline deployed, audit verified).\n"
+        "   - Every task MUST specify real modern tools in the 'tools' array.\n\n"
+        "SCHEMA SPECIFICATION:\n"
+        "Return ONLY a valid JSON object matching this schema:\n"
+        "{\n"
+        '  "tasks": [\n'
+        '    {\n'
+        '      "sub_goal": "Sub-Goal Name (e.g. Week 1: Linear Structures & Two-Pointer Mastery)",\n'
+        '      "title": "Concise Actionable Task Title",\n'
+        '      "priority": "high"|"medium"|"low",\n'
+        '      "estimated_time": "~3 hrs",\n'
+        '      "time_phase": "Week 1",\n'
+        '      "deliverable": "Verifiable outcome (e.g. Solve 5 Two-Pointer LeetCode mediums in Python with O(1) space)",\n'
+        '      "tools": ["LeetCode", "Python3"],\n'
+        '      "reasoning": "Crisp 1-sentence pedagogical justification"\n'
+        '    }\n'
+        '  ]\n'
+        "}\n"
+        "Do NOT wrap in markdown formatting or code blocks."
     )
 
     user_prompt = (
         f"Goal Objective: {request.goal_description}\n"
         f"Allocated Timeframe: {effective_timeframe}\n"
+        f"Daily Dedication Budget: {daily_commitment}\n"
         f"Learning Execution Style: {learning_style}\n"
         f"Domain Category: {request.category or 'General'}\n\n"
         f"Relevant Knowledge Base Context from User Workspace:\n{rag_context}\n\n"
@@ -646,24 +690,27 @@ async def recommend_goal_tasks(
 
     suggested_tasks: List[RecommendedTaskItem] = []
 
-    # Strategy 1: Dynamic LLM Generation with fastest available candidates
+    # Dynamic LLM Generation with available models and generous timeout
     import re
     import google.generativeai as genai
     from core.config import settings
     
     genai.configure(api_key=settings.GEMINI_API_KEY)
     gemini_candidates = [
-        "gemini-flash-lite-latest",
-        "gemini-3.1-flash-lite",
-        "gemini-3.5-flash-lite",
-        "gemini-3-flash-preview",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest",
+        "gemini-3-flash-preview",
     ]
 
     full_prompt = (
         f"{system_prompt}\n\n"
         f"Goal: {request.goal_description}\n"
         f"Allocated Timeframe: {effective_timeframe}\n"
+        f"Daily Dedication Budget: {daily_commitment}\n"
         f"Learning Execution Style: {learning_style}\n"
         f"Category: {request.category or 'General'}\n"
         f"Relevant Context:\n{rag_context}\n\n"
@@ -672,12 +719,14 @@ async def recommend_goal_tasks(
 
     for model_name in gemini_candidates:
         try:
-            logger.info(f"Attempting task recommendation using Gemini model: {model_name} for timeframe: {effective_timeframe} style: {learning_style}")
-            gen_model = genai.GenerativeModel(model_name=model_name)
-            # Run synchronous generate_content in thread pool with 12s timeout
+            logger.info(f"Attempting task recommendation using Gemini model: {model_name} for timeframe: {effective_timeframe} dedication: {daily_commitment}")
+            gen_model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config={"response_mime_type": "application/json", "temperature": 0.25}
+            )
             response = await asyncio.wait_for(
                 asyncio.to_thread(gen_model.generate_content, full_prompt),
-                timeout=12.0,
+                timeout=30.0,
             )
             direct_text = response.text.strip()
             
@@ -686,7 +735,12 @@ async def recommend_goal_tasks(
             if match:
                 direct_text = match.group(0)
 
-            parsed = json.loads(direct_text)
+            try:
+                parsed = json.loads(direct_text, strict=False)
+            except Exception:
+                clean_text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", direct_text)
+                parsed = json.loads(clean_text, strict=False)
+
             task_list = parsed.get("tasks", [])
             for t in task_list:
                 prio = str(t.get("priority", "medium")).lower()
@@ -711,8 +765,11 @@ async def recommend_goal_tasks(
             if suggested_tasks:
                 logger.info(f"Successfully generated {len(suggested_tasks)} dynamic time-paced tasks with {model_name}")
                 break
+        except asyncio.TimeoutError:
+            logger.warning(f"Candidate {model_name} timed out after 30s")
+            continue
         except Exception as cand_err:
-            logger.warning(f"Candidate {model_name} failed or timed out: {cand_err}")
+            logger.warning(f"Candidate {model_name} failed: {cand_err}")
             continue
 
     # Fallback to Ollama or Raise if all LLMs failed (no hardcoded templates)
