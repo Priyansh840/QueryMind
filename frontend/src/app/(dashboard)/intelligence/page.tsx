@@ -16,14 +16,16 @@ import {
   Activity,
   Check,
   ChevronDown,
+  Network,
 } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi, downloadBlob } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
+import DecisionTopologyMap from "@/components/graph/DecisionTopologyMap";
 
 function IntelligencePageContent() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"analysis" | "compare" | "activity">("analysis");
+  const [activeTab, setActiveTab] = useState<"topology" | "analysis" | "compare" | "activity">("analysis");
 
   // Store state
   const spaces = useMyndStore((state) => state.spaces);
@@ -85,8 +87,13 @@ function IntelligencePageContent() {
     };
   }, [activeSpaceId, addDocument]);
 
-  // Auto-populate from URL search params if redirected from Vault (e.g. ?analyzeDocs=id1,id2)
+  // Auto-populate from URL search params (e.g. ?tab=topology or ?analyzeDocs=id1,id2)
   useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "topology" || tabParam === "graph") {
+      setActiveTab("topology");
+    }
+
     const docsParam = searchParams.get("analyzeDocs");
     if (docsParam) {
       const ids = docsParam.split(",").filter(Boolean);
@@ -251,6 +258,28 @@ function IntelligencePageContent() {
         >
           <button
             type="button"
+            onClick={() => setActiveTab("topology")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 500,
+              cursor: "pointer",
+              border: "none",
+              background: activeTab === "topology" ? "var(--surface-hover)" : "transparent",
+              color: activeTab === "topology" ? "var(--text-primary)" : "var(--text-secondary)",
+              transition: "all 120ms ease",
+            }}
+          >
+            <Network className="w-3.5 h-3.5 text-[#A78BFA]" />
+            <span>Knowledge Topology</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("analysis")}
             style={{
               display: "flex",
@@ -316,6 +345,57 @@ function IntelligencePageContent() {
           </button>
         </div>
       </div>
+
+      {/* ─── TAB 0: KNOWLEDGE DECISION TOPOLOGY MAP ────────────────── */}
+      {activeTab === "topology" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div
+            style={{
+              padding: "18px 22px",
+              borderRadius: "14px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Spatial Causal &amp; Decision Topology
+              </h3>
+              <p style={{ fontSize: "12.5px", color: "var(--text-secondary)", marginTop: "3px", margin: 0 }}>
+                Live second-brain neural graph mapping active space priorities, framework decisions, and agent critic risks.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Active Domain:</span>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 12px",
+                  borderRadius: "20px",
+                  background: "var(--surface-subtle)",
+                  border: "1px solid var(--border)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#FFFFFF",
+                }}
+              >
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981" }} />
+                <span>{spaces.find((s) => s.id === activeSpaceId)?.name || "Career"}</span>
+              </div>
+            </div>
+          </div>
+
+          <DecisionTopologyMap />
+        </div>
+      )}
 
       {/* ─── TAB 1: CROSS-DOCUMENT ANALYSIS ─────────────────────── */}
       {activeTab === "analysis" && (
