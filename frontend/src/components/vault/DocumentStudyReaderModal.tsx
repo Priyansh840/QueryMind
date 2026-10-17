@@ -168,6 +168,42 @@ function detectDocumentDomain(title: string, sampleText: string): {
   }
 
   if (
+    combined.includes("antigravity") ||
+    combined.includes("plugin") ||
+    combined.includes("sdk")
+  ) {
+    return {
+      domain: "Developer Tooling & Agentic Systems",
+      keyTopics: ["Plugin Lifecycle & Manifests", "Custom Skills & Subagents", "MCP Tool Integration", "Workflow Automation"],
+      domainKeywords: [
+        "antigravity", "plugin", "plugins", "subagent", "subagents", "mcp", "tool calling",
+        "agentic", "sdk", "manifest", "workflow", "customization"
+      ],
+      suggestedRoadmap: [
+        {
+          title: "Explore Plugin Architecture & Discovery",
+          pageRange: "Pages 1–2",
+          estimatedTime: "15 min",
+          deliverable: "Overview of plugin manifest, capabilities, and directory structure.",
+        },
+        {
+          title: "Configure Custom Subagents & Companion Skills",
+          pageRange: "Pages 3–4",
+          estimatedTime: "20 min",
+          deliverable: "Working plugin registration with verified skill triggers.",
+        },
+      ],
+      flashcards: [
+        {
+          question: "What is the primary file defining an Antigravity plugin?",
+          answer: "plugin.json, which contains metadata, exposed skills, and registered subagents.",
+          hint: "The JSON manifest at the root of the plugin directory.",
+        },
+      ],
+    };
+  }
+
+  if (
     combined.includes("cyber") ||
     combined.includes("security") ||
     combined.includes("penetration") ||
@@ -233,7 +269,8 @@ function detectDocumentDomain(title: string, sampleText: string): {
       domainKeywords: [
         "mathematics", "calculus", "linear algebra", "discrete mathematics", "probability",
         "combinatorics", "graph theory", "propositional logic", "set theory", "eigenvalues",
-        "matrix", "matrices", "differential equations", "vector spaces", "derivatives"
+        "eigenvalue", "determinants", "differential equations", "vector spaces", "derivatives",
+        "rank of matrix", "linear equations", "boolean functions"
       ],
       suggestedRoadmap: [
         {
@@ -546,7 +583,8 @@ export default function DocumentStudyReaderModal({
         (goalCleanDesc.includes(docCleanName) || (docCleanTokens.length > 0 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok))));
 
       (g.tasks || []).forEach((t) => {
-        const taskText = `${t.title || ""} ${t.sub_goal || ""} ${t.reasoning || ""} ${t.deliverable || ""}`.toLowerCase();
+        const coreIntentText = `${t.title || ""} ${t.sub_goal || ""}`.toLowerCase();
+        const secondaryNotesText = `${t.reasoning || ""} ${t.deliverable || ""}`.toLowerCase();
 
         let matchScore = 0;
         let matchReason = "";
@@ -558,11 +596,28 @@ export default function DocumentStudyReaderModal({
           matchScore = 90;
           matchReason = `From matched goal: ${g.description}`;
         } else if (domainKeywords && domainKeywords.length > 0) {
-          // Task-level specific domain keyword match using WHOLE-WORD matching
-          const foundKw = domainKeywords.find((kw) => matchWordInText(kw, taskText));
-          if (foundKw) {
-            matchScore = 75;
-            matchReason = `Mentions "${foundKw}" in "${g.description}"`;
+          // Tier 1: Primary match on Task Title or Sub-Goal / Module Name (High Confidence)
+          const primaryKw = domainKeywords.find((kw) => matchWordInText(kw, coreIntentText));
+          if (primaryKw) {
+            matchScore = 85;
+            matchReason = `Matches core topic "${primaryKw}" in "${g.description}"`;
+          } else {
+            // Tier 2: Secondary mention in deliverable or reasoning notes
+            // Only accept if confirmed and NOT an unrelated LeetCode / competitive programming puzzle
+            const isGoalDomainAligned = domainKeywords.some((kw) => matchWordInText(kw, goalCleanDesc));
+            const matchedSecondaryKws = domainKeywords.filter((kw) => matchWordInText(kw, secondaryNotesText));
+
+            const isPureCodingPuzzle =
+              secondaryNotesText.includes("leetcode") ||
+              secondaryNotesText.includes("rotting oranges") ||
+              secondaryNotesText.includes("knapsack") ||
+              secondaryNotesText.includes("tabulation problem") ||
+              secondaryNotesText.includes("numpy");
+
+            if ((isGoalDomainAligned || matchedSecondaryKws.length >= 2) && !isPureCodingPuzzle && matchedSecondaryKws.length > 0) {
+              matchScore = 70;
+              matchReason = `Mentions "${matchedSecondaryKws[0]}" in "${g.description}"`;
+            }
           }
         }
 
@@ -749,11 +804,23 @@ export default function DocumentStudyReaderModal({
   // Total pages detection
   const totalPages = useMemo(() => {
     if (documentChunks.length > 0) {
-      const maxP = Math.max(...documentChunks.map((c: any) => c.page_number || 1));
-      return Math.max(maxP, 84);
+      const pageNumbers = documentChunks
+        .map((c: any) => c.page_number)
+        .filter((p: any) => typeof p === "number" && p > 0);
+      if (pageNumbers.length > 0) {
+        return Math.max(...pageNumbers);
+      }
     }
-    return 84;
-  }, [documentChunks]);
+    const metaPages =
+      (docDetails as any)?.page_count ||
+      (docDetails as any)?.metadata?.total_pages ||
+      (document as any)?.page_count ||
+      (document as any)?.metadata?.total_pages;
+    if (typeof metaPages === "number" && metaPages > 0) {
+      return metaPages;
+    }
+    return 1;
+  }, [documentChunks, docDetails, document]);
 
   // Topic Bookmarks with Page mapping for instant jumping
   const topicBookmarks = useMemo(() => {
