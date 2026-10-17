@@ -267,10 +267,10 @@ function detectDocumentDomain(title: string, sampleText: string): {
       domain: "Engineering Mathematics & Quantitative Foundations",
       keyTopics: ["Linear Algebra & Matrices", "Calculus & Differential Equations", "Discrete Mathematics & Graph Theory", "Probability & Combinatorics"],
       domainKeywords: [
-        "mathematics", "calculus", "linear algebra", "discrete mathematics", "probability",
-        "combinatorics", "graph theory", "propositional logic", "set theory", "eigenvalues",
-        "eigenvalue", "determinants", "differential equations", "vector spaces", "derivatives",
-        "rank of matrix", "linear equations", "boolean functions"
+        "propositional logic", "set theory", "graph theory", "linear algebra", "discrete mathematics",
+        "combinatorics", "probability", "boolean functions", "differential equations", "vector spaces",
+        "eigenvalues", "eigenvalue", "determinants", "calculus", "derivatives", "rank of matrix",
+        "linear equations", "mathematics"
       ],
       suggestedRoadmap: [
         {
@@ -591,32 +591,53 @@ export default function DocumentStudyReaderModal({
 
         if (isDirectIdMatch) {
           matchScore = 100;
-          matchReason = "Directly linked goal";
+          matchReason = "Linked Document";
         } else if (isDirectGoalTitleMatch) {
           matchScore = 90;
-          matchReason = `From matched goal: ${g.description}`;
-        } else if (domainKeywords && domainKeywords.length > 0) {
-          // Tier 1: Primary match on Task Title or Sub-Goal / Module Name (High Confidence)
-          const primaryKw = domainKeywords.find((kw) => matchWordInText(kw, coreIntentText));
-          if (primaryKw) {
-            matchScore = 85;
-            matchReason = `Matches core topic "${primaryKw}" in "${g.description}"`;
+          const titleKw = domainKeywords.find((kw) => matchWordInText(kw, (t.title || "").toLowerCase()));
+          if (titleKw) {
+            matchReason = `Topic: ${titleKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`;
           } else {
-            // Tier 2: Secondary mention in deliverable or reasoning notes
-            // Only accept if confirmed and NOT an unrelated LeetCode / competitive programming puzzle
-            const isGoalDomainAligned = domainKeywords.some((kw) => matchWordInText(kw, goalCleanDesc));
-            const matchedSecondaryKws = domainKeywords.filter((kw) => matchWordInText(kw, secondaryNotesText));
+            matchReason = "Direct Goal Match";
+          }
+        } else if (domainKeywords && domainKeywords.length > 0) {
+          // Sort domainKeywords by length descending so multi-word phrases match first
+          const sortedKeywords = [...domainKeywords].sort((a, b) => b.length - a.length);
 
-            const isPureCodingPuzzle =
-              secondaryNotesText.includes("leetcode") ||
-              secondaryNotesText.includes("rotting oranges") ||
-              secondaryNotesText.includes("knapsack") ||
-              secondaryNotesText.includes("tabulation problem") ||
-              secondaryNotesText.includes("numpy");
+          // Tier 1A: Specific topic match in the Task Title itself
+          const titleKw = sortedKeywords.find((kw) => matchWordInText(kw, (t.title || "").toLowerCase()));
+          if (titleKw) {
+            matchScore = 88;
+            const formatted = titleKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            matchReason = `Topic: ${formatted}`;
+          } else {
+            // Tier 1B: Primary match on Sub-Goal / Module Name
+            const subGoalKw = sortedKeywords.find((kw) => matchWordInText(kw, (t.sub_goal || "").toLowerCase()));
+            if (subGoalKw) {
+              matchScore = 82;
+              const cleanModule = (t.sub_goal || "")
+                .replace(/^Phase\s*\d+[^:]*:\s*/i, "")
+                .replace(/^Week\s*\d+[^:]*:\s*/i, "")
+                .replace(/Core Prep/i, "")
+                .trim();
+              const formattedKw = subGoalKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+              matchReason = cleanModule.length > 0 && cleanModule.length <= 25 ? `Module: ${cleanModule}` : `Topic: ${formattedKw}`;
+            } else {
+              // Tier 2: Secondary mention in deliverable or reasoning notes
+              const isGoalDomainAligned = sortedKeywords.some((kw) => matchWordInText(kw, goalCleanDesc));
+              const matchedSecondaryKws = sortedKeywords.filter((kw) => matchWordInText(kw, secondaryNotesText));
 
-            if ((isGoalDomainAligned || matchedSecondaryKws.length >= 2) && !isPureCodingPuzzle && matchedSecondaryKws.length > 0) {
-              matchScore = 70;
-              matchReason = `Mentions "${matchedSecondaryKws[0]}" in "${g.description}"`;
+              const isPureCodingPuzzle =
+                secondaryNotesText.includes("leetcode") ||
+                secondaryNotesText.includes("rotting oranges") ||
+                secondaryNotesText.includes("knapsack") ||
+                secondaryNotesText.includes("tabulation problem") ||
+                secondaryNotesText.includes("numpy");
+
+              if ((isGoalDomainAligned || matchedSecondaryKws.length >= 2) && !isPureCodingPuzzle && matchedSecondaryKws.length > 0) {
+                matchScore = 70;
+                matchReason = `Context: ${matchedSecondaryKws[0]}`;
+              }
             }
           }
         }
@@ -1679,15 +1700,21 @@ export default function DocumentStudyReaderModal({
                         {matchReason && (
                           <span
                             style={{
-                              fontSize: "9px",
-                              padding: "1px 5px",
+                              fontSize: "9.5px",
+                              fontWeight: 600,
+                              padding: "1.5px 6px",
                               borderRadius: "4px",
                               background: "rgba(16, 185, 129, 0.12)",
                               color: "#34D399",
                               border: "1px solid rgba(16, 185, 129, 0.25)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            ✓ {matchReason.replace(/^From matched goal: /, "")}
+                            <span>✓</span>
+                            <span>{matchReason}</span>
                           </span>
                         )}
 
