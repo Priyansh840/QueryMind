@@ -72,10 +72,24 @@ const STOP_WORDS = new Set([
   "github", "rank", "score", "solution", "solutions", "marks"
 ]);
 
+// Broad words that must never trigger task matches as standalone single words
+const BANNED_STANDALONE_WORDS = new Set([
+  "management", "development", "business", "process", "system", "systems",
+  "operations", "service", "services", "design", "analysis", "engineering",
+  "project", "projects", "core", "data", "model", "models", "complete", "completed",
+  "standard", "methods", "theory", "paper", "guide", "skill", "skills", "training"
+]);
+
 function matchWordInText(keyword: string, text: string): boolean {
   if (!keyword || !text) return false;
   const kw = keyword.trim().toLowerCase();
   if (kw.length < 3) return false;
+
+  // Single broad unigram that causes cross-domain false matches: REJECT
+  if (!kw.includes(" ") && !kw.includes("-") && BANNED_STANDALONE_WORDS.has(kw)) {
+    return false;
+  }
+
   // If keyword contains space or hyphen (phrase), check phrase inclusion
   if (kw.includes(" ") || kw.includes("-")) {
     return text.includes(kw);
@@ -104,6 +118,100 @@ function detectDocumentDomain(title: string, sampleText: string): {
   flashcards: Array<{ question: string; answer: string; hint: string }>;
 } {
   const combined = `${title} ${sampleText}`.toLowerCase();
+
+  // 1. Professional Credentials, Internships, Certifications, CV/Resumes
+  // These validate past achievements and must NEVER leak into technical syllabus study tasks
+  if (
+    combined.includes("certificate") ||
+    combined.includes("internship") ||
+    combined.includes("completion") ||
+    combined.includes("credential") ||
+    combined.includes("skillsbuild") ||
+    combined.includes("curriculum vitae") ||
+    combined.includes("resume") ||
+    combined.includes("portfolio")
+  ) {
+    return {
+      domain: "Professional Credentials & Career Portfolio",
+      keyTopics: ["Practical Industry Experience", "Verified Competencies", "Project Execution & Deliverables"],
+      domainKeywords: [], // Strict: Credentials must NEVER cross-match syllabus tasks
+      suggestedRoadmap: [
+        {
+          title: "Review Credential Scope & Learning Outcomes",
+          pageRange: "Overview",
+          estimatedTime: "10 min",
+          deliverable: "Summary of completed program modules, verified competencies, and practical deliverables.",
+        },
+        {
+          title: "Map Technical Competencies to Professional Milestones",
+          pageRange: "Core",
+          estimatedTime: "15 min",
+          deliverable: "Alignment of verified skills to career progression and portfolio artifacts.",
+        },
+      ],
+      flashcards: [
+        {
+          question: "What core competencies are validated by this professional credential?",
+          answer: "The practical industry skills and applied project achievements demonstrated throughout the program.",
+          hint: "Focus on verified deliverables and completed modules.",
+        },
+      ],
+    };
+  }
+
+  // 2. Operating Systems & Systems Architecture
+  if (
+    combined.includes("operating system") ||
+    combined.includes("kernel") ||
+    combined.includes("cpu scheduling") ||
+    combined.includes("virtual memory") ||
+    combined.includes("deadlock") ||
+    combined.includes("paging") ||
+    combined.includes("multithreading")
+  ) {
+    return {
+      domain: "Operating Systems & Systems Architecture",
+      keyTopics: ["CPU Scheduling Algorithms", "Memory Management & Virtual Memory", "Concurrency & Synchronization", "File Systems & I/O Protection"],
+      domainKeywords: [
+        "operating system", "cpu scheduling", "memory management", "virtual memory",
+        "paging", "segmentation", "page replacement", "deadlock", "deadlocks",
+        "concurrency", "semaphore", "semaphores", "mutex", "process synchronization",
+        "inter-process communication", "thrashing", "tlb", "file system"
+      ],
+      suggestedRoadmap: [
+        {
+          title: "Master Process Synchronization & Semaphores",
+          pageRange: "Part 1",
+          estimatedTime: "30 min",
+          deliverable: "Solutions to critical section problems using Peterson's algorithm and semaphores.",
+        },
+        {
+          title: "Deep-Dive CPU Scheduling & Deadlock Prevention",
+          pageRange: "Part 2",
+          estimatedTime: "30 min",
+          deliverable: "Comparative chart of Preemptive vs Non-Preemptive scheduling and Banker's algorithm.",
+        },
+        {
+          title: "Analyze Virtual Memory, Paging & TLB Hit Ratios",
+          pageRange: "Part 3",
+          estimatedTime: "35 min",
+          deliverable: "Effective memory access time calculations and page fault frequency analysis.",
+        },
+      ],
+      flashcards: [
+        {
+          question: "What are the four necessary conditions for deadlock to occur?",
+          answer: "Mutual exclusion, Hold and wait, No preemption, and Circular wait.",
+          hint: "Coffman conditions.",
+        },
+        {
+          question: "What causes thrashing in a virtual memory system?",
+          answer: "When processes spend more time paging in/out than executing because the working set cannot fit in physical memory.",
+          hint: "Page fault frequency overwhelms CPU execution.",
+        },
+      ],
+    };
+  }
 
   if (
     combined.includes("iot") ||
@@ -317,7 +425,7 @@ function detectDocumentDomain(title: string, sampleText: string): {
   return {
     domain: "Interdisciplinary Research & Technical Foundations",
     keyTopics: ["Core Foundational Concepts", "Methodology & Architecture", "Practical Implementation"],
-    domainKeywords: extractSignificantTokens(`${title} ${sampleText}`).slice(0, 15),
+    domainKeywords: [], // Safe fallback: unvetted arbitrary words must never create spurious cross-discipline task matches
     suggestedRoadmap: [
       {
         title: "Survey First Principles & Executive Summary",
