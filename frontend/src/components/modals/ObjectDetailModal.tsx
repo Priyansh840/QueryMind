@@ -1,13 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { BookOpen } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
+import DocumentStudyReaderModal from "@/components/vault/DocumentStudyReaderModal";
 
 export default function ObjectDetailModal() {
   const selectedObject = useMyndStore((state) => state.selectedObject);
   const isObjectModalOpen = useMyndStore((state) => state.isObjectModalOpen);
   const closeObjectModal = useMyndStore((state) => state.closeObjectModal);
   const openAskAi = useMyndStore((state) => state.openAskAi);
+  const [isStudyModalOpen, setIsStudyModalOpen] = useState(false);
 
   if (!isObjectModalOpen || !selectedObject) return null;
 
@@ -126,18 +129,42 @@ export default function ObjectDetailModal() {
             justifyContent: "space-between",
             alignItems: "center",
             background: "var(--surface)",
+            gap: "10px",
           }}
         >
-          <button
-            className="kbd"
-            onClick={() => {
-              openAskAi(selectedObject.title);
-              closeObjectModal();
-            }}
-            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--accent-soft)", color: "var(--accent)", border: "none", cursor: "pointer" }}
-          >
-            <span className="alive-dot" /> Ask AI about this object
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              className="kbd"
+              onClick={() => {
+                setIsStudyModalOpen(true);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 14px",
+                background: "rgba(59, 130, 246, 0.15)",
+                color: "#60A5FA",
+                border: "1px solid rgba(59, 130, 246, 0.3)",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              <BookOpen size={13} /> Study & Clear Goal Tasks
+            </button>
+
+            <button
+              className="kbd"
+              onClick={() => {
+                openAskAi(selectedObject.title);
+                closeObjectModal();
+              }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--accent-soft)", color: "var(--accent)", border: "none", cursor: "pointer" }}
+            >
+              <span className="alive-dot" /> Ask AI
+            </button>
+          </div>
 
           <button
             className="kbd"
@@ -148,6 +175,13 @@ export default function ObjectDetailModal() {
           </button>
         </div>
       </div>
+
+      {/* Full Screen Split Study Mode */}
+      <DocumentStudyReaderModal
+        document={selectedObject}
+        isOpen={isStudyModalOpen}
+        onClose={() => setIsStudyModalOpen(false)}
+      />
     </div>
   );
 }

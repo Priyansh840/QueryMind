@@ -17,10 +17,12 @@ import {
   Sparkles,
   ChevronDown,
   FolderPlus,
+  BookOpen,
 } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi, downloadBlob } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import DocumentStudyReaderModal from "@/components/vault/DocumentStudyReaderModal";
 
 export default function VaultPage() {
   const router = useRouter();
@@ -43,6 +45,7 @@ export default function VaultPage() {
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [studyModalDoc, setStudyModalDoc] = useState<any | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
@@ -845,6 +848,32 @@ export default function VaultPage() {
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    {/* Study & Clear Tasks Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setStudyModalDoc(doc);
+                      }}
+                      title="Read & Clear Linked Goal Tasks"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "rgba(59, 130, 246, 0.12)",
+                        border: "1px solid rgba(59, 130, 246, 0.3)",
+                        borderRadius: "6px",
+                        padding: "4px 8px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "#60A5FA",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Study Mode</span>
+                    </button>
+
                     {/* Download single doc */}
                     <button
                       type="button"
@@ -949,6 +978,32 @@ export default function VaultPage() {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {/* Study Mode Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setStudyModalDoc(doc);
+                    }}
+                    title="Read & Clear Linked Goal Tasks"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      background: "rgba(59, 130, 246, 0.12)",
+                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                      borderRadius: "6px",
+                      padding: "4px 8px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "#60A5FA",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Study Mode</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={(e) => handleDownloadSingle(doc.id, doc.title, e)}
@@ -988,6 +1043,13 @@ export default function VaultPage() {
           })}
         </div>
       )}
+
+      {/* Document Study Reader Modal with Live Goal Tasks Companion */}
+      <DocumentStudyReaderModal
+        document={studyModalDoc}
+        isOpen={!!studyModalDoc}
+        onClose={() => setStudyModalDoc(null)}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   Sun,
   BookOpen,
   Brain,
+  Award,
 } from "lucide-react";
 
 export default function AppSidebar() {
@@ -214,6 +215,19 @@ export default function AppSidebar() {
                 </svg>
               </span>
               <span>Goals</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/skills"
+            className={`nav-item ${isActive("/skills") ? "active" : ""}`}
+            onClick={() => setRoute("skills" as any)}
+          >
+            <div className="nav-item-left">
+              <span className="nav-item-icon">
+                <Award size={16} strokeWidth={2.2} />
+              </span>
+              <span>Skills</span>
             </div>
           </Link>
 

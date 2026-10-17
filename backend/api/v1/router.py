@@ -50,5 +50,8 @@ api_router.include_router(workflows.router, prefix="/workflows", tags=["Workflow
 api_router.include_router(exports.router, prefix="/exports", tags=["Exports"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["Analysis"])
 
+from api.v1 import skills
+api_router.include_router(skills.router, prefix="/skills", tags=["Skills"])
+
 
 

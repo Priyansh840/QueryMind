@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronRight,
   ListTodo,
+  Award,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -180,6 +181,12 @@ function GoalsPageContent() {
     taskTitle: string;
     sourceGoalId: string;
     matches: Array<{ goalId: string; goalTitle: string; taskId: string }>;
+  } | null>(null);
+
+  // Skill Competency Toast State
+  const [skillToast, setSkillToast] = useState<{
+    skills: Array<{ skill_name: string; category: string; xp: number; level: string }>;
+    delta: number;
   } | null>(null);
 
   // Copilot State
@@ -463,6 +470,32 @@ function GoalsPageContent() {
             matches: matchingTargets,
           });
         }
+      }
+
+      // Sync Competency Skill Tracker
+      try {
+        const targetTask = existingTasks.find((t) => t.id === taskId);
+        if (targetTask) {
+          const syncRes = await queryMindApi.syncTaskSkill({
+            goal_id: goal.id,
+            task_id: taskId,
+            task_title: targetTask.title,
+            completed: isNowCompleted,
+            deliverable: targetTask.deliverable,
+            tools: targetTask.tools,
+            sub_goal: targetTask.sub_goal,
+            category: goal.category,
+          });
+          if (isNowCompleted && syncRes.affected_skills && syncRes.affected_skills.length > 0) {
+            setSkillToast({
+              skills: syncRes.affected_skills,
+              delta: syncRes.total_xp_delta,
+            });
+            setTimeout(() => setSkillToast(null), 5000);
+          }
+        }
+      } catch (skillErr) {
+        console.warn("Skill sync error:", skillErr);
       }
     } catch (err: any) {
       console.error("Failed to update sub-task:", err);
@@ -2107,6 +2140,88 @@ Include:
             </div>
           </div>
         )}
+
+        {/* Competency Verified Floating Toast */}
+        {skillToast && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "28px",
+              right: "28px",
+              zIndex: 9999,
+              background: "rgba(15, 23, 42, 0.95)",
+              backdropFilter: "blur(16px)",
+              border: "1px solid rgba(59, 130, 246, 0.45)",
+              borderRadius: "14px",
+              boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(59, 130, 246, 0.25)",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "14px",
+              maxWidth: "380px",
+            }}
+          >
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(147, 51, 234, 0.3))",
+                border: "1px solid rgba(59, 130, 246, 0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#60A5FA",
+                flexShrink: 0,
+              }}
+            >
+              <Award size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#93C5FD", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                  Competency Verified
+                </span>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#34D399", background: "rgba(16, 185, 129, 0.15)", padding: "2px 6px", borderRadius: "4px" }}>
+                  +{skillToast.delta} XP
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                {skillToast.skills.map((s, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "#F1F5F9",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                    }}
+                  >
+                    {s.skill_name} <span style={{ color: "#94A3B8", fontWeight: 400 }}>({s.level})</span>
+                  </span>
+                ))}
+              </div>
+              <div style={{ marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Link
+                  href="/skills"
+                  style={{ fontSize: "11px", color: "#60A5FA", textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}
+                >
+                  View Skill Matrix & Radar <ArrowRight size={11} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setSkillToast(null)}
+                  style={{ background: "transparent", border: "none", color: "#64748B", cursor: "pointer", fontSize: "11px" }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -3333,6 +3448,88 @@ Include:
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Competency Verified Floating Toast */}
+      {skillToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "28px",
+            right: "28px",
+            zIndex: 9999,
+            background: "rgba(15, 23, 42, 0.95)",
+            backdropFilter: "blur(16px)",
+            border: "1px solid rgba(59, 130, 246, 0.45)",
+            borderRadius: "14px",
+            boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(59, 130, 246, 0.25)",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "14px",
+            maxWidth: "380px",
+          }}
+        >
+          <div
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(147, 51, 234, 0.3))",
+              border: "1px solid rgba(59, 130, 246, 0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#60A5FA",
+              flexShrink: 0,
+            }}
+          >
+            <Award size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#93C5FD", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                Competency Verified
+              </span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#34D399", background: "rgba(16, 185, 129, 0.15)", padding: "2px 6px", borderRadius: "4px" }}>
+                +{skillToast.delta} XP
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+              {skillToast.skills.map((s, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "#F1F5F9",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                  }}
+                >
+                  {s.skill_name} <span style={{ color: "#94A3B8", fontWeight: 400 }}>({s.level})</span>
+                </span>
+              ))}
+            </div>
+            <div style={{ marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Link
+                href="/skills"
+                style={{ fontSize: "11px", color: "#60A5FA", textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}
+              >
+                View Skill Matrix & Radar <ArrowRight size={11} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setSkillToast(null)}
+                style={{ background: "transparent", border: "none", color: "#64748B", cursor: "pointer", fontSize: "11px" }}
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
       )}

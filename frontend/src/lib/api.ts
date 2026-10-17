@@ -836,6 +836,11 @@ export const queryMindApi = {
     }
   },
 
+  getDocument: async (documentId: string): Promise<any> => {
+    const res = await api.get(`/documents/${documentId}`);
+    return res.data;
+  },
+
   deleteDocument: async (documentId: string) => {
     const res = await api.delete(`/documents/${documentId}`);
     return res.data;
@@ -1039,7 +1044,83 @@ export const queryMindApi = {
     });
     return res.data;
   },
+
+  // Skill Competency Tracking
+  getSkills: async (spaceId?: string): Promise<GetSkillsResponse> => {
+    const res = await api.get<GetSkillsResponse>("/skills", {
+      params: spaceId ? { space_id: spaceId } : undefined,
+    });
+    return res.data;
+  },
+  syncTaskSkill: async (payload: SyncTaskSkillPayload): Promise<SyncTaskSkillResponse> => {
+    const res = await api.post<SyncTaskSkillResponse>("/skills/sync-from-task", payload);
+    return res.data;
+  },
 };
+
+export interface UserSkillItem {
+  id: string;
+  skill_name: string;
+  category: string;
+  level: "Novice" | "Competent" | "Proficient" | "Mastery";
+  xp: number;
+  verified_tasks_count: number;
+  evidence: Array<{
+    goal_id: string;
+    task_id: string;
+    task_title: string;
+    deliverable?: string;
+    completed_at: string;
+  }>;
+  last_practiced_at: string;
+  created_at: string;
+}
+
+export interface SkillStats {
+  total_skills: number;
+  total_xp: number;
+  mastery_count: number;
+  proficient_count: number;
+  competent_count: number;
+  novice_count: number;
+  current_rank: string;
+}
+
+export interface RadarCategoryItem {
+  category: string;
+  score: number;
+  skill_count: number;
+  total_xp: number;
+}
+
+export interface GetSkillsResponse {
+  skills: UserSkillItem[];
+  stats: SkillStats;
+  radar_data: RadarCategoryItem[];
+}
+
+export interface SyncTaskSkillPayload {
+  goal_id: string;
+  task_id: string;
+  task_title: string;
+  completed: boolean;
+  deliverable?: string;
+  tools?: string[];
+  sub_goal?: string;
+  category?: string;
+}
+
+export interface SyncTaskSkillResponse {
+  action: "awarded" | "revoked";
+  affected_skills: Array<{
+    skill_name: string;
+    category: string;
+    xp: number;
+    level: string;
+    newly_created: boolean;
+  }>;
+  total_xp_delta: number;
+}
 
 export function downloadBlob(blob: Blob, filename: string) {
   if (typeof window === "undefined") return;

@@ -591,11 +591,31 @@ async def recommend_goal_tasks(
             "- Tasks should produce analytical deliverables and include essential tools.\n"
         )
 
+    # Fetch user's verified skills for adaptive difficulty calibration
+    user_skills_context = ""
+    try:
+        from models.skill import UserSkill
+        skill_stmt = select(UserSkill).where(UserSkill.user_id == current_user.id)
+        skill_res = await db.execute(skill_stmt)
+        user_skills = skill_res.scalars().all()
+        mastered = [f"{s.skill_name} ({s.level}, {s.xp} XP)" for s in user_skills if s.level in ("Proficient", "Mastery", "Competent")]
+        if mastered:
+            user_skills_context = (
+                "ADAPTIVE SKILL CALIBRATION (USER'S VERIFIED COMPETENCIES):\n"
+                f"- Mastered / Competent Topics: {', '.join(mastered)}\n"
+                "- ADAPTIVE DIRECTIVE: The user has already proven competence in the above skills! "
+                "Do NOT generate introductory or basic setup tasks for these topics. "
+                "Assume mastery and accelerate the roadmap directly to subsequent tiers or advanced variations.\n\n"
+            )
+    except Exception as e:
+        logger.warning(f"Could not load user skills for adaptive goal decomposition: {e}")
+
     system_prompt = (
         "You are an elite principal technical curriculum architect and real-world mentor for QueryMind.\n"
         "Your mission is to decompose a user's high-level goal into an authentic, highly practical, end-to-end LEARNING & EXECUTION ROADMAP.\n"
         "Every phase, sub-goal, task, and time estimate MUST BE 100% REALISTIC, RIGOROUS, AND GROUNDED IN REAL-WORLD ENGINEERING TIMELINES.\n\n"
         f"{style_directive}\n"
+        f"{user_skills_context}"
         "CORE ARCHITECTURAL PRINCIPLES (ZERO COMPROMISES ON REALISM):\n"
         "1. FULL CALENDAR COVERAGE (ABSOLUTELY ZERO ABANDONED WEEKS OR GHOST DAYS):\n"
         f"   - Total Timeframe: '{effective_timeframe}'\n"
