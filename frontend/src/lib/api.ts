@@ -864,6 +864,11 @@ export const queryMindApi = {
     return res.data;
   },
 
+  getStudyCompanion: async (documentId: string, forceRefresh = false): Promise<any> => {
+    const res = await api.post(`/documents/${documentId}/study-companion`, { force_refresh: forceRefresh });
+    return res.data;
+  },
+
   deleteDocument: async (documentId: string) => {
     const res = await api.delete(`/documents/${documentId}`);
     return res.data;

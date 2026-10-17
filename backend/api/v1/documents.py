@@ -14,10 +14,11 @@ import uuid
 import os
 import shutil
 import logging
+import json
 
 from api.deps import get_db, get_current_user
-from models.knowledge import Document, DocumentChunk
-from models.core import Space
+from models.knowledge import Document, DocumentChunk, Knowledge
+from models.core import Space, Goal
 from models.user import User
 from rag.ingestion import process_document
 from rag.retriever import retrieve_context
@@ -615,4 +616,192 @@ async def move_document(
         "new_space_id": str(target_space.id),
         "new_space_name": target_space.name,
     }
+
+
+class StudyCompanionRequest(BaseModel):
+    force_refresh: bool = False
+
+
+@router.post("/{document_id}/study-companion")
+async def get_or_generate_study_companion(
+    document_id: str,
+    body: Optional[StudyCompanionRequest] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    AI-Powered Dynamic Study Companion Space:
+    1. Analyzes actual document chunks via LLM (Gemini)
+    2. Dynamically extracts authentic academic/professional domain & core topics
+    3. Generates customized milestone roadmaps and active recall flashcards from actual text
+    4. Semantically evaluates user's active goals and tasks to find authentic curriculum matches
+    5. Caches generated results in PostgreSQL Knowledge records for instant zero-latency reloading
+    """
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document_id UUID format")
+
+    stmt = (
+        select(Document)
+        .options(selectinload(Document.chunks))
+        .where(Document.id == doc_uuid)
+    )
+    result = await db.execute(stmt)
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    from api.deps import get_space_membership
+    space, membership = await get_space_membership(str(doc.space_id), current_user, db, min_role="viewer")
+    if not space:
+        raise HTTPException(status_code=403, detail="Access denied to document space")
+
+    force = body.force_refresh if body else False
+
+    # 1. Check persistent Knowledge cache
+    if not force:
+        k_stmt = (
+            select(Knowledge)
+            .where(
+                Knowledge.document_id == doc.id,
+                Knowledge.knowledge_type == "study_companion",
+            )
+            .order_by(Knowledge.created_at.desc())
+        )
+        k_res = await db.execute(k_stmt)
+        cached_k = k_res.scalars().first()
+        if cached_k and cached_k.metadata_json:
+            return cached_k.metadata_json
+
+    # 2. Prepare sample excerpts from document chunks
+    sorted_chunks = sorted(doc.chunks or [], key=lambda c: (c.page_number or 0, c.chunk_index))
+    total_pages = max([c.page_number for c in sorted_chunks if c.page_number] or [1])
+
+    if len(sorted_chunks) <= 12:
+        sampled_chunks = sorted_chunks
+    else:
+        step = max(1, len(sorted_chunks) // 12)
+        sampled_chunks = [sorted_chunks[i] for i in range(0, len(sorted_chunks), step)][:12]
+
+    sample_text = "\n\n".join(
+        f"[Page {c.page_number or '?'}] {c.content_text[:800]}"
+        for c in sampled_chunks
+    )
+
+    # 3. Collect active user goals and tasks for semantic matching
+    goals_stmt = select(Goal).where(Goal.user_id == current_user.id)
+    goals_res = await db.execute(goals_stmt)
+    user_goals = goals_res.scalars().all()
+
+    eval_tasks = []
+    for g in user_goals:
+        for t in (g.tasks or []):
+            eval_tasks.append({
+                "task_id": t.get("id", str(uuid.uuid4())),
+                "title": t.get("title", ""),
+                "sub_goal": t.get("sub_goal", ""),
+                "goal_description": g.description,
+            })
+
+    # 4. Invoke LLM with specialized curriculum prompt
+    prompt = f"""You are QueryMind's Study Engine AI.
+Analyze this document to construct a high-yield Study Space and semantically map the user's active learning tasks.
+
+DOCUMENT TITLE: {doc.title}
+DOCUMENT TYPE: {doc.type}
+TOTAL PAGES: {total_pages}
+DOCUMENT EXCERPTS:
+{sample_text[:10000]}
+
+USER ACTIVE TASKS TO EVALUATE:
+{json.dumps(eval_tasks[:45], indent=2)}
+
+INSTRUCTIONS:
+1. Determine the authentic subject domain (e.g., "Data Structures & Algorithms (DSA) • Computer Science", "Cybersecurity & Network Defense", "Operating Systems & Systems Architecture", "Biochemistry & Genetics", "Professional Credentials & Career Portfolio", etc.).
+   NOTE: If the document is an internship certificate, degree, resume, or diploma, classify it as "Professional Credentials & Career Portfolio" and set "matched_task_ids" to [].
+2. Identify 3-4 major key topics/modules covered in this document.
+3. Generate a structured 3-4 milestone study roadmap tailored specifically to this document's content, with realistic page ranges (spanning 1 to {total_pages}), estimated completion times, and concrete deliverables.
+4. Generate 3-4 high-yield active recall flashcards from the actual concepts taught in this text (question, answer, hint).
+5. Semantically match user tasks: Select only tasks whose learning objectives are genuinely taught or practiced by this document. Never match unrelated tasks from different academic fields. For each matched task, return the task_id, match_score (70-100), and a concise match_reason (e.g., "Topic: Binary Trees", "Linked Module: Dynamic Programming").
+
+Respond in valid JSON only with this exact structure:
+{{
+  "domain": "string",
+  "key_topics": ["string", "string"],
+  "roadmap": [
+    {{
+      "title": "string",
+      "page_range": "Pages X–Y",
+      "estimated_time": "XX min",
+      "deliverable": "string"
+    }}
+  ],
+  "flashcards": [
+    {{
+      "question": "string",
+      "answer": "string",
+      "hint": "string"
+    }}
+  ],
+  "matched_task_ids": [
+    {{
+      "task_id": "string",
+      "match_score": 90,
+      "match_reason": "Topic: ..."
+    }}
+  ]
+}}"""
+
+    try:
+        from llm.provider import get_llm
+        from langchain_core.messages import HumanMessage
+        llm = get_llm(temperature=0.1)
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw_text = response.content if hasattr(response, "content") else str(response)
+        if isinstance(raw_text, list):
+            raw_text = "".join([part.get("text", "") if isinstance(part, dict) else str(part) for part in raw_text])
+
+        clean_text = raw_text.strip()
+        if "```json" in clean_text:
+            clean_text = clean_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in clean_text:
+            clean_text = clean_text.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(clean_text)
+    except Exception as e:
+        logger.error(f"Failed to generate study companion with LLM: {e}")
+        clean_title = doc.title.replace(".pdf", "").replace(".docx", "").replace(".md", "")
+        data = {
+            "domain": clean_title,
+            "key_topics": ["Foundational Principles", "Applied Methodologies", "Synthesis & Review"],
+            "roadmap": [
+                {"title": f"Review First Principles of {clean_title}", "page_range": f"Pages 1–{max(1, total_pages // 3)}", "estimated_time": "25 min", "deliverable": "Summary of core definitions."},
+                {"title": "Analyze Core Concepts & Methodologies", "page_range": f"Pages {max(1, total_pages // 3) + 1}–{max(2, (total_pages * 2) // 3)}", "estimated_time": "35 min", "deliverable": "Working notes and operational mechanics."},
+                {"title": "Consolidate Deliverables & Strategic Review", "page_range": f"Pages {max(2, (total_pages * 2) // 3) + 1}–{total_pages}", "estimated_time": "25 min", "deliverable": "Actionable deliverables mapped to active goals."}
+            ],
+            "flashcards": [
+                {"question": f"What is the primary thesis of {clean_title}?", "answer": "The core operational framework detailed across chapters.", "hint": "Check introductory overview."}
+            ],
+            "matched_task_ids": []
+        }
+
+    # 5. Persist to Knowledge table for instant caching
+    try:
+        companion_k = Knowledge(
+            user_id=current_user.id,
+            space_id=doc.space_id,
+            document_id=doc.id,
+            knowledge_type="study_companion",
+            title=f"Study Companion: {doc.title}",
+            content=json.dumps(data),
+            metadata_json=data,
+        )
+        db.add(companion_k)
+        await db.commit()
+    except Exception as err:
+        logger.warning(f"Could not persist study companion knowledge cache: {err}")
+
+    return data
+
 

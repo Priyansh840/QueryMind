@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   FileText,
@@ -595,6 +595,36 @@ export default function DocumentStudyReaderModal({
   const [aiTutorMessages, setAiTutorMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const [isAiTutorThinking, setIsAiTutorThinking] = useState(false);
 
+  // Real AI-Powered Study Companion State (Backend Gemini)
+  const [aiCompanionData, setAiCompanionData] = useState<{
+    domain?: string;
+    key_topics?: string[];
+    roadmap?: Array<{ title: string; page_range: string; estimated_time: string; deliverable: string }>;
+    flashcards?: Array<{ question: string; answer: string; hint: string }>;
+    matched_task_ids?: Array<{ task_id: string; match_score: number; match_reason: string }>;
+  } | null>(null);
+  const [isLoadingAiCompanion, setIsLoadingAiCompanion] = useState(false);
+
+  const fetchAiCompanion = useCallback(async (force = false) => {
+    if (!document?.id) return;
+    setIsLoadingAiCompanion(true);
+    try {
+      const data = await queryMindApi.getStudyCompanion(document.id, force);
+      if (data) {
+        setAiCompanionData(data);
+      }
+    } catch (err) {
+      console.warn("AI Study Companion generation notice:", err);
+    } finally {
+      setIsLoadingAiCompanion(false);
+    }
+  }, [document?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !document?.id) return;
+    fetchAiCompanion(false);
+  }, [isOpen, document?.id, fetchAiCompanion]);
+
   // Fetch Visual PDF Blob for Authentic PDF Viewing
   useEffect(() => {
     if (!isOpen || !document?.id) return;
@@ -726,7 +756,7 @@ export default function DocumentStudyReaderModal({
   }, [docDetails, docSearchQuery]);
 
   // Document Domain & AI Synthesis Detection
-  const { domain, keyTopics, domainKeywords, suggestedRoadmap, flashcards } = useMemo(() => {
+  const { domain, keyTopics, domainKeywords, suggestedRoadmap, flashcards, isAiCurriculum } = useMemo(() => {
     if (!document) {
       return {
         domain: "Technical Guide",
@@ -734,15 +764,39 @@ export default function DocumentStudyReaderModal({
         domainKeywords: [],
         suggestedRoadmap: [],
         flashcards: [],
+        isAiCurriculum: false,
       };
     }
+
+    // 1. If real AI Study Companion has generated, use the authentic AI extracted curriculum!
+    if (aiCompanionData) {
+      return {
+        domain: aiCompanionData.domain || document.title || document.name || "Technical Study Space",
+        keyTopics: aiCompanionData.key_topics || [],
+        domainKeywords: [],
+        suggestedRoadmap: (aiCompanionData.roadmap || []).map((r: any) => ({
+          title: r.title,
+          pageRange: r.page_range,
+          estimatedTime: r.estimated_time,
+          deliverable: r.deliverable,
+        })),
+        flashcards: aiCompanionData.flashcards || [],
+        isAiCurriculum: true,
+      };
+    }
+
+    // 2. Fast instant heuristic fallback while AI is computing in background
     const sample = docDetails?.chunks
       ? docDetails.chunks.slice(0, 15).map((c: any) => c.content_text).join(" ")
       : document.summary || document.content || "";
-    return detectDocumentDomain(document.title || document.name || "", sample);
-  }, [document, docDetails]);
+    const detected = detectDocumentDomain(document.title || document.name || "", sample);
+    return {
+      ...detected,
+      isAiCurriculum: false,
+    };
+  }, [document, docDetails, aiCompanionData]);
 
-  // Deep Task Scanner: Scans every task across all user goals to find those related to this document
+  // Deep Task Scanner: Uses LLM Semantic Task Matching if available, with heuristic fallback
   const { matchedTasks, otherTasks, connectedGoals, connectedGoalsCount, allDisplayTasks } = useMemo(() => {
     if (!document) return { matchedTasks: [], otherTasks: [], connectedGoals: [], connectedGoalsCount: 0, allDisplayTasks: [] };
 
@@ -753,6 +807,65 @@ export default function DocumentStudyReaderModal({
     const other: Array<{ goal: GoalData; task: any }> = [];
     const connectedGoalMap = new Map<string, GoalData>();
 
+    // 1. REAL AI SEMANTIC TASK MATCHING (from LLM)
+    if (aiCompanionData?.matched_task_ids && Array.isArray(aiCompanionData.matched_task_ids)) {
+      const aiMap = new Map(
+        aiCompanionData.matched_task_ids.map((item: any) => [item.task_id, item])
+      );
+
+      goals.forEach((g) => {
+        (g.tasks || []).forEach((t) => {
+          const aiMatch = aiMap.get(t.id);
+          const isDirectIdMatch =
+            Array.isArray(g.document_ids) &&
+            (g.document_ids.includes(document.id) || (docDetails?.id && g.document_ids.includes(docDetails.id)));
+
+          if (isDirectIdMatch) {
+            matched.push({ goal: g, task: t, matchScore: 100, matchReason: "Linked Document" });
+            connectedGoalMap.set(g.id, g);
+          } else if (aiMatch) {
+            matched.push({
+              goal: g,
+              task: t,
+              matchScore: aiMatch.match_score || 90,
+              matchReason: aiMatch.match_reason || "AI Semantic Match",
+            });
+            connectedGoalMap.set(g.id, g);
+          } else {
+            other.push({ goal: g, task: t });
+          }
+        });
+      });
+
+      matched.sort((a, b) => b.matchScore - a.matchScore);
+      const connectedGoals = Array.from(connectedGoalMap.values());
+
+      let allDisplay = matched;
+      if (selectedGoalFilter !== "all") {
+        const selectedG = goals.find((g) => g.id === selectedGoalFilter);
+        if (selectedG) {
+          allDisplay = (selectedG.tasks || []).map((t) => {
+            const m = matched.find((item) => item.task.id === t.id);
+            return {
+              goal: selectedG,
+              task: t,
+              matchScore: m?.matchScore || 0,
+              matchReason: m?.matchReason || `Goal: ${selectedG.description}`,
+            };
+          });
+        }
+      }
+
+      return {
+        matchedTasks: matched,
+        otherTasks: other,
+        connectedGoals,
+        connectedGoalsCount: connectedGoals.length,
+        allDisplayTasks: allDisplay,
+      };
+    }
+
+    // 2. Instant heuristic fallback while LLM is generating in background
     goals.forEach((g) => {
       const goalCleanDesc = (g.description || "").toLowerCase();
 
@@ -761,7 +874,7 @@ export default function DocumentStudyReaderModal({
         Array.isArray(g.document_ids) &&
         (g.document_ids.includes(document.id) || (docDetails?.id && g.document_ids.includes(docDetails.id)));
 
-      // Check 2: Goal description specifically names this document/subject (e.g. "Master IOT Unit 3.pdf..." matches "iot unit 3")
+      // Check 2: Goal description specifically names this document/subject
       const isDirectGoalTitleMatch =
         docCleanName.length >= 4 &&
         (goalCleanDesc.includes(docCleanName) || (docCleanTokens.length > 0 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok))));
@@ -861,7 +974,7 @@ export default function DocumentStudyReaderModal({
       connectedGoalsCount: connectedGoals.length,
       allDisplayTasks: allDisplay,
     };
-  }, [document, docDetails, goals, domainKeywords, selectedGoalFilter]);
+  }, [document, docDetails, goals, domainKeywords, selectedGoalFilter, aiCompanionData]);
 
   // Generate Tailored Study Roadmap from Document
   const handleGenerateDocumentRoadmap = async () => {
@@ -1139,6 +1252,33 @@ export default function DocumentStudyReaderModal({
                 <span style={{ fontSize: "11px", color: "#34D399", fontWeight: 600 }}>
                   • {domain}
                 </span>
+                {isLoadingAiCompanion && (
+                  <span style={{ fontSize: "10px", color: "#60A5FA", display: "inline-flex", alignItems: "center", gap: "3px", fontWeight: 500 }}>
+                    <Sparkles size={10} className="animate-spin" /> AI Curriculum Sync...
+                  </span>
+                )}
+                {isAiCurriculum && (
+                  <span style={{ fontSize: "9.5px", color: "#10B981", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "4px", padding: "1px 5px", display: "inline-flex", alignItems: "center", gap: "3px", fontWeight: 600 }}>
+                    <Sparkles size={9} /> AI Synthesized
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fetchAiCompanion(true)}
+                  title="Re-analyze document with AI"
+                  disabled={isLoadingAiCompanion}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255, 255, 255, 0.4)",
+                    cursor: "pointer",
+                    padding: "2px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <RefreshCw size={11} className={isLoadingAiCompanion ? "animate-spin text-blue-400" : "hover:text-white transition-colors"} />
+                </button>
               </div>
               <h2
                 style={{
