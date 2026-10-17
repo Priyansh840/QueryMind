@@ -109,6 +109,19 @@ function extractSignificantTokens(text: string): string[] {
     .filter((w) => w.length >= 4 && !STOP_WORDS.has(w));
 }
 
+function hasDomainTrigger(text: string, triggers: string[]): boolean {
+  if (!text) return false;
+  return triggers.some((trigger) => {
+    const tr = trigger.trim().toLowerCase();
+    if (tr.includes(" ") || tr.includes("-")) {
+      return text.includes(tr);
+    }
+    const escaped = tr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, "i");
+    return regex.test(text);
+  });
+}
+
 // Domain dictionary to accurately classify what the document is teaching
 function detectDocumentDomain(title: string, sampleText: string): {
   domain: string;
@@ -122,14 +135,10 @@ function detectDocumentDomain(title: string, sampleText: string): {
   // 1. Professional Credentials, Internships, Certifications, CV/Resumes
   // These validate past achievements and must NEVER leak into technical syllabus study tasks
   if (
-    combined.includes("certificate") ||
-    combined.includes("internship") ||
-    combined.includes("completion") ||
-    combined.includes("credential") ||
-    combined.includes("skillsbuild") ||
-    combined.includes("curriculum vitae") ||
-    combined.includes("resume") ||
-    combined.includes("portfolio")
+    hasDomainTrigger(combined, [
+      "certificate", "internship", "completion", "credential",
+      "skillsbuild", "curriculum vitae", "resume", "portfolio"
+    ])
   ) {
     return {
       domain: "Professional Credentials & Career Portfolio",
@@ -159,15 +168,84 @@ function detectDocumentDomain(title: string, sampleText: string): {
     };
   }
 
-  // 2. Operating Systems & Systems Architecture
+  // 2. Data Structures & Algorithms (DSA) • Computer Science
   if (
-    combined.includes("operating system") ||
-    combined.includes("kernel") ||
-    combined.includes("cpu scheduling") ||
-    combined.includes("virtual memory") ||
-    combined.includes("deadlock") ||
-    combined.includes("paging") ||
-    combined.includes("multithreading")
+    hasDomainTrigger(combined, [
+      "data structure", "data structures", "algorithm", "algorithms",
+      "binary search", "linked list", "linked lists", "binary tree", "binary trees",
+      "binary search tree", "sorting algorithm", "stack", "stacks", "queue", "queues",
+      "hash map", "hash table", "dynamic programming", "graph traversal", "heap", "heaps",
+      "priority queue", "priority queues", "trie", "backtracking", "two pointers", "sliding window"
+    ])
+  ) {
+    return {
+      domain: "Data Structures & Algorithms (DSA) • Computer Science",
+      keyTopics: [
+        "Linear Structures (Arrays, Lists, Stacks, Queues)",
+        "Hierarchical Trees & Search Spaces (BST, Heaps)",
+        "Graph Traversals & Topological Ordering",
+        "Algorithmic Optimization & Dynamic Programming",
+      ],
+      domainKeywords: [
+        "data structure", "data structures", "array", "arrays", "linked list", "linked lists",
+        "stack", "stacks", "queue", "queues", "binary search", "binary tree", "binary trees",
+        "binary search tree", "tree traversal", "heap", "heaps", "priority queue", "priority queues",
+        "hash table", "hash map", "graph traversal", "graph", "graphs", "dynamic programming",
+        "backtracking", "two pointers", "sliding window", "sorting", "recursion", "algorithm",
+        "algorithms", "monotonic stack", "prefix sum", "cycle detection"
+      ],
+      suggestedRoadmap: [
+        {
+          title: "Master Linear Structures: Arrays, Linked Lists & Monotonic Stacks",
+          pageRange: "Pages 1–25",
+          estimatedTime: "30 min",
+          deliverable: "Implementation of singly/doubly linked lists, cycle detection, and monotonic stacks.",
+        },
+        {
+          title: "Explore Hierarchical Trees, BST Traversals & Heaps",
+          pageRange: "Pages 26–55",
+          estimatedTime: "35 min",
+          deliverable: "Recursive and iterative DFS/BFS tree traversals and heap priority queue implementations.",
+        },
+        {
+          title: "Implement Graph Traversals: BFS, DFS & Shortest Paths",
+          pageRange: "Pages 56–80",
+          estimatedTime: "35 min",
+          deliverable: "Adjacency list representations, cycle detection, and topological sorting routines.",
+        },
+        {
+          title: "Solve Complex Dynamic Programming & Greedy Recurrences",
+          pageRange: "Pages 81–103",
+          estimatedTime: "40 min",
+          deliverable: "1D/2D grid memoization and tabulation proofs for optimal substructure.",
+        },
+      ],
+      flashcards: [
+        {
+          question: "What is the time complexity of searching in a Balanced Binary Search Tree (AVL/Red-Black)?",
+          answer: "O(log n) because the tree height is maintained proportional to the logarithm of the number of nodes.",
+          hint: "Think about halving the search space at each node.",
+        },
+        {
+          question: "What is the difference between a Stack and a Queue?",
+          answer: "A Stack follows LIFO (Last In First Out) whereas a Queue follows FIFO (First In First Out).",
+          hint: "Order of insertion versus order of removal.",
+        },
+        {
+          question: "When is Dynamic Programming applicable to a problem?",
+          answer: "When the problem exhibits Overlapping Subproblems and Optimal Substructure.",
+          hint: "Two essential properties: memoizing repeated subproblems.",
+        },
+      ],
+    };
+  }
+
+  // 3. Operating Systems & Systems Architecture
+  if (
+    hasDomainTrigger(combined, [
+      "operating system", "operating systems", "cpu scheduling", "virtual memory",
+      "deadlock", "deadlocks", "paging", "multithreading", "process synchronization", "kernel"
+    ])
   ) {
     return {
       domain: "Operating Systems & Systems Architecture",
@@ -213,13 +291,12 @@ function detectDocumentDomain(title: string, sampleText: string): {
     };
   }
 
+  // 4. Internet of Things (IoT) • Hardware, Actuators & Sensors
   if (
-    combined.includes("iot") ||
-    combined.includes("actuator") ||
-    combined.includes("sensor") ||
-    combined.includes("rfid") ||
-    combined.includes("arduino") ||
-    combined.includes("polymer")
+    hasDomainTrigger(combined, [
+      "iot", "internet of things", "actuator", "actuators", "sensor", "sensors",
+      "rfid", "transponder", "arduino", "photopolymer", "photopolymers"
+    ])
   ) {
     return {
       domain: "Internet of Things (IoT) • Hardware, Actuators & Sensors",
@@ -275,10 +352,11 @@ function detectDocumentDomain(title: string, sampleText: string): {
     };
   }
 
+  // 5. Developer Tooling & Agentic Systems
   if (
-    combined.includes("antigravity") ||
-    combined.includes("plugin") ||
-    combined.includes("sdk")
+    hasDomainTrigger(combined, [
+      "antigravity", "plugin", "plugins", "subagent", "subagents", "mcp tool"
+    ])
   ) {
     return {
       domain: "Developer Tooling & Agentic Systems",
@@ -311,12 +389,12 @@ function detectDocumentDomain(title: string, sampleText: string): {
     };
   }
 
+  // 6. Cybersecurity & Network Defense
   if (
-    combined.includes("cyber") ||
-    combined.includes("security") ||
-    combined.includes("penetration") ||
-    combined.includes("recon") ||
-    combined.includes("nmap")
+    hasDomainTrigger(combined, [
+      "cybersecurity", "cyber security", "penetration testing", "reconnaissance",
+      "nmap", "wireshark", "metasploit", "burp suite", "vulnerability assessment"
+    ])
   ) {
     return {
       domain: "Cybersecurity & Network Defense",
@@ -361,15 +439,13 @@ function detectDocumentDomain(title: string, sampleText: string): {
     };
   }
 
+  // 7. Engineering Mathematics & Quantitative Foundations
   if (
-    combined.includes("math") ||
-    combined.includes("calculus") ||
-    combined.includes("algebra") ||
-    combined.includes("discrete") ||
-    combined.includes("probability") ||
-    combined.includes("combinatorics") ||
-    combined.includes("matrix") ||
-    combined.includes("differential")
+    hasDomainTrigger(combined, [
+      "linear algebra", "discrete mathematics", "probability", "combinatorics",
+      "differential equations", "eigenvalues", "matrix calculus", "propositional logic",
+      "graph theory"
+    ])
   ) {
     return {
       domain: "Engineering Mathematics & Quantitative Foundations",
@@ -1132,7 +1208,7 @@ export default function DocumentStudyReaderModal({
               }}
             >
               <BookOpen size={11} color="#60A5FA" />
-              <span>Page {activePage} of {totalPages}</span>
+              <span>Page {activePage} of {isLoadingDoc && totalPages <= 1 ? "..." : totalPages}</span>
             </div>
           </div>
 
