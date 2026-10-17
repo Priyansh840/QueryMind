@@ -43,7 +43,7 @@ export default function SpotlightModal() {
     { id: "cmd-home", title: "Go to Home (Executive Dashboard)", type: "Navigation", action: () => { setRoute("home"); router.push("/dashboard"); } },
     { id: "cmd-goals", title: "Go to Strategic Goals & Objectives", type: "Navigation", action: () => { setRoute("goals"); router.push("/goals"); } },
     { id: "cmd-workspace", title: "View Spaces Directory (Knowledge Hub)", type: "Navigation", action: () => { setRoute("spaces"); router.push("/spaces"); } },
-    { id: "cmd-projects", title: "View Workspace Initiatives & Projects", type: "Navigation", action: () => { setRoute("projects"); router.push("/projects"); } },
+    { id: "cmd-skills", title: "Go to Skills & Learning Mastery", type: "Navigation", action: () => { setRoute("skills" as any); router.push("/skills"); } },
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
     { id: "cmd-intelligence", title: "View Activity & Intelligence Feed", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
     { id: "cmd-search", title: "Semantic Knowledge Search", type: "Search", action: () => setRoute("search") },

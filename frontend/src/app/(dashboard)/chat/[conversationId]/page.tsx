@@ -326,7 +326,7 @@ function getActionDestinationLink(proposal: ActionProposalItem): string {
       return proposal.executed_target_id ? `/spaces/${proposal.executed_target_id}` : "/spaces";
     case "create_project":
     case "update_project_status":
-      return "/projects";
+      return "/goals";
     case "create_note":
     case "add_memory":
       return "/vault";
@@ -344,7 +344,7 @@ function getActionDestinationLabel(proposal: ActionProposalItem): string {
       return "Open Space";
     case "create_project":
     case "update_project_status":
-      return "View Projects";
+      return "View in Goals";
     case "create_note":
       return "View in Vault";
     case "add_memory":

@@ -17,7 +17,6 @@ import {
 const mainNav = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Goals", href: "/goals", icon: Briefcase },
-  { name: "Projects", href: "/projects", icon: FolderGit2 },
   { name: "Chat", href: "/chat", icon: BrainCircuit },
   { name: "Vault", href: "/vault", icon: FolderGit2 },
   { name: "Search", href: "/search", icon: FlaskConical },

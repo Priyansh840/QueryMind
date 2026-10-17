@@ -444,25 +444,6 @@ export default function DashboardPage() {
             <span>Goals</span>
           </Link>
 
-          <Link
-            href="/projects"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 15px",
-              borderRadius: "9999px",
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "var(--text-secondary, #D4D4D4)",
-              textDecoration: "none",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <span>Projects</span>
-          </Link>
 
           <button
             onClick={toggleFocusMode}
