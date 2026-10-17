@@ -210,7 +210,7 @@ class FallbackGeminiChatModel(BaseChatModel):
                 except Exception as ollama_err:
                     logger.warning(f"Ollama fallback on {ollama_url} failed: {ollama_err}")
 
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
+        raise last_error or RuntimeError("All LLM models failed invocation")
 
     async def _agenerate(
         self,
@@ -247,7 +247,7 @@ class FallbackGeminiChatModel(BaseChatModel):
                 except Exception as ollama_err:
                     logger.warning(f"Ollama async fallback on {ollama_url} failed: {ollama_err}")
 
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="Hello! I am QueryMind AI Assistant. How can I help you today?"))])
+        raise last_error or RuntimeError("All LLM models failed async invocation")
 
     def _stream(
         self,
@@ -269,7 +269,12 @@ class FallbackGeminiChatModel(BaseChatModel):
                 for chunk in llm.stream(messages, stop=stop, **kwargs):
                     has_yielded = True
                     if run_manager:
-                        run_manager.on_llm_new_token(chunk.content, chunk=chunk)
+                        token_str = chunk.content
+                        if isinstance(token_str, list):
+                            token_str = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in token_str])
+                        elif not isinstance(token_str, str):
+                            token_str = str(token_str)
+                        run_manager.on_llm_new_token(token_str, chunk=chunk)
                     yield ChatGenerationChunk(message=chunk)
                 mark_model_success(model_name)
                 return
@@ -281,10 +286,26 @@ class FallbackGeminiChatModel(BaseChatModel):
                     raise e
                 continue
 
-        fallback_msg = AIMessageChunk(content="Hello! I am QueryMind AI Assistant. How can I help you today?")
-        if run_manager:
-            run_manager.on_llm_new_token(fallback_msg.content, chunk=fallback_msg)
-        yield ChatGenerationChunk(message=fallback_msg)
+        # Fallback to local Ollama streaming if available
+        if ChatOllama is not None:
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    for chunk in ollama.stream(messages, stop=stop, **kwargs):
+                        if run_manager:
+                            token_str = chunk.content
+                            if isinstance(token_str, list):
+                                token_str = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in token_str])
+                            elif not isinstance(token_str, str):
+                                token_str = str(token_str)
+                            run_manager.on_llm_new_token(token_str, chunk=chunk)
+                        yield ChatGenerationChunk(message=chunk)
+                    return
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama streaming fallback on {ollama_url} failed: {ollama_err}")
+
+        raise last_error or RuntimeError("All LLM models failed during streaming")
 
     async def _astream(
         self,
@@ -306,7 +327,12 @@ class FallbackGeminiChatModel(BaseChatModel):
                 async for chunk in llm.astream(messages, stop=stop, **kwargs):
                     has_yielded = True
                     if run_manager:
-                        await run_manager.on_llm_new_token(chunk.content, chunk=chunk)
+                        token_str = chunk.content
+                        if isinstance(token_str, list):
+                            token_str = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in token_str])
+                        elif not isinstance(token_str, str):
+                            token_str = str(token_str)
+                        await run_manager.on_llm_new_token(token_str, chunk=chunk)
                     yield ChatGenerationChunk(message=chunk)
                 mark_model_success(model_name)
                 return
@@ -318,10 +344,26 @@ class FallbackGeminiChatModel(BaseChatModel):
                     raise e
                 continue
 
-        fallback_msg = AIMessageChunk(content="Hello! I am QueryMind AI Assistant. How can I help you today?")
-        if run_manager:
-            await run_manager.on_llm_new_token(fallback_msg.content, chunk=fallback_msg)
-        yield ChatGenerationChunk(message=fallback_msg)
+        # Fallback to local Ollama async streaming if available
+        if ChatOllama is not None:
+            for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
+                try:
+                    ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+                    ollama = ChatOllama(model=ollama_model, base_url=ollama_url, temperature=self.temperature)
+                    async for chunk in ollama.astream(messages, stop=stop, **kwargs):
+                        if run_manager:
+                            token_str = chunk.content
+                            if isinstance(token_str, list):
+                                token_str = "".join([part.get("text", "") if isinstance(part, dict) else getattr(part, "text", str(part)) for part in token_str])
+                            elif not isinstance(token_str, str):
+                                token_str = str(token_str)
+                            await run_manager.on_llm_new_token(token_str, chunk=chunk)
+                        yield ChatGenerationChunk(message=chunk)
+                    return
+                except Exception as ollama_err:
+                    logger.warning(f"Ollama async streaming fallback on {ollama_url} failed: {ollama_err}")
+
+        raise last_error or RuntimeError("All LLM models failed during async streaming")
 
 
 def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2) -> BaseChatModel:
@@ -329,7 +371,7 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2)
     Returns a configured LangChain ChatModel based on available keys and provider settings.
     """
     if settings.LLM_PROVIDER.lower() == "ollama" and ChatOllama is not None:
-        ollama_model = settings.OLLAMA_MODEL or "llama3.2"
+        ollama_model = model_name if model_name and not model_name.startswith("gemini") else (settings.OLLAMA_MODEL or "llama3.2")
         logger.info(f"Initializing local Ollama LLM (Model: {ollama_model})")
         return ChatOllama(
             model=ollama_model,
@@ -338,7 +380,12 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2)
         )
 
     if settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
-        return FallbackGeminiChatModel(google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
+        models = list(PRIMARY_GEMINI_MODELS)
+        if model_name:
+            if model_name in models:
+                models.remove(model_name)
+            models.insert(0, model_name)
+        return FallbackGeminiChatModel(models=models, google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
 
     raise ValueError("No valid LLM provider configured. Set GEMINI_API_KEY or install langchain_ollama.")
 

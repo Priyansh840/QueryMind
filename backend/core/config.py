@@ -4,6 +4,7 @@ Loaded from environment variables using Pydantic Settings.
 """
 
 from pathlib import Path
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -18,7 +19,17 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Database (PostgreSQL)
-    DATABASE_URL: str = "postgresql+asyncpg://querymind:querymind_dev@localhost:5432/querymind"
+    DATABASE_URL: str = "postgresql+psycopg://querymind:querymind_dev@localhost:5432/querymind"
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if v.startswith("postgresql+asyncpg://"):
+            try:
+                import asyncpg
+            except Exception:
+                return v.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+        return v
 
     # Qdrant (Vector Database)
     QDRANT_URL: str = ""

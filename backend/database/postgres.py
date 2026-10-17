@@ -9,6 +9,15 @@ from sqlalchemy.pool import NullPool
 
 from core.config import settings
 
+import sys
+import asyncio
+
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
 # Create async engine
 engine = create_async_engine(
     settings.DATABASE_URL,

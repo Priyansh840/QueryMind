@@ -337,6 +337,29 @@ export interface KnowledgeItemData {
   updated_at: string;
 }
 
+export interface DocumentChunkDetail {
+  id: string;
+  chunk_index: number;
+  content_text: string;
+  page_number?: number;
+  token_count?: number;
+  embedding_status?: string;
+  created_at?: string;
+}
+
+export interface DocumentDetail {
+  id: string;
+  space_id: string;
+  title: string;
+  file_url?: string;
+  type?: string;
+  status?: string;
+  summary?: string;
+  chunks: DocumentChunkDetail[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ProjectData {
   id: string;
   space_id: string;
@@ -836,8 +859,8 @@ export const queryMindApi = {
     }
   },
 
-  getDocument: async (documentId: string): Promise<any> => {
-    const res = await api.get(`/documents/${documentId}`);
+  getDocument: async (documentId: string): Promise<DocumentDetail> => {
+    const res = await api.get<DocumentDetail>(`/documents/${documentId}`);
     return res.data;
   },
 
