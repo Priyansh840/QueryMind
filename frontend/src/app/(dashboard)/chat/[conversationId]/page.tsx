@@ -1649,9 +1649,21 @@ export default function ConversationPage() {
                                   <div style={{ marginTop: "4px", paddingLeft: "10px", borderLeft: "2px solid var(--border)" }}>
                                     <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Evidence Grounding</div>
                                     {rec.evidence.map((ev: any, eIdx: number) => {
-                                      const text = typeof ev === "string"
-                                        ? ev
-                                        : ev?.content || ev?.snippet || ev?.document_title || (typeof ev === "object" ? JSON.stringify(ev) : String(ev || ""));
+                                      let text = "";
+                                      if (typeof ev === "string") {
+                                        text = ev;
+                                      } else if (typeof ev === "object" && ev !== null) {
+                                        text = ev.content || ev.snippet || ev.title || ev.document_title || ev.reason || "";
+                                        if (!text) {
+                                          try {
+                                            text = Object.entries(ev).map(([k, v]) => `${k}: ${v}`).join(", ");
+                                          } catch {
+                                            text = JSON.stringify(ev);
+                                          }
+                                        }
+                                      } else {
+                                        text = String(ev || "");
+                                      }
                                       return (
                                         <div key={eIdx} style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
                                           • {text}
@@ -1673,9 +1685,18 @@ export default function ConversationPage() {
                               <span>Identified Blockers</span>
                             </div>
                             <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                              {msg.decisionInsight.blockers.map((b, idx) => (
-                                <li key={idx}>{b}</li>
-                              ))}
+                              {msg.decisionInsight.blockers.map((b: any, idx: number) => {
+                                let text = typeof b === "string" ? b : (b?.description || b?.content || b?.message || b?.reason || JSON.stringify(b));
+                                if (typeof text === "string" && text.startsWith("{") && text.endsWith("}")) {
+                                  try {
+                                    const parsed = JSON.parse(text.replace(/'/g, '"'));
+                                    text = parsed.description || parsed.content || parsed.message || text;
+                                  } catch {
+                                    // keep text
+                                  }
+                                }
+                                return <li key={idx}>{text}</li>;
+                              })}
                             </ul>
                           </div>
                         )}
@@ -1685,9 +1706,18 @@ export default function ConversationPage() {
                           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                             <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Uncertainties</div>
                             <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                              {msg.decisionInsight.uncertainties.map((u, idx) => (
-                                <li key={idx}>{u}</li>
-                              ))}
+                              {msg.decisionInsight.uncertainties.map((u: any, idx: number) => {
+                                let text = typeof u === "string" ? u : (u?.description || u?.content || u?.message || u?.reason || JSON.stringify(u));
+                                if (typeof text === "string" && text.startsWith("{") && text.endsWith("}")) {
+                                  try {
+                                    const parsed = JSON.parse(text.replace(/'/g, '"'));
+                                    text = parsed.description || parsed.content || parsed.message || text;
+                                  } catch {
+                                    // keep text
+                                  }
+                                }
+                                return <li key={idx}>{text}</li>;
+                              })}
                             </ul>
                           </div>
                         )}
@@ -2383,7 +2413,7 @@ export default function ConversationPage() {
                       borderRadius: "14px",
                       background: "var(--accent)",
                       border: "none",
-                      color: "#FFFFFF",
+                      color: "var(--accent-contrast)",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: input.trim() ? "pointer" : "not-allowed",
@@ -2594,7 +2624,7 @@ export default function ConversationPage() {
                         : "var(--surface-subtle)",
                     color:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
-                        ? "#FFFFFF"
+                        ? "var(--accent-contrast)"
                         : "var(--text-ghost)",
                     border: "none",
                     cursor:
@@ -2740,7 +2770,7 @@ export default function ConversationPage() {
                       whiteSpace: "nowrap",
                       cursor: "pointer",
                       background: isSelected ? "var(--accent)" : "var(--surface-subtle)",
-                      color: isSelected ? "#FFFFFF" : "var(--text-secondary)",
+                      color: isSelected ? "var(--accent-contrast)" : "var(--text-secondary)",
                       border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
                       transition: "all 120ms var(--ease)",
                     }}

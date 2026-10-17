@@ -44,8 +44,17 @@ class DecisionAnalysis(BaseModel):
                         if isinstance(item, str):
                             normalized.append(item)
                         elif isinstance(item, dict):
-                            # extract message or content or fallback to string representation
-                            text = item.get("content") or item.get("message") or item.get("reason") or str(item)
+                            # extract description, message, content or fallback to string representation
+                            text = (
+                                item.get("description")
+                                or item.get("content")
+                                or item.get("message")
+                                or item.get("reason")
+                                or item.get("text")
+                                or item.get("detail")
+                                or item.get("title")
+                                or str(item)
+                            )
                             normalized.append(text)
                         else:
                             normalized.append(str(item))

@@ -664,38 +664,38 @@ function ChatPageContent() {
                   gap: "8px",
                   padding: "5px 14px",
                   borderRadius: "20px",
-                  background: "linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%)",
-                  border: "1px solid rgba(139, 92, 246, 0.35)",
+                  background: "rgba(255, 255, 255, 0.04)",
+                  border: "1px solid var(--border-strong)",
                   color: "var(--text-primary)",
                   fontSize: "12px",
                   marginBottom: "14px",
-                  boxShadow: "0 2px 10px rgba(139, 92, 246, 0.15)",
+                  boxShadow: "var(--shadow-xs)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#A78BFA", fontWeight: 700 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-primary)", fontWeight: 700 }}>
                   <Zap style={{ width: "13px", height: "13px" }} />
                   <span>High-Yield Synergy Sprint:</span>
                 </div>
                 <span style={{ color: "var(--text-secondary)", maxWidth: "340px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {dailySprint.taskTitle}
                 </span>
-                <span style={{ fontSize: "11px", color: "#A78BFA", fontWeight: 600 }}>
+                <span style={{ fontSize: "11px", color: "var(--text-tertiary)", fontWeight: 600 }}>
                   ({dailySprint.goalTitles.length} Goals Waiting)
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSend(dailySprint.prompt)}
                   style={{
-                    background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
+                    background: "var(--accent)",
                     border: "none",
-                    color: "#FFFFFF",
+                    color: "var(--accent-contrast)",
                     fontSize: "11px",
                     fontWeight: 700,
-                    padding: "3px 10px",
+                    padding: "4px 12px",
                     borderRadius: "12px",
                     cursor: "pointer",
                     marginLeft: "4px",
-                    boxShadow: "0 1px 4px rgba(139, 92, 246, 0.3)",
+                    transition: "opacity 150ms ease",
                   }}
                 >
                   Start Sprint ⚡
@@ -897,7 +897,7 @@ function ChatPageContent() {
                       borderRadius: "14px",
                       background: "var(--accent)",
                       border: "none",
-                      color: "#FFFFFF",
+                      color: "var(--accent-contrast)",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: input.trim() ? "pointer" : "not-allowed",
@@ -1107,7 +1107,7 @@ function ChatPageContent() {
                         : "var(--surface-subtle)",
                     color:
                       (input.trim() || attachments.length > 0) && !isOrchestrating
-                        ? "#FFFFFF"
+                        ? "var(--accent-contrast)"
                         : "var(--text-ghost)",
                     border: "none",
                     cursor:
@@ -1352,7 +1352,7 @@ function ChatPageContent() {
                       whiteSpace: "nowrap",
                       cursor: "pointer",
                       background: isSelected ? "var(--accent)" : "var(--surface-subtle)",
-                      color: isSelected ? "#FFFFFF" : "var(--text-secondary)",
+                      color: isSelected ? "var(--accent-contrast)" : "var(--text-secondary)",
                       border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
                       transition: "all 120ms var(--ease)",
                     }}

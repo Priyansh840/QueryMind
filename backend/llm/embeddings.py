@@ -61,6 +61,59 @@ class SafeEmbeddings(Embeddings):
             return await self.fallback.aembed_query(text)
 
 
+class GoogleGeminiEmbeddings(Embeddings):
+    """Google Gemini Embeddings supporting configurable output dimension (e.g. 384)."""
+
+    def __init__(self, api_key: str, model: str = "models/gemini-embedding-001", dimension: int = 384):
+        self.api_key = api_key
+        self.model = model if model.startswith("models/") else f"models/{model}"
+        if "embed" not in self.model:
+            self.model = "models/gemini-embedding-001"
+        self.dimension = dimension
+        import google.generativeai as genai
+        genai.configure(api_key=self.api_key)
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        import google.generativeai as genai
+        try:
+            res = genai.embed_content(
+                model=self.model,
+                content=texts,
+                output_dimensionality=self.dimension,
+                task_type="retrieval_document"
+            )
+            return res["embedding"]
+        except Exception:
+            results = []
+            for t in texts:
+                res = genai.embed_content(
+                    model=self.model,
+                    content=t,
+                    output_dimensionality=self.dimension,
+                    task_type="retrieval_document"
+                )
+                results.append(res["embedding"])
+            return results
+
+    def embed_query(self, text: str) -> List[float]:
+        import google.generativeai as genai
+        res = genai.embed_content(
+            model=self.model,
+            content=text,
+            output_dimensionality=self.dimension,
+            task_type="retrieval_query"
+        )
+        return res["embedding"]
+
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        return self.embed_documents(texts)
+
+    async def aembed_query(self, text: str) -> List[float]:
+        return self.embed_query(text)
+
+
 def get_embeddings() -> Embeddings:
     """
     Returns a configured LangChain Embeddings model with automatic fallback.
@@ -70,8 +123,12 @@ def get_embeddings() -> Embeddings:
     
     if provider == "google" and settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
         try:
-            logger.info(f"Initializing Google Embeddings (Model: {model})")
-            return SafeEmbeddings(GoogleGenerativeAIEmbeddings(model=model, google_api_key=settings.GEMINI_API_KEY))
+            logger.info(f"Initializing Google Gemini Embeddings (Model: {model}, Dim: {settings.EMBEDDING_DIMENSION})")
+            return SafeEmbeddings(GoogleGeminiEmbeddings(
+                api_key=settings.GEMINI_API_KEY,
+                model=model,
+                dimension=settings.EMBEDDING_DIMENSION
+            ))
         except Exception as e:
             logger.warning(f"Failed to initialize Google Embeddings: {e}. Falling back to local BGE embeddings.")
 

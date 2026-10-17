@@ -1268,13 +1268,13 @@ export default function SkillsPage() {
                                   </div>
                                 </div>
 
-                                {/* Evidence Accordion Trigger & Study Guide Action */}
-                                <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
+                                {/* Evidence Accordion Trigger */}
+                                <div style={{ marginTop: "6px" }}>
                                   <button
                                     type="button"
                                     onClick={() => toggleExpandEvidence(skill.id)}
                                     style={{
-                                      flex: 1,
+                                      width: "100%",
                                       background: "var(--surface-secondary)",
                                       border: "1px solid var(--border-subtle)",
                                       borderRadius: "7px",
@@ -1292,29 +1292,6 @@ export default function SkillsPage() {
                                       <span>{skill.verified_tasks_count} Proof{skill.verified_tasks_count > 1 ? "s" : ""}</span>
                                     </span>
                                     {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => openStudyGuide(skill)}
-                                    style={{
-                                      background: "rgba(59, 130, 246, 0.12)",
-                                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                                      color: "#60A5FA",
-                                      borderRadius: "7px",
-                                      padding: "6px 10px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "5px",
-                                      fontSize: "11px",
-                                      fontWeight: 600,
-                                      cursor: "pointer",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                    title="Open interactive Study Guide & Notes"
-                                  >
-                                    <BookOpen size={12} />
-                                    <span>Guide</span>
                                   </button>
                                 </div>
 
@@ -1437,29 +1414,6 @@ export default function SkillsPage() {
                                       <CheckCircle2 size={12} color="#34D399" />
                                       <span>{skill.verified_tasks_count} Proof{skill.verified_tasks_count > 1 ? "s" : ""}</span>
                                       {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => openStudyGuide(skill)}
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "4px",
-                                        background: "rgba(59, 130, 246, 0.12)",
-                                        border: "1px solid rgba(59, 130, 246, 0.3)",
-                                        borderRadius: "6px",
-                                        padding: "4px 8px",
-                                        fontSize: "11px",
-                                        fontWeight: 600,
-                                        color: "#60A5FA",
-                                        cursor: "pointer",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                      title="Open interactive Study Guide & Notes"
-                                    >
-                                      <BookOpen size={12} />
-                                      <span>Guide</span>
                                     </button>
                                   </div>
                                 </div>

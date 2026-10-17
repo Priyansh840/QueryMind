@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, Suspense } from "react";
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import {
   Sparkles,
   TrendingUp,
@@ -54,6 +54,22 @@ function IntelligencePageContent() {
   // Activity filter state
   const [activityFilter, setActivityFilter] = useState("all");
 
+  const hasInitializedRef = useRef(false);
+
+  // Deduplicate display documents by ID and title to avoid duplicate card rendering
+  const displayDocs = useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenTitles = new Set<string>();
+    return uploadedDocuments.filter((doc) => {
+      if (!doc || !doc.id || seenIds.has(doc.id)) return false;
+      seenIds.add(doc.id);
+      const title = (doc.title || doc.name || doc.filename || "").trim().toLowerCase();
+      if (title && seenTitles.has(title)) return false;
+      if (title) seenTitles.add(title);
+      return true;
+    });
+  }, [uploadedDocuments]);
+
   // Auto-fetch documents from backend on mount and whenever active space changes
   useEffect(() => {
     let isMounted = true;
@@ -62,9 +78,15 @@ function IntelligencePageContent() {
         const docs = await queryMindApi.listDocuments(activeSpaceId || undefined);
         if (isMounted && Array.isArray(docs) && docs.length > 0) {
           const currentUploaded = useMyndStore.getState().uploadedDocuments;
+          const seenTitles = new Set(
+            currentUploaded.map((u) => (u.title || u.name || "").trim().toLowerCase())
+          );
+          const seenIds = new Set(currentUploaded.map((u) => u.id));
           docs.forEach((d: { id: string; title: string; file_type?: string; file_size?: number }) => {
-            const exists = currentUploaded.some((u) => u.id === d.id || u.title === d.title);
-            if (!exists) {
+            const title = (d.title || "").trim().toLowerCase();
+            if (!seenIds.has(d.id) && (!title || !seenTitles.has(title))) {
+              seenIds.add(d.id);
+              if (title) seenTitles.add(title);
               addDocument({
                 id: d.id,
                 name: d.title,
@@ -99,29 +121,31 @@ function IntelligencePageContent() {
       const ids = docsParam.split(",").filter(Boolean);
       if (ids.length > 0) {
         setSelectedDocIds(ids);
+        hasInitializedRef.current = true;
         setActiveTab("analysis");
       }
     }
   }, [searchParams]);
 
-  // Ensure documents are pre-selected once loaded
+  // Ensure documents are pre-selected ONLY ONCE on initial load
   useEffect(() => {
-    if (uploadedDocuments.length > 0) {
+    if (!hasInitializedRef.current && displayDocs.length > 0) {
+      hasInitializedRef.current = true;
       if (selectedDocIds.length === 0) {
-        if (uploadedDocuments.length >= 2) {
-          setSelectedDocIds([uploadedDocuments[0].id, uploadedDocuments[1].id]);
-        } else if (uploadedDocuments.length === 1) {
-          setSelectedDocIds([uploadedDocuments[0].id]);
+        if (displayDocs.length >= 2) {
+          setSelectedDocIds([displayDocs[0].id, displayDocs[1].id]);
+        } else if (displayDocs.length === 1) {
+          setSelectedDocIds([displayDocs[0].id]);
         }
       }
-      if (!compareDocA && uploadedDocuments.length > 0) {
-        setCompareDocA(uploadedDocuments[0].id);
+      if (!compareDocA && displayDocs.length > 0) {
+        setCompareDocA(displayDocs[0].id);
       }
-      if (!compareDocB && uploadedDocuments.length > 1) {
-        setCompareDocB(uploadedDocuments[1].id);
+      if (!compareDocB && displayDocs.length > 1) {
+        setCompareDocB(displayDocs[1].id);
       }
     }
-  }, [uploadedDocuments, selectedDocIds.length, compareDocA, compareDocB]);
+  }, [displayDocs, compareDocA, compareDocB]);
 
   // Toggle document selection for multi-doc analysis
   const toggleDocSelection = (id: string) => {
@@ -235,18 +259,43 @@ function IntelligencePageContent() {
   return (
     <div className="w-full space-y-8 stagger">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 style={{ fontSize: "var(--t-display)", fontWeight: "var(--w-bold)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-            Intelligence & Analysis
-          </h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: "6px" }}>
-            Autonomous pattern discovery, evolutionary trends, divergence detection, and knowledge activity across your documents.
-          </p>
-        </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "18px",
+          paddingBottom: "22px",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1
+              style={{
+                fontSize: "26px",
+                fontWeight: 700,
+                letterSpacing: "-0.025em",
+                color: "var(--text-primary)",
+                margin: "0 0 6px 0",
+              }}
+            >
+              Intelligence &amp; Analysis
+            </h1>
+            <p
+              style={{
+                color: "var(--text-secondary)",
+                fontSize: "13.5px",
+                lineHeight: "1.6",
+                margin: 0,
+                maxWidth: "750px",
+              }}
+            >
+              Autonomous pattern discovery, evolutionary trends, divergence detection, and knowledge activity across your documents.
+            </p>
+          </div>
 
-        {/* Tab Switcher */}
-        <div
+          {/* Tab Switcher */}
+          <div
           style={{
             display: "flex",
             padding: "4px",
@@ -345,6 +394,7 @@ function IntelligencePageContent() {
           </button>
         </div>
       </div>
+    </div>
 
       {/* ─── TAB 0: KNOWLEDGE DECISION TOPOLOGY MAP ────────────────── */}
       {activeTab === "topology" && (
@@ -403,65 +453,87 @@ function IntelligencePageContent() {
           {/* Document Selection Card */}
           <div
             style={{
-              padding: "20px 24px",
-              borderRadius: "14px",
+              padding: "24px 28px",
+              borderRadius: "16px",
               background: "var(--surface)",
               border: "1px solid var(--border)",
               display: "flex",
               flexDirection: "column",
-              gap: "16px",
+              gap: "20px",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                <h3 style={{ fontSize: "14.5px", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
                   Select Target Documents ({selectedDocIds.length} selected)
                 </h3>
-                <p style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                <p style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "4px", margin: 0 }}>
                   Choose at least 2 documents to correlate patterns, trends, and conflicting claims.
                 </p>
               </div>
 
-              {uploadedDocuments.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedDocIds.length === uploadedDocuments.length) {
-                      setSelectedDocIds([]);
-                    } else {
-                      setSelectedDocIds(uploadedDocuments.map((d) => d.id));
-                    }
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--accent)",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  {selectedDocIds.length === uploadedDocuments.length ? "Deselect All" : "Select All Available"}
-                </button>
+              {displayDocs.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                  {selectedDocIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDocIds([])}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-tertiary)",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "color 120ms ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+                    >
+                      Deselect All
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedDocIds.length === displayDocs.length) {
+                        setSelectedDocIds([]);
+                      } else {
+                        setSelectedDocIds(displayDocs.map((d) => d.id));
+                      }
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--accent)",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {selectedDocIds.length === displayDocs.length ? "Clear All" : "Select All Available"}
+                  </button>
+                </div>
               )}
             </div>
 
-            {uploadedDocuments.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", fontSize: "12px", color: "var(--text-tertiary)" }}>
+            {displayDocs.length === 0 ? (
+              <div style={{ padding: "32px 20px", textAlign: "center", fontSize: "13px", color: "var(--text-tertiary)" }}>
                 No documents found in vault. Please upload documents in the Knowledge Vault first.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {uploadedDocuments.map((doc) => {
+                {displayDocs.map((doc) => {
                   const isSelected = selectedDocIds.includes(doc.id);
                   return (
                     <div
                       key={doc.id}
                       onClick={() => toggleDocSelection(doc.id)}
                       style={{
-                        padding: "10px 14px",
+                        padding: "12px 14px",
                         borderRadius: "10px",
-                        background: isSelected ? "var(--surface-subtle)" : "transparent",
+                        background: isSelected ? "var(--surface-subtle)" : "rgba(255, 255, 255, 0.02)",
                         border: isSelected ? "1px solid var(--accent)" : "1px solid var(--border)",
                         display: "flex",
                         alignItems: "center",
@@ -482,6 +554,7 @@ function IntelligencePageContent() {
                           justifyContent: "center",
                           color: "#FFFFFF",
                           flexShrink: 0,
+                          transition: "all 120ms ease",
                         }}
                       >
                         {isSelected && <Check className="w-3 h-3" />}
@@ -491,7 +564,7 @@ function IntelligencePageContent() {
                         <div style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {doc.title || doc.name || doc.filename || "Untitled Document"}
                         </div>
-                        <div style={{ fontSize: "11px", color: "var(--text-ghost)" }}>
+                        <div style={{ fontSize: "11px", color: "var(--text-ghost)", marginTop: "2px" }}>
                           {doc.type?.toUpperCase()} • {doc.chunks || 1} chunks
                         </div>
                       </div>
@@ -501,8 +574,18 @@ function IntelligencePageContent() {
               </div>
             )}
 
-            {/* Focus Areas & Query Input */}
-            <div className="pt-2 border-t border-[var(--border)] flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            {/* Focus Areas & Action Footer */}
+            <div
+              style={{
+                marginTop: "8px",
+                paddingTop: "22px",
+                borderTop: "1px solid var(--border-subtle)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+              }}
+              className="sm:flex-row sm:items-center sm:justify-between"
+            >
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Focus Areas:</span>
                 {[
@@ -518,7 +601,7 @@ function IntelligencePageContent() {
                       type="button"
                       onClick={() => toggleFocusArea(item.id)}
                       style={{
-                        padding: "4px 10px",
+                        padding: "5px 12px",
                         borderRadius: "16px",
                         fontSize: "11px",
                         fontWeight: 500,
@@ -540,19 +623,19 @@ function IntelligencePageContent() {
                 onClick={handleRunAnalysis}
                 disabled={isAnalyzing || selectedDocIds.length < 2}
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
-                  gap: "7px",
-                  padding: "8px 18px",
+                  gap: "8px",
+                  padding: "10px 22px",
                   borderRadius: "10px",
                   background: selectedDocIds.length >= 2 ? "var(--accent)" : "var(--surface-subtle)",
                   color: selectedDocIds.length >= 2 ? "#FFFFFF" : "var(--text-ghost)",
                   fontWeight: 600,
                   fontSize: "13px",
-                  border: "none",
+                  border: selectedDocIds.length >= 2 ? "none" : "1px solid var(--border)",
                   cursor: selectedDocIds.length >= 2 && !isAnalyzing ? "pointer" : "not-allowed",
                   transition: "all 150ms ease",
-                  boxShadow: selectedDocIds.length >= 2 ? "0 4px 14px rgba(0,0,0,0.2)" : "none",
+                  boxShadow: selectedDocIds.length >= 2 ? "0 4px 16px rgba(245, 158, 11, 0.25)" : "none",
                 }}
               >
                 {isAnalyzing ? (

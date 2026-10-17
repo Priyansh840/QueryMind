@@ -307,6 +307,7 @@ export default function SpacesDirectoryPage() {
           return (
             <div
               key={`spaces-grid-${space.id}-${idx}`}
+              className="group"
               onClick={() => {
                 selectSpace(space.id);
                 router.push(`/spaces/${space.id}`);
@@ -401,6 +402,7 @@ export default function SpacesDirectoryPage() {
                   <button
                     type="button"
                     title={`Delete "${space.name}"`}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (confirm(`Are you sure you want to remove space "${space.name}"?`)) {

@@ -77,10 +77,11 @@ export default function ProjectsPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "8px",
-              padding: "4px 10px",
+              padding: "4px 12px",
               borderRadius: "9999px",
-              background: "rgba(59, 130, 246, 0.12)",
-              color: "#60A5FA",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid var(--border-strong)",
+              color: "var(--text-primary)",
               fontSize: "11px",
               fontWeight: 600,
               letterSpacing: "0.04em",
@@ -155,6 +156,7 @@ export default function ProjectsPage() {
           border: "1px solid var(--border)",
           padding: "8px 10px",
           borderRadius: "14px",
+          boxShadow: "var(--shadow-xs)",
         }}
       >
         <input
@@ -181,8 +183,8 @@ export default function ProjectsPage() {
             gap: "6px",
             padding: "8px 18px",
             borderRadius: "10px",
-            background: "var(--text-primary)",
-            color: "var(--bg-app, #000000)",
+            background: "var(--accent)",
+            color: "var(--accent-contrast)",
             fontWeight: 700,
             fontSize: "13px",
             border: "none",
@@ -212,26 +214,40 @@ export default function ProjectsPage() {
           {projects.map((p) => (
             <div
               key={p.id}
+              className="group"
               style={{
-                padding: "18px",
+                padding: "20px",
                 borderRadius: "16px",
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "14px",
-                transition: "all 150ms ease",
+                position: "relative",
+                transition: "all 200ms ease",
+                boxShadow: "var(--shadow-xs)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "var(--shadow-md)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "var(--shadow-xs)";
               }}
             >
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div
                     style={{
-                      width: "36px",
-                      height: "36px",
+                      width: "38px",
+                      height: "38px",
                       borderRadius: "10px",
-                      background: "rgba(59, 130, 246, 0.12)",
-                      color: "#60A5FA",
+                      background: "var(--surface-hover)",
+                      border: "1px solid var(--border)",
+                      color: "#FFFFFF",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -254,6 +270,7 @@ export default function ProjectsPage() {
                   type="button"
                   onClick={() => handleDeleteProject(p.id)}
                   title="Delete project"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{
                     background: "transparent",
                     border: "none",
@@ -264,6 +281,7 @@ export default function ProjectsPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    transition: "color 150ms ease, opacity 150ms ease",
                   }}
                   onMouseOver={(e) => (e.currentTarget.style.color = "#EF4444")}
                   onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
@@ -305,6 +323,7 @@ export default function ProjectsPage() {
                     alignItems: "center",
                     gap: "4px",
                     textDecoration: "none",
+                    transition: "gap 150ms ease",
                   }}
                 >
                   <span>Goals</span>

@@ -337,7 +337,7 @@ export default function VaultPage() {
 
   // Load curated sample documents
   const handleLoadSampleDocs = () => {
-    const samples: KnowledgeObject[] = [
+    const samples = [
       {
         id: `sample-doc-raft-${Date.now() + 1}`,
         name: "Distributed_Consensus_Raft_vs_Paxos.pdf",
