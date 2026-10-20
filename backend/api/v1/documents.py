@@ -5,6 +5,7 @@ Identity is strictly derived from the validated Supabase JWT token.
 """
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks, Query
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -694,17 +695,55 @@ async def get_or_generate_study_companion(
     goals_res = await db.execute(goals_stmt)
     user_goals = goals_res.scalars().all()
 
-    eval_tasks = []
-    for g in user_goals:
-        for t in (g.tasks or []):
-            eval_tasks.append({
-                "task_id": t.get("id", str(uuid.uuid4())),
-                "title": t.get("title", ""),
-                "sub_goal": t.get("sub_goal", ""),
-                "goal_description": g.description,
-            })
+    import re
 
-    # 4. Invoke LLM with specialized curriculum prompt
+    doc_lexical_base = f"{doc.title} {sample_text}".lower()
+    doc_tokens = set(re.findall(r"[a-z0-9_]{3,}", doc_lexical_base))
+
+    all_tasks_by_id = {}
+    scored_tasks = []
+
+    for g in user_goals:
+        goal_desc = (g.description or "").strip()
+        goal_tokens = set(re.findall(r"[a-z0-9_]{3,}", goal_desc.lower()))
+        goal_overlap = len(goal_tokens.intersection(doc_tokens))
+
+        for t in (g.tasks or []):
+            tid = t.get("id") or str(uuid.uuid4())
+            title = t.get("title", "")
+            deliverable = t.get("deliverable", "")
+            sub_goal = t.get("sub_goal", "")
+
+            task_tokens = set(re.findall(r"[a-z0-9_]{3,}", f"{title} {deliverable}".lower()))
+            task_overlap = len(task_tokens.intersection(doc_tokens))
+
+            # Prioritize tasks that share direct vocabulary with the document text or parent goal
+            relevance_score = (task_overlap * 2) + goal_overlap
+
+            task_obj = {
+                "task_id": tid,
+                "title": title,
+                "deliverable": deliverable,
+                "sub_goal": sub_goal,
+                "goal_title": goal_desc,
+                "relevance_score": relevance_score,
+            }
+            all_tasks_by_id[tid] = task_obj
+            scored_tasks.append(task_obj)
+
+    # Sort so most topically relevant tasks are prioritized in the candidate list
+    scored_tasks.sort(key=lambda x: x["relevance_score"], reverse=True)
+    candidate_tasks_for_prompt = [
+        {
+            "task_id": t["task_id"],
+            "title": t["title"],
+            "deliverable": t["deliverable"],
+            "parent_goal": t["goal_title"],
+        }
+        for t in scored_tasks[:40]
+    ]
+
+    # 4. Invoke LLM with specialized curriculum prompt with strict negative gating
     prompt = f"""You are QueryMind's Study Engine AI.
 Analyze this document to construct a high-yield Study Space and semantically map the user's active learning tasks.
 
@@ -714,8 +753,8 @@ TOTAL PAGES: {total_pages}
 DOCUMENT EXCERPTS:
 {sample_text[:10000]}
 
-USER ACTIVE TASKS TO EVALUATE:
-{json.dumps(eval_tasks[:45], indent=2)}
+CANDIDATE ACTIVE USER TASKS TO EVALUATE:
+{json.dumps(candidate_tasks_for_prompt, indent=2)}
 
 INSTRUCTIONS:
 1. Determine the authentic subject domain (e.g., "Data Structures & Algorithms (DSA) • Computer Science", "Cybersecurity & Network Defense", "Operating Systems & Systems Architecture", "Biochemistry & Genetics", "Professional Credentials & Career Portfolio", etc.).
@@ -723,7 +762,17 @@ INSTRUCTIONS:
 2. Identify 3-4 major key topics/modules covered in this document.
 3. Generate a structured 3-4 milestone study roadmap tailored specifically to this document's content, with realistic page ranges (spanning 1 to {total_pages}), estimated completion times, and concrete deliverables.
 4. Generate 3-4 high-yield active recall flashcards from the actual concepts taught in this text (question, answer, hint).
-5. Semantically match user tasks: Select only tasks whose learning objectives are genuinely taught or practiced by this document. Never match unrelated tasks from different academic fields. For each matched task, return the task_id, match_score (70-100), and a concise match_reason (e.g., "Topic: Binary Trees", "Linked Module: Dynamic Programming").
+5. Semantically match candidate user tasks with ZERO TOLERANCE FOR FALSE POSITIVES:
+   - ONLY match a task if its specific technical or academic skill is explicitly taught in this document.
+   - DO NOT FORCE MATCHES! If none of the user's active tasks are directly taught in this document, return an empty array [] for "matched_task_ids". Returning [] is completely normal and expected.
+   - ABSOLUTE PROHIBITIONS:
+     * NEVER match soft skills, workplace communication, email/Slack writing, Loom recordings, or presentation tasks to engineering, math, or computer science documents.
+     * NEVER cross unrelated technical domains (e.g., do NOT match networking/Wireshark/penetration testing tasks to a data structures or algorithms document; do NOT match cloud/DevOps/Kubernetes tasks to a discrete math or programming document unless the document explicitly teaches that topic).
+   - For every genuine match, return:
+     * "task_id": exact ID from the candidate list
+     * "task_title": exact title of the task
+     * "match_score": integer (80-100)
+     * "match_reason": concise badge reason citing the exact module in this document (e.g. "Topic: Binary Trees", "Linked Module: Dynamic Programming")
 
 Respond in valid JSON only with this exact structure:
 {{
@@ -747,6 +796,7 @@ Respond in valid JSON only with this exact structure:
   "matched_task_ids": [
     {{
       "task_id": "string",
+      "task_title": "string",
       "match_score": 90,
       "match_reason": "Topic: ..."
     }}
@@ -786,8 +836,99 @@ Respond in valid JSON only with this exact structure:
             "matched_task_ids": []
         }
 
-    # 5. Persist to Knowledge table for instant caching
+    # 5. Programmatic Post-Validation & Hallucination Guard
+    raw_matches = data.get("matched_task_ids") or []
+    validated_matches = []
+
+    domain_str = str(data.get("domain", "")).lower()
+    topics_str = " ".join([str(t) for t in data.get("key_topics", [])]).lower()
+    doc_validation_corpus = f"{doc.title} {domain_str} {topics_str} {sample_text}".lower()
+
+    is_cs_or_algo_doc = any(term in doc_validation_corpus for term in [
+        "algorithm", "data structure", "tree", "graph", "sorting", "complexity", 
+        "programming", "array", "linked list", "recursion", "stack", "queue"
+    ])
+
+    stopwords = {
+        "the", "and", "for", "with", "from", "that", "this", "these", "those",
+        "using", "into", "over", "under", "after", "before", "about", "between",
+        "through", "during", "without", "against", "among", "throughout", "despite",
+        "towards", "upon", "concerning", "to", "in", "on", "at", "by", "an", "a",
+        "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+        "do", "does", "did", "can", "could", "should", "would", "may", "might",
+        "must", "shall", "will", "build", "create", "implement", "execute", "solve",
+        "develop", "design", "review", "perform", "analyze", "master", "week", "month",
+        "phase", "part", "step", "level", "guide", "learn", "study", "complete", "problems",
+        "problem", "sets", "challenges", "practice", "solutions"
+    }
+
+    for m in raw_matches:
+        tid = m.get("task_id")
+        if not tid or tid not in all_tasks_by_id:
+            continue
+        task_info = all_tasks_by_id[tid]
+        task_title = task_info.get("title", "")
+        task_deliverable = task_info.get("deliverable", "")
+        goal_title = task_info.get("goal_title", "")
+
+        combined_task_text = f"{task_title} {task_deliverable}".lower()
+        words = re.findall(r"[a-z]{3,}", combined_task_text)
+        content_words = [w for w in words if w not in stopwords]
+
+        # 1. Lexical presence check: At least one significant content word MUST exist in doc corpus
+        matching_keywords = [w for w in content_words if w in doc_validation_corpus]
+        if not matching_keywords:
+            logger.warning(
+                f"[StudyCompanion Guard] Rejected false match '{task_title}' (Goal: {goal_title}): "
+                f"no content keywords exist in document '{doc.title}'"
+            )
+            continue
+
+        # 2. Hard cross-domain negative check:
+        # Prevent soft-skills/communication tasks from attaching to technical documents
+        is_communication_task = any(
+            cw in f"{task_title} {goal_title}".lower()
+            for cw in ["slack", "email", "loom", "stakeholder", "active listening", "bluf", "presentation", "public speaking", "jira ticket"]
+        )
+        if is_communication_task and is_cs_or_algo_doc:
+            logger.warning(
+                f"[StudyCompanion Guard] Rejected communication task '{task_title}' for technical document '{doc.title}'"
+            )
+            continue
+
+        # Prevent networking / cybersecurity / devops tasks from attaching to pure DSA/math docs
+        is_networking_or_security_task = any(
+            cw in f"{task_title} {goal_title}".lower()
+            for cw in ["wireshark", "pcap", "nmap", "metasploit", "burp suite", "tcp handshake", "penetration testing", "kubernetes", "k8s", "helm"]
+        )
+        if is_networking_or_security_task and "network" not in doc_validation_corpus and "security" not in doc_validation_corpus:
+            logger.warning(
+                f"[StudyCompanion Guard] Rejected security/networking task '{task_title}' for DSA/theory document '{doc.title}'"
+            )
+            continue
+
+        # Build accurate reason
+        reason = m.get("match_reason")
+        if not reason or reason == "Topic: ...":
+            matched_topic = next((t for t in data.get("key_topics", []) if any(w in t.lower() for w in matching_keywords)), None)
+            reason = f"Topic: {matched_topic}" if matched_topic else f"Matched: {matching_keywords[0].capitalize()}"
+
+        validated_matches.append({
+            "task_id": tid,
+            "match_score": max(75, min(100, int(m.get("match_score", 85)))),
+            "match_reason": reason,
+        })
+
+    data["matched_task_ids"] = validated_matches
+
+    # 6. Persist to Knowledge table for instant caching (replacing any stale cache)
     try:
+        await db.execute(
+            delete(Knowledge).where(
+                Knowledge.document_id == doc.id,
+                Knowledge.knowledge_type == "study_companion",
+            )
+        )
         companion_k = Knowledge(
             user_id=current_user.id,
             space_id=doc.space_id,
