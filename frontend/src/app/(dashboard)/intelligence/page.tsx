@@ -27,10 +27,14 @@ import {
   Target,
   ShieldAlert,
   Zap,
+  Copy,
+  X,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
 import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
 import { queryMindApi, downloadBlob } from "@/lib/api";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import DecisionTopologyMap from "@/components/graph/DecisionTopologyMap";
 
 function getFormatCategory(typeOrTitle: string): "pdf" | "markdown" | "document" | "data" | "code" | "other" {
@@ -88,7 +92,10 @@ const PRESET_QUERIES = [
 ];
 
 function IntelligencePageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const synthesisSectionRef = useRef<HTMLDivElement>(null);
+
   const [synthesisMode, setSynthesisMode] = useState<"multi" | "compare">("multi");
 
   // Prominently featured Decision Topology state
@@ -106,6 +113,7 @@ function IntelligencePageContent() {
   const [focusAreas, setFocusAreas] = useState<string[]>(["patterns", "trends", "contradictions", "recommendations"]);
   const [userQuery, setUserQuery] = useState("");
   const [docFilterSpace, setDocFilterSpace] = useState<string>("all");
+  const [docFilterCategory, setDocFilterCategory] = useState<"all" | "pdf" | "markdown" | "document" | "data" | "code">("all");
   const [docSearchQuery, setDocSearchQuery] = useState("");
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -118,6 +126,10 @@ function IntelligencePageContent() {
   const [compareDocB, setCompareDocB] = useState<string>("");
   const [isComparing, setIsComparing] = useState(false);
   const [comparisonResult, setComparisonResult] = useState<any | null>(null);
+
+  // Micro-feedback states
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const hasInitializedRef = useRef(false);
 
@@ -135,11 +147,34 @@ function IntelligencePageContent() {
     });
   }, [uploadedDocuments]);
 
+  // Compute format category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: displayDocs.length,
+      pdf: 0,
+      markdown: 0,
+      document: 0,
+      data: 0,
+      code: 0,
+    };
+    displayDocs.forEach((d) => {
+      const cat = getFormatCategory(d.title || d.name || d.type);
+      if (counts[cat] !== undefined) {
+        counts[cat]++;
+      }
+    });
+    return counts;
+  }, [displayDocs]);
+
   // Filtered documents for the selection matrix
   const filteredDocs = useMemo(() => {
     return displayDocs.filter((doc) => {
       if (docFilterSpace !== "all" && doc.spaceId !== docFilterSpace) {
         return false;
+      }
+      if (docFilterCategory !== "all") {
+        const cat = getFormatCategory(doc.title || doc.name || doc.type);
+        if (cat !== docFilterCategory) return false;
       }
       if (docSearchQuery.trim()) {
         const q = docSearchQuery.toLowerCase();
@@ -149,7 +184,7 @@ function IntelligencePageContent() {
       }
       return true;
     });
-  }, [displayDocs, docFilterSpace, docSearchQuery]);
+  }, [displayDocs, docFilterSpace, docFilterCategory, docSearchQuery]);
 
   // Auto-fetch documents from backend on mount and whenever active space changes
   useEffect(() => {
@@ -244,6 +279,90 @@ function IntelligencePageContent() {
   const applyPresetQuery = (preset: typeof PRESET_QUERIES[0]) => {
     setUserQuery(preset.query);
     setFocusAreas(preset.focus);
+  };
+
+  const handleCopyText = (text: string, key: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 2000);
+    }
+  };
+
+  const scrollToSynthesis = () => {
+    if (synthesisSectionRef.current) {
+      synthesisSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  // Cross-link from Decision Topology: Agent Critic Risk -> Cross-Document Synthesis
+  const handleAuditCriticRisk = () => {
+    if (displayDocs.length > 0) {
+      setSelectedDocIds(displayDocs.map((d) => d.id));
+    }
+    setSynthesisMode("multi");
+    const riskPreset = PRESET_QUERIES[0];
+    setUserQuery(riskPreset.query);
+    setFocusAreas(riskPreset.focus);
+    setActionFeedback("Configured Multi-Doc Cross-Synthesis for Agent Critic Risk Audit");
+    setTimeout(() => setActionFeedback(null), 4000);
+    setTimeout(() => scrollToSynthesis(), 60);
+  };
+
+  // Cross-link from Decision Topology: Architecture & Framework Decisions
+  const handleSynthesizeDecisions = () => {
+    if (displayDocs.length > 0) {
+      setSelectedDocIds(displayDocs.slice(0, Math.min(4, displayDocs.length)).map((d) => d.id));
+    }
+    setSynthesisMode("multi");
+    const decPreset = PRESET_QUERIES[2];
+    setUserQuery(decPreset.query);
+    setFocusAreas(decPreset.focus);
+    setActionFeedback("Configured Architecture & Trade-Offs Synthesis");
+    setTimeout(() => setActionFeedback(null), 4000);
+    setTimeout(() => scrollToSynthesis(), 60);
+  };
+
+  // Cross-link from Decision Topology: Actionable Roadmap
+  const handleFormulateRoadmap = () => {
+    if (displayDocs.length > 0) {
+      setSelectedDocIds(displayDocs.map((d) => d.id));
+    }
+    setSynthesisMode("multi");
+    const planPreset = PRESET_QUERIES[3];
+    setUserQuery(planPreset.query);
+    setFocusAreas(planPreset.focus);
+    setActionFeedback("Configured Strategic Implementation Plan Synthesis");
+    setTimeout(() => setActionFeedback(null), 4000);
+    setTimeout(() => scrollToSynthesis(), 60);
+  };
+
+  // Cross-link from Decision Topology: Priority Resource Alignment
+  const handleAlignPriorities = () => {
+    if (displayDocs.length > 0) {
+      setSelectedDocIds(displayDocs.map((d) => d.id));
+    }
+    setSynthesisMode("multi");
+    setUserQuery("Prioritize and align resources, architectural priorities, and technical dependencies across these documents.");
+    setFocusAreas(["patterns", "recommendations"]);
+    setActionFeedback("Configured Priority Resource Alignment Inquiry");
+    setTimeout(() => setActionFeedback(null), 4000);
+    setTimeout(() => scrollToSynthesis(), 60);
+  };
+
+  // Quick selection helpers
+  const handleQuickSelectActiveSpace = () => {
+    if (!activeSpaceId) return;
+    const spaceDocIds = displayDocs.filter((d) => d.spaceId === activeSpaceId).map((d) => d.id);
+    setSelectedDocIds(spaceDocIds.length > 0 ? spaceDocIds : displayDocs.map((d) => d.id));
+  };
+
+  const handleInvertSelection = () => {
+    const currentSet = new Set(selectedDocIds);
+    const inverted = filteredDocs.filter((d) => !currentSet.has(d.id)).map((d) => d.id);
+    setSelectedDocIds(inverted);
   };
 
   // Run multi-document analysis
@@ -667,6 +786,89 @@ function IntelligencePageContent() {
         {isTopologyExpanded ? (
           <div style={{ padding: "16px 20px 24px 20px" }}>
             <DecisionTopologyMap />
+            {/* Causal Insight Bar connecting Topology to Document Synthesis */}
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "12px 18px",
+                borderRadius: "10px",
+                background: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px" }}>
+                <span style={{ color: "#F59E0B", display: "flex", alignItems: "center", gap: "5px", fontWeight: 700 }}>
+                  <ShieldAlert size={15} />
+                  <span>Agent Critic Telemetry:</span>
+                </span>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Grounding mismatch identified between 6 active knowledge documents in {getSpaceName(activeSpaceId)}.
+                </span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={handleAuditCriticRisk}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    background: "rgba(239, 68, 68, 0.12)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    color: "#EF4444",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                  }}
+                >
+                  <Zap size={13} />
+                  <span>Audit Risk in Cross-Synthesis</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFormulateRoadmap}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    background: "rgba(16, 185, 129, 0.12)",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                    color: "#10B981",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(16, 185, 129, 0.12)";
+                  }}
+                >
+                  <ArrowRight size={13} />
+                  <span>Formulate Roadmap</span>
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* Compact Radar Strip when collapsed */
@@ -674,14 +876,14 @@ function IntelligencePageContent() {
             style={{
               padding: "16px 28px",
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
               gap: "12px",
               background: "rgba(255, 255, 255, 0.01)",
             }}
           >
             {/* Priority Node */}
             <div
-              onClick={() => setIsTopologyExpanded(true)}
+              onClick={handleAlignPriorities}
               style={{
                 padding: "12px 14px",
                 borderRadius: "10px",
@@ -689,26 +891,33 @@ function IntelligencePageContent() {
                 border: "1px solid rgba(16, 185, 129, 0.3)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: "10px",
                 cursor: "pointer",
+                transition: "all 150ms ease",
               }}
             >
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "rgba(16, 185, 129, 0.15)", color: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Target size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#10B981", textTransform: "uppercase" }}>
-                  Tier 1 Priority
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                <div style={{ width: "30px", height: "30px", borderRadius: "6px", background: "rgba(16, 185, 129, 0.15)", color: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Target size={16} />
                 </div>
-                <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  6 unaligned resources
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "#10B981", textTransform: "uppercase" }}>
+                    Tier 1 Priority
+                  </div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    6 unaligned resources
+                  </div>
                 </div>
               </div>
+              <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "rgba(16, 185, 129, 0.15)", color: "#10B981", whiteSpace: "nowrap" }}>
+                ⚡ Align
+              </span>
             </div>
 
             {/* Decision Node */}
             <div
-              onClick={() => setIsTopologyExpanded(true)}
+              onClick={handleSynthesizeDecisions}
               style={{
                 padding: "12px 14px",
                 borderRadius: "10px",
@@ -716,26 +925,33 @@ function IntelligencePageContent() {
                 border: "1px solid rgba(139, 92, 246, 0.3)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: "10px",
                 cursor: "pointer",
+                transition: "all 150ms ease",
               }}
             >
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "rgba(139, 92, 246, 0.15)", color: "#A78BFA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Layers size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase" }}>
-                  Tier 2 Decision
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                <div style={{ width: "30px", height: "30px", borderRadius: "6px", background: "rgba(139, 92, 246, 0.15)", color: "#A78BFA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Layers size={16} />
                 </div>
-                <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  Architecture &amp; framework eval
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase" }}>
+                    Tier 2 Decision
+                  </div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Architecture &amp; framework eval
+                  </div>
                 </div>
               </div>
+              <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "rgba(139, 92, 246, 0.15)", color: "#A78BFA", whiteSpace: "nowrap" }}>
+                🏛️ Synthesize
+              </span>
             </div>
 
             {/* Risk Node */}
             <div
-              onClick={() => setIsTopologyExpanded(true)}
+              onClick={handleAuditCriticRisk}
               style={{
                 padding: "12px 14px",
                 borderRadius: "10px",
@@ -743,26 +959,33 @@ function IntelligencePageContent() {
                 border: "1px solid rgba(245, 158, 11, 0.3)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: "10px",
                 cursor: "pointer",
+                transition: "all 150ms ease",
               }}
             >
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "rgba(245, 158, 11, 0.15)", color: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <ShieldAlert size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#F59E0B", textTransform: "uppercase" }}>
-                  Agent Critic Risk
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                <div style={{ width: "30px", height: "30px", borderRadius: "6px", background: "rgba(245, 158, 11, 0.15)", color: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <ShieldAlert size={16} />
                 </div>
-                <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  Grounding mismatch (6 docs)
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "#F59E0B", textTransform: "uppercase" }}>
+                    Agent Critic Risk
+                  </div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Grounding mismatch (6 docs)
+                  </div>
                 </div>
               </div>
+              <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "rgba(239, 68, 68, 0.15)", color: "#EF4444", whiteSpace: "nowrap" }}>
+                ⚡ Audit
+              </span>
             </div>
 
             {/* Next Action Node */}
             <div
-              onClick={() => setIsTopologyExpanded(true)}
+              onClick={handleFormulateRoadmap}
               style={{
                 padding: "12px 14px",
                 borderRadius: "10px",
@@ -770,21 +993,28 @@ function IntelligencePageContent() {
                 border: "1px solid rgba(99, 102, 241, 0.3)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: "10px",
                 cursor: "pointer",
+                transition: "all 150ms ease",
               }}
             >
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "rgba(99, 102, 241, 0.15)", color: "#818CF8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <ArrowRight size={15} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, color: "#818CF8", textTransform: "uppercase" }}>
-                  Next Best Action
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                <div style={{ width: "30px", height: "30px", borderRadius: "6px", background: "rgba(99, 102, 241, 0.15)", color: "#818CF8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <ArrowRight size={16} />
                 </div>
-                <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  Formulate objective from docs
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "#818CF8", textTransform: "uppercase" }}>
+                    Next Best Action
+                  </div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Formulate objective from docs
+                  </div>
                 </div>
               </div>
+              <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "rgba(99, 102, 241, 0.15)", color: "#818CF8", whiteSpace: "nowrap" }}>
+                💡 Roadmap
+              </span>
             </div>
           </div>
         )}
@@ -794,12 +1024,14 @@ function IntelligencePageContent() {
           3. DOCUMENT SYNTHESIS & INQUIRY CONTROLLER
           ───────────────────────────────────────────────────────────── */}
       <div
+        ref={synthesisSectionRef}
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
           gap: "12px",
+          scrollMarginTop: "24px",
         }}
       >
         <div
@@ -878,6 +1110,142 @@ function IntelligencePageContent() {
         )}
       </div>
 
+      {/* Transient Action Feedback Banner (from Topology Actions) */}
+      {actionFeedback && (
+        <div
+          style={{
+            padding: "10px 16px",
+            borderRadius: "10px",
+            background: "rgba(16, 185, 129, 0.12)",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            color: "#10B981",
+            fontSize: "12.5px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            boxShadow: "0 4px 16px rgba(16, 185, 129, 0.1)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Sparkles size={14} />
+            <span>{actionFeedback}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            style={{ background: "none", border: "none", color: "#10B981", cursor: "pointer", padding: "2px" }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Low Document Count Guidance Banner */}
+      {displayDocs.length === 0 ? (
+        <div
+          style={{
+            padding: "36px 24px",
+            borderRadius: "16px",
+            background: "var(--surface)",
+            border: "1px dashed var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "10px",
+              background: "rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-tertiary)",
+            }}
+          >
+            <FileText size={22} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+              Knowledge Vault Empty
+            </h4>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", maxWidth: "480px", margin: "6px 0 0 0", lineHeight: "1.5" }}>
+              Cross-document synthesis, temporal drift auditing, and pairwise contrast require uploaded knowledge assets.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/vault")}
+            style={{
+              marginTop: "4px",
+              padding: "9px 18px",
+              borderRadius: "8px",
+              background: "#FFFFFF",
+              color: "#000000",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <span>Ingest Knowledge in Vault</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      ) : displayDocs.length === 1 ? (
+        <div
+          style={{
+            padding: "14px 18px",
+            borderRadius: "12px",
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            fontSize: "12.5px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-primary)" }}>
+            <AlertTriangle size={15} color="#F59E0B" />
+            <span>
+              1 document in vault. Multi-document synthesis and contrast work best with 2+ documents.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/vault")}
+            style={{
+              padding: "5px 12px",
+              borderRadius: "6px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+              fontSize: "11.5px",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            <span>Add More in Vault</span>
+            <ExternalLink size={11} />
+          </button>
+        </div>
+      ) : null}
+
       {/* ─────────────────────────────────────────────────────────────
           4. SYNTHESIS MODE 1: MULTI-DOC CROSS-SYNTHESIS
           ───────────────────────────────────────────────────────────── */}
@@ -955,6 +1323,58 @@ function IntelligencePageContent() {
                 {/* Quick actions */}
                 <button
                   type="button"
+                  onClick={handleQuickSelectActiveSpace}
+                  title="Select all documents belonging to current active space"
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#FFFFFF";
+                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.borderColor = "var(--border)";
+                  }}
+                >
+                  Active Space Only
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleInvertSelection}
+                  title="Invert current selection"
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#FFFFFF";
+                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.borderColor = "var(--border)";
+                  }}
+                >
+                  Invert
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => {
                     if (selectedDocIds.length === filteredDocs.length) {
                       setSelectedDocIds([]);
@@ -965,16 +1385,67 @@ function IntelligencePageContent() {
                   style={{
                     padding: "6px 12px",
                     borderRadius: "8px",
-                    background: "transparent",
+                    background: "var(--surface-hover)",
                     border: "1px solid var(--border)",
                     color: "var(--text-primary)",
                     fontSize: "12px",
+                    fontWeight: 600,
                     cursor: "pointer",
                   }}
                 >
                   {selectedDocIds.length === filteredDocs.length && filteredDocs.length > 0 ? "Deselect All" : "Select All"}
                 </button>
               </div>
+            </div>
+
+            {/* Format Category Filter Pills (Matching Vault UX) */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", paddingTop: "4px" }}>
+              {[
+                { id: "all", label: "All Formats", count: categoryCounts.all },
+                { id: "pdf", label: "PDFs", count: categoryCounts.pdf },
+                { id: "markdown", label: "Markdown", count: categoryCounts.markdown },
+                { id: "document", label: "Word Docs", count: categoryCounts.document },
+                { id: "data", label: "Data / CSV", count: categoryCounts.data },
+                { id: "code", label: "Code", count: categoryCounts.code },
+              ]
+                .filter((tab) => tab.id === "all" || (tab.count || 0) > 0)
+                .map((tab) => {
+                  const isActive = docFilterCategory === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setDocFilterCategory(tab.id as any)}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: "8px",
+                        fontSize: "11.5px",
+                        fontWeight: isActive ? 600 : 500,
+                        background: isActive ? "var(--surface-hover)" : "transparent",
+                        color: isActive ? "#FFFFFF" : "var(--text-secondary)",
+                        border: `1px solid ${isActive ? "rgba(255, 255, 255, 0.3)" : "var(--border)"}`,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        transition: "all 120ms ease",
+                      }}
+                    >
+                      <span>{tab.label}</span>
+                      <span
+                        style={{
+                          fontSize: "10.5px",
+                          opacity: 0.7,
+                          padding: "1px 5px",
+                          borderRadius: "4px",
+                          background: isActive ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.04)",
+                        }}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
             </div>
 
             {/* Document Selection Cards */}
@@ -1071,6 +1542,12 @@ function IntelligencePageContent() {
                           <span>{spaceName}</span>
                           <span>•</span>
                           <span>{doc.chunks || 1} chunks</span>
+                          {doc.size && (
+                            <>
+                              <span>•</span>
+                              <span>{doc.size}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1091,11 +1568,35 @@ function IntelligencePageContent() {
               }}
             >
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                  <Sparkles size={14} color="#10B981" />
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    Targeted Cognitive Inquiry (Optional)
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Sparkles size={14} color="#10B981" />
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                      Targeted Cognitive Inquiry (Optional)
+                    </span>
+                  </div>
+                  {userQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setUserQuery("")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-tertiary)",
+                        fontSize: "11.5px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "2px 6px",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+                    >
+                      <X size={12} />
+                      <span>Clear Inquiry</span>
+                    </button>
+                  )}
                 </div>
                 <input
                   type="text"
@@ -1121,37 +1622,45 @@ function IntelligencePageContent() {
                   Intelligence Presets:
                 </span>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {PRESET_QUERIES.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => applyPresetQuery(preset)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        background: "var(--surface-hover)",
-                        border: "1px solid var(--border)",
-                        fontSize: "12px",
-                        color: "var(--text-secondary)",
-                        cursor: "pointer",
-                        transition: "all 150ms ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
-                        e.currentTarget.style.color = "#FFFFFF";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border)";
-                        e.currentTarget.style.color = "var(--text-secondary)";
-                      }}
-                    >
-                      <span>{preset.icon}</span>
-                      <span>{preset.label}</span>
-                    </button>
-                  ))}
+                  {PRESET_QUERIES.map((preset, idx) => {
+                    const isPresetActive = userQuery === preset.query;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => applyPresetQuery(preset)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          background: isPresetActive ? "rgba(16, 185, 129, 0.12)" : "var(--surface-hover)",
+                          border: `1px solid ${isPresetActive ? "#10B981" : "var(--border)"}`,
+                          fontSize: "12px",
+                          fontWeight: isPresetActive ? 600 : 500,
+                          color: isPresetActive ? "#10B981" : "var(--text-secondary)",
+                          cursor: "pointer",
+                          transition: "all 150ms ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isPresetActive) {
+                            e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                            e.currentTarget.style.color = "#FFFFFF";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isPresetActive) {
+                            e.currentTarget.style.borderColor = "var(--border)";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                          }
+                        }}
+                      >
+                        <span>{preset.icon}</span>
+                        <span>{preset.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1306,8 +1815,62 @@ function IntelligencePageContent() {
                     </h2>
                   </div>
 
-                  {/* Export Toolbar */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {/* Executive Actions Toolbar */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(analysisResult.executive_summary, "briefing")}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "7px 12px",
+                        borderRadius: "8px",
+                        background: "var(--surface-hover)",
+                        border: "1px solid var(--border)",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: copiedKey === "briefing" ? "#10B981" : "var(--text-primary)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                    >
+                      {copiedKey === "briefing" ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
+                      <span>{copiedKey === "briefing" ? "Copied!" : "Copy Briefing"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const snippet = analysisResult.executive_summary ? analysisResult.executive_summary.slice(0, 320) : "";
+                        const q = `Based on this Cross-Document Intelligence Synthesis:\n\n"${snippet}..."\n\nWhat are the top 3 tactical risks and high-priority milestones to execute next?`;
+                        router.push(`/chat?q=${encodeURIComponent(q)}`);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "7px 12px",
+                        borderRadius: "8px",
+                        background: "rgba(16, 185, 129, 0.12)",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "#10B981",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(16, 185, 129, 0.12)";
+                      }}
+                    >
+                      <MessageSquare size={13} />
+                      <span>Discuss in Copilot</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleExportReport("markdown")}
@@ -1316,7 +1879,7 @@ function IntelligencePageContent() {
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
-                        padding: "7px 14px",
+                        padding: "7px 12px",
                         borderRadius: "8px",
                         background: "var(--surface-hover)",
                         border: "1px solid var(--border)",
@@ -1327,8 +1890,9 @@ function IntelligencePageContent() {
                       }}
                     >
                       <Download size={13} />
-                      <span>Export MD</span>
+                      <span>MD</span>
                     </button>
+
                     <button
                       type="button"
                       onClick={() => handleExportReport("pdf")}
@@ -1337,7 +1901,7 @@ function IntelligencePageContent() {
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
-                        padding: "7px 14px",
+                        padding: "7px 12px",
                         borderRadius: "8px",
                         background: "var(--surface-hover)",
                         border: "1px solid var(--border)",
@@ -1348,7 +1912,7 @@ function IntelligencePageContent() {
                       }}
                     >
                       <Download size={13} />
-                      <span>Export PDF</span>
+                      <span>PDF</span>
                     </button>
                   </div>
                 </div>
@@ -1621,7 +2185,42 @@ function IntelligencePageContent() {
                               lineHeight: "1.45",
                             }}
                           >
-                            <strong style={{ color: "#10B981" }}>Suggested Reconciliation:</strong> {c.suggested_resolution}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
+                              <div style={{ flex: 1, minWidth: "220px" }}>
+                                <strong style={{ color: "#10B981" }}>Suggested Reconciliation:</strong> {c.suggested_resolution}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const prompt = `Help reconcile this divergence identified in our knowledge assets:\n\nIssue: ${c.issue}\nDescription: ${c.description}\nProposed Resolution: ${c.suggested_resolution}\n\nWhat is the safest architectural implementation to resolve this without regressions?`;
+                                  router.push(`/chat?q=${encodeURIComponent(prompt)}`);
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "5px",
+                                  padding: "4px 9px",
+                                  borderRadius: "6px",
+                                  background: "rgba(16, 185, 129, 0.15)",
+                                  border: "1px solid rgba(16, 185, 129, 0.35)",
+                                  color: "#10B981",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  transition: "all 150ms ease",
+                                  whiteSpace: "nowrap",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.25)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.15)";
+                                }}
+                              >
+                                <MessageSquare size={11} />
+                                <span>Reconcile in Copilot →</span>
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1640,9 +2239,68 @@ function IntelligencePageContent() {
                     border: "1px solid var(--border)",
                   }}
                 >
-                  <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "14px" }}>
-                    💡 Strategic Synthesis Recommendations
-                  </h3>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                      💡 Strategic Synthesis Recommendations
+                    </h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = (analysisResult.recommendations || []).map((r: string, i: number) => `${i + 1}. ${r}`).join("\n");
+                          handleCopyText(text, "recommendations");
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          padding: "5px 10px",
+                          borderRadius: "6px",
+                          background: "var(--surface-hover)",
+                          border: "1px solid var(--border)",
+                          fontSize: "11.5px",
+                          fontWeight: 600,
+                          color: copiedKey === "recommendations" ? "#10B981" : "var(--text-secondary)",
+                          cursor: "pointer",
+                          transition: "all 150ms ease",
+                        }}
+                      >
+                        {copiedKey === "recommendations" ? <Check size={12} color="#10B981" /> : <Copy size={12} />}
+                        <span>{copiedKey === "recommendations" ? "Copied!" : "Copy Roadmap"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prompt = `Please convert these synthesized strategic recommendations into concrete execution milestones and tasks:\n\n${(analysisResult.recommendations || []).map((r: string, i: number) => `${i + 1}. ${r}`).join("\n")}`;
+                          router.push(`/chat?q=${encodeURIComponent(prompt)}`);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          padding: "5px 10px",
+                          borderRadius: "6px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                          color: "#10B981",
+                          fontSize: "11.5px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 150ms ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "rgba(16, 185, 129, 0.12)";
+                        }}
+                      >
+                        <MessageSquare size={12} />
+                        <span>Execute in Copilot</span>
+                      </button>
+                    </div>
+                  </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     {analysisResult.recommendations.map((rec: string, idx: number) => (
                       <div
@@ -1749,24 +2407,41 @@ function IntelligencePageContent() {
                 </select>
               </div>
 
-              <div
+              <button
+                type="button"
+                onClick={() => {
+                  const temp = compareDocA;
+                  setCompareDocA(compareDocB);
+                  setCompareDocB(temp);
+                }}
+                title="Click to swap Document A and Document B"
                 style={{
-                  width: "36px",
-                  height: "36px",
+                  width: "38px",
+                  height: "38px",
                   borderRadius: "50%",
                   background: "var(--surface-hover)",
                   border: "1px solid var(--border)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "12px",
+                  fontSize: "14px",
                   fontWeight: 700,
                   color: "var(--text-secondary)",
                   marginTop: "24px",
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "#FFFFFF";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                  e.currentTarget.style.borderColor = "var(--border)";
                 }}
               >
-                VS
-              </div>
+                ⇄
+              </button>
 
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: "8px" }}>
@@ -1797,32 +2472,86 @@ function IntelligencePageContent() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleRunComparison}
-              disabled={isComparing || !compareDocA || !compareDocB || compareDocA === compareDocB}
-              style={{
-                alignSelf: "flex-end",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 22px",
-                borderRadius: "10px",
-                background: compareDocA && compareDocB && compareDocA !== compareDocB ? "#FFFFFF" : "var(--surface-hover)",
-                color: compareDocA && compareDocB && compareDocA !== compareDocB ? "#000000" : "var(--text-tertiary)",
-                fontWeight: 600,
-                fontSize: "13px",
-                border: "none",
-                cursor: compareDocA && compareDocB && compareDocA !== compareDocB && !isComparing ? "pointer" : "not-allowed",
-              }}
-            >
-              {isComparing ? (
-                <RefreshCw size={15} className="animate-spin" />
-              ) : (
-                <GitCompare size={15} />
-              )}
-              <span>{isComparing ? "Contrasting Documents..." : "Generate Deep Contrast"}</span>
-            </button>
+            {/* Quick Contrast Suggestions & Run Button Bar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", paddingTop: "8px" }}>
+              {displayDocs.length >= 2 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "12px" }}>
+                  <span style={{ color: "var(--text-tertiary)" }}>Quick Contrast:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompareDocA(displayDocs[0].id);
+                      setCompareDocB(displayDocs[1].id);
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      background: "var(--surface-hover)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-secondary)",
+                      fontSize: "11.5px",
+                      cursor: "pointer",
+                      transition: "all 120ms ease",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#FFFFFF")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+                  >
+                    Top 2 Documents
+                  </button>
+                  {displayDocs.length >= 3 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompareDocA(displayDocs[0].id);
+                        setCompareDocB(displayDocs[2].id);
+                      }}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        background: "var(--surface-hover)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-secondary)",
+                        fontSize: "11.5px",
+                        cursor: "pointer",
+                        transition: "all 120ms ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#FFFFFF")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+                    >
+                      1st vs 3rd Document
+                    </button>
+                  )}
+                </div>
+              ) : <div />}
+
+              <button
+                type="button"
+                onClick={handleRunComparison}
+                disabled={isComparing || !compareDocA || !compareDocB || compareDocA === compareDocB}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 22px",
+                  borderRadius: "10px",
+                  background: compareDocA && compareDocB && compareDocA !== compareDocB ? "#FFFFFF" : "var(--surface-hover)",
+                  color: compareDocA && compareDocB && compareDocA !== compareDocB ? "#000000" : "var(--text-tertiary)",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  border: "none",
+                  cursor: compareDocA && compareDocB && compareDocA !== compareDocB && !isComparing ? "pointer" : "not-allowed",
+                  boxShadow: compareDocA && compareDocB && compareDocA !== compareDocB ? "0 4px 16px rgba(255, 255, 255, 0.15)" : "none",
+                  transition: "all 150ms ease",
+                }}
+              >
+                {isComparing ? (
+                  <RefreshCw size={15} className="animate-spin" />
+                ) : (
+                  <GitCompare size={15} />
+                )}
+                <span>{isComparing ? "Contrasting Documents..." : "Generate Deep Contrast"}</span>
+              </button>
+            </div>
           </div>
 
           {/* Comparison Findings */}
@@ -1838,30 +2567,92 @@ function IntelligencePageContent() {
                 gap: "20px",
               }}
             >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#10B981", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    HEAD-TO-HEAD CONTRAST
-                  </span>
-                  {comparisonResult.relationship_nature && (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        padding: "2px 10px",
-                        borderRadius: "12px",
-                        background: "rgba(16, 185, 129, 0.12)",
-                        color: "#10B981",
-                        border: "1px solid rgba(16, 185, 129, 0.3)",
-                      }}
-                    >
-                      {comparisonResult.relationship_nature}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "14px" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#10B981", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      HEAD-TO-HEAD CONTRAST
                     </span>
-                  )}
+                    {comparisonResult.relationship_nature && (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          padding: "2px 10px",
+                          borderRadius: "12px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10B981",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                        }}
+                      >
+                        {comparisonResult.relationship_nature}
+                      </span>
+                    )}
+                  </div>
+                  <h3 style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                    "{comparisonResult.document_a_title}" vs "{comparisonResult.document_b_title}"
+                  </h3>
                 </div>
-                <h3 style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                  "{comparisonResult.document_a_title}" vs "{comparisonResult.document_b_title}"
-                </h3>
+
+                {/* Contrast Actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const content = `# Head-to-Head Contrast: ${comparisonResult.document_a_title} vs ${comparisonResult.document_b_title}\n\n## Macro Synthesis\n${comparisonResult.verdict_or_summary || ""}\n\n## Unique to ${comparisonResult.document_a_title}\n${(comparisonResult.unique_to_a || []).map((x: string) => `- ${x}`).join("\n")}\n\n## Unique to ${comparisonResult.document_b_title}\n${(comparisonResult.unique_to_b || []).map((x: string) => `- ${x}`).join("\n")}\n\n## Genuine Conceptual Overlap\n${(comparisonResult.shared_themes || []).map((x: string) => `- ${x}`).join("\n")}`;
+                      handleCopyText(content, "contrast");
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "7px 12px",
+                      borderRadius: "8px",
+                      background: "var(--surface-hover)",
+                      border: "1px solid var(--border)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: copiedKey === "contrast" ? "#10B981" : "var(--text-primary)",
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    {copiedKey === "contrast" ? <Check size={13} color="#10B981" /> : <Copy size={13} />}
+                    <span>{copiedKey === "contrast" ? "Copied!" : "Copy Report"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prompt = `Based on the pairwise comparison between "${comparisonResult.document_a_title}" and "${comparisonResult.document_b_title}":\n\nMacro Synthesis: "${comparisonResult.verdict_or_summary || ""}"\n\nWhat are the most critical technical tradeoffs or divergences we should resolve first?`;
+                      router.push(`/chat?q=${encodeURIComponent(prompt)}`);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "7px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(16, 185, 129, 0.12)",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#10B981",
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(16, 185, 129, 0.12)";
+                    }}
+                  >
+                    <MessageSquare size={13} />
+                    <span>Discuss in Copilot</span>
+                  </button>
+                </div>
+              </div>
 
                 {/* Domain Badges */}
                 {(comparisonResult.document_a_domain || comparisonResult.document_b_domain) && (
@@ -1883,7 +2674,6 @@ function IntelligencePageContent() {
                     </div>
                   </div>
                 )}
-              </div>
 
               {comparisonResult.verdict_or_summary && (
                 <div
