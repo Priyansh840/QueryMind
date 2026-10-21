@@ -128,7 +128,25 @@ async def _resolve_user_space(
             logger.info(f"Auto-routed career document '{filename}' directly to '{career_sp.name}' space.")
             return career_sp
 
-    # 2. Deterministic Academic & STEM Coursework Fast-Path:
+    # 2. Deterministic Project & Engineering Implementation Fast-Path:
+    # Project reports, system architectures, full-stack IDE/apps, repositories, RFCs
+    is_project = any(kw in combined_meta for kw in [
+        "project report", "- report", "report", "srs", "software requirements",
+        "architecture spec", "system design", "technical specification", "github",
+        "repo", "repository", "codebase", "source code", "pull request", "sprint",
+        "bug tracker", "deliverable", "dockerfile", "package.json", "cloud-based",
+        "integrated development environment"
+    ])
+    is_pure_coursework_subject = any(s in lower_fn for s in [
+        "math", "cns", "iot unit", "chemistry", "physics", "syllabus", "assignment question", "midsem", "endsem"
+    ])
+    if is_project and not is_pure_coursework_subject:
+        project_sp = next((s for s in user_spaces if "project" in s.name.lower() or "code" in s.name.lower() or "repo" in s.name.lower() or "eng" in s.name.lower()), None)
+        if project_sp:
+            logger.info(f"Auto-routed project document '{filename}' directly to '{project_sp.name}' space.")
+            return project_sp
+
+    # 3. Deterministic Academic & STEM Coursework Fast-Path:
     # Mathematics, Computer Science, Engineering, Physics, Chemistry, Unit notes, Lecture notes, Textbook
     is_academic_study = any(kw in combined_meta for kw in [
         "mathematics", "math", "calculus", "linear algebra", "discrete math",
@@ -146,18 +164,6 @@ async def _resolve_user_space(
         if study_sp:
             logger.info(f"Auto-routed academic document '{filename}' directly to '{study_sp.name}' space.")
             return study_sp
-
-    # 3. Deterministic Project Fast-Path:
-    # Source code, repositories, engineering builds, pull requests
-    is_project = any(kw in combined_meta for kw in [
-        "github", "repo", "repository", "codebase", "source code", "pull request",
-        "sprint", "bug tracker", "deliverable", "milestone", "dockerfile", "package.json"
-    ])
-    if is_project:
-        project_sp = next((s for s in user_spaces if "project" in s.name.lower() or "code" in s.name.lower() or "repo" in s.name.lower()), None)
-        if project_sp:
-            logger.info(f"Auto-routed project document '{filename}' directly to '{project_sp.name}' space.")
-            return project_sp
 
     # Auto-classification with fast LLM if filename or snippet is available
     if filename or snippet:
@@ -340,9 +346,14 @@ async def upload_document(
             meta = f"{lower_fn} {lower_snip}"
 
             is_career_doc = any(k in meta for k in ["resume", "cv", "curriculum vitae", "internship", "offer letter"])
-            is_study_doc = any(k in meta for k in ["math", "cns", "chap-", "unit ", "unit_", "assignment", "calculus", "data structures", "syllabus", "coursework"])
+            is_project_doc = any(k in meta for k in ["project report", "- report", "report", "srs", "architecture spec", "system design", "ide", "cloud-based"])
+            is_study_doc = any(k in meta for k in ["math", "cns", "chap-", "unit ", "unit_", "assignment", "calculus", "data structures", "syllabus", "coursework"]) and not is_project_doc
 
-            conflict = (is_career_doc and "career" not in lower_name) or (is_study_doc and "study" not in lower_name)
+            conflict = (
+                (is_career_doc and "career" not in lower_name)
+                or (is_project_doc and "project" not in lower_name and "eng" not in lower_name)
+                or (is_study_doc and "study" not in lower_name)
+            )
 
             if is_general or conflict:
                 resolved = await _resolve_user_space(None, current_user.id, db, filename=filename, snippet=snippet_peek)
