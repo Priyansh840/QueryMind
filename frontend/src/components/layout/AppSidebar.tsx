@@ -31,8 +31,6 @@ export default function AppSidebar() {
   const recentSpaceIds = useMyndStore((state) => state.recentSpaceIds);
   const setRoute = useMyndStore((state) => state.setRoute);
   const selectSpace = useMyndStore((state) => state.selectSpace);
-  const openSpotlight = useMyndStore((state) => state.openSpotlight);
-  const openSettings = useMyndStore((state) => state.openSettings);
   const openEditProfile = useMyndStore((state) => state.openEditProfile);
   const openCreateSpace = useMyndStore((state) => state.openCreateSpace);
   const userProfile = useMyndStore((state) => state.userProfile);
@@ -168,25 +166,6 @@ export default function AppSidebar() {
               <span>Documents</span>
             </div>
           </Link>
-
-          <a
-            className={`nav-item ${isActive("/search") ? "active" : ""}`}
-            onClick={() => {
-              setRoute("search");
-              openSpotlight();
-            }}
-          >
-            <div className="nav-item-left">
-              <span className="nav-item-icon">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-              </span>
-              <span>Search</span>
-            </div>
-            <span className="kbd">⌘K</span>
-          </a>
 
           <Link
             href="/intelligence"
@@ -454,7 +433,7 @@ export default function AppSidebar() {
               className="chatgpt-popover-item"
               onClick={() => {
                 setIsMenuOpen(false);
-                openSettings("general");
+                router.push("/settings");
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
@@ -470,7 +449,7 @@ export default function AppSidebar() {
               className="chatgpt-popover-item"
               onClick={() => {
                 setIsMenuOpen(false);
-                openSettings("shortcuts");
+                router.push("/settings?tab=shortcuts");
               }}
               style={{ justifyContent: "space-between" }}
             >
@@ -576,17 +555,18 @@ export default function AppSidebar() {
         <div className="sidebar-utility-bar">
           <button
             type="button"
-            className="sidebar-utility-btn"
-            onClick={() => openSettings("general")}
+            className={`sidebar-utility-btn ${pathname === "/settings" ? "active" : ""}`}
+            onClick={() => router.push("/settings")}
             title="Settings"
             aria-label="Settings"
+            style={pathname === "/settings" ? { color: "var(--text-primary)", background: "var(--surface-hover)" } : undefined}
           >
             <Settings size={14} />
           </button>
           <button
             type="button"
             className="sidebar-utility-btn"
-            onClick={() => openSettings("shortcuts")}
+            onClick={() => router.push("/settings?tab=shortcuts")}
             title="User Manual & Shortcuts"
             aria-label="User Manual & Shortcuts"
           >

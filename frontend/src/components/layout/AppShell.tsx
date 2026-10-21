@@ -7,7 +7,6 @@ import WorkspaceHeader from "./WorkspaceHeader";
 import ContextPanel from "./ContextPanel";
 import SpotlightModal from "../modals/SpotlightModal";
 import GlobalCopilotModal from "../copilot/GlobalCopilotModal";
-import SettingsModal from "../modals/SettingsModal";
 import EditProfileModal from "../modals/EditProfileModal";
 import ObjectDetailModal from "../modals/ObjectDetailModal";
 import CreateSpaceModal from "../modals/CreateSpaceModal";
@@ -22,12 +21,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const openAskAi = useMyndStore((state) => state.openAskAi);
   const closeSpotlight = useMyndStore((state) => state.closeSpotlight);
-  const closeSettings = useMyndStore((state) => state.closeSettings);
   const closeAskAi = useMyndStore((state) => state.closeAskAi);
   const closeObjectModal = useMyndStore((state) => state.closeObjectModal);
   const toggleZenMode = useMyndStore((state) => state.toggleZenMode);
   const isSpotlightOpen = useMyndStore((state) => state.isSpotlightOpen);
-  const isSettingsOpen = useMyndStore((state) => state.isSettingsOpen);
   const isAskAiOpen = useMyndStore((state) => state.isAskAiOpen);
   const isObjectModalOpen = useMyndStore((state) => state.isObjectModalOpen);
   const setSpaces = useMyndStore((state) => state.setSpaces);
@@ -64,7 +61,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       // Escape -> Close all open overlays
       if (e.key === "Escape") {
         if (isSpotlightOpen) closeSpotlight();
-        else if (isSettingsOpen) closeSettings();
         else if (isAskAiOpen) closeAskAi();
         else if (isObjectModalOpen) closeObjectModal();
         return;
@@ -103,12 +99,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     isSpotlightOpen,
-    isSettingsOpen,
     isAskAiOpen,
     isObjectModalOpen,
     openSpotlight,
     closeSpotlight,
-    closeSettings,
     closeAskAi,
     closeObjectModal,
     toggleZenMode,
@@ -188,7 +182,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Modals & Drawers */}
       <SpotlightModal />
       <GlobalCopilotModal />
-      <SettingsModal />
       <EditProfileModal />
       <ObjectDetailModal />
       <CreateSpaceModal />

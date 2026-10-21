@@ -47,6 +47,8 @@ export default function SpotlightModal() {
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
     { id: "cmd-intelligence", title: "View Activity & Intelligence Feed", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
     { id: "cmd-search", title: "Semantic Knowledge Search", type: "Search", action: () => setRoute("search") },
+    { id: "cmd-settings", title: "Open Settings & Preferences", type: "Navigation", action: () => { setRoute("settings" as any); router.push("/settings"); } },
+    { id: "cmd-manual", title: "View User Manual & Keyboard Shortcuts", type: "Help", action: () => { setRoute("settings" as any); router.push("/settings?tab=shortcuts"); } },
     { id: "cmd-theme", title: "Toggle Theme (Light / Dark)", type: "Action", action: () => toggleTheme() },
     { id: "cmd-zen", title: "Toggle Zen Mode (Fullscreen)", type: "Action", action: () => toggleZenMode() },
   ];
