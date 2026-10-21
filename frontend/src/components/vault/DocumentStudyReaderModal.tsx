@@ -38,7 +38,6 @@ import {
   Pause,
   Compass,
 } from "lucide-react";
-import confetti from "canvas-confetti";
 import { queryMindApi, GoalData } from "@/lib/api";
 import { KnowledgeObject } from "@/lib/mynd-store";
 
@@ -1001,12 +1000,6 @@ export default function DocumentStudyReaderModal({
       setGoals((prev) => [newGoal, ...prev]);
       setSelectedGoalFilter(newGoal.id);
 
-      confetti({
-        particleCount: 60,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ["#3B82F6", "#10B981", "#8B5CF6"],
-      });
     } catch (err: any) {
       alert("Failed to generate roadmap: " + (err.message || err));
     } finally {
@@ -1042,13 +1035,6 @@ export default function DocumentStudyReaderModal({
       setSessionCompletedCount((c) => c + 1);
       const earnedXp = 50;
       setRecentCelebration({ taskTitle: toggledTaskTitle, xp: earnedXp });
-
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B"],
-      });
 
       if (onTaskCompleted) {
         onTaskCompleted(goal.id, taskId, earnedXp);

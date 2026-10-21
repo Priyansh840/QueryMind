@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import confetti from "canvas-confetti";
 import { queryMindApi, GoalData } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 
@@ -395,15 +394,6 @@ function GoalsPageContent() {
       const updated = await queryMindApi.updateGoal(goal.id, {
         status: nextStatus,
       });
-
-      if (nextStatus === "completed") {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ["#6366f1", "#10b981", "#8b5cf6"],
-        });
-      }
 
       setGoals((prev) => prev.map((g) => (g.id === goal.id ? updated : g)));
       if (selectedGoal?.id === goal.id) {

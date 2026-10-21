@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   BookOpen,
 } from "lucide-react";
-import confetti from "canvas-confetti";
 import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
 import { queryMindApi, downloadBlob, DocumentDetail, DocumentChunkDetail } from "@/lib/api";
 import AnimatedCounter from "@/components/ui/AnimatedCounter";
@@ -314,13 +313,6 @@ export default function VaultPage() {
           : `Document parsed and indexed into vector knowledge.`,
       });
 
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ["#FFFFFF", "#818CF8", "#10B981"],
-      });
-
       setSelectedDocId(newDoc.id);
     } catch {
       const localDoc = addDocument({
@@ -420,12 +412,6 @@ export default function VaultPage() {
       setSelectedDocId(samples[0].id);
     }
 
-    confetti({
-      particleCount: 60,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ["#FFFFFF", "#818CF8", "#10B981"],
-    });
   };
 
   // Delete handler
@@ -531,8 +517,8 @@ export default function VaultPage() {
         >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981" }}>
-                # SECOND BRAIN KNOWLEDGE VAULT
+              <span style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
+                Source Documents & Vector Storage
               </span>
             </div>
             <h1
@@ -840,7 +826,7 @@ export default function VaultPage() {
                 cursor: "pointer",
               }}
             >
-              Load Sample Second Brain Docs
+              Load Sample Documents
             </button>
           </div>
         </div>
