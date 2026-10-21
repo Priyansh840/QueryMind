@@ -376,10 +376,19 @@ class FallbackGeminiChatModel(BaseChatModel):
         raise last_error or RuntimeError("All LLM models failed during async streaming")
 
 
-def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2) -> BaseChatModel:
+def get_llm(model_name: str = "gemini-3.5-flash-lite", temperature: float = 0.2) -> BaseChatModel:
     """
     Returns a configured LangChain ChatModel based on available keys and provider settings.
+    Prioritizes Gemini when GEMINI_API_KEY is available (with automatic multi-model fallback and Ollama fallback).
     """
+    if settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
+        models = list(PRIMARY_GEMINI_MODELS)
+        if model_name:
+            if model_name in models:
+                models.remove(model_name)
+            models.insert(0, model_name)
+        return FallbackGeminiChatModel(models=models, google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
+
     if settings.LLM_PROVIDER.lower() == "ollama" and ChatOllama is not None:
         ollama_model = model_name if model_name and not model_name.startswith("gemini") else (settings.OLLAMA_MODEL or "llama3.2")
         logger.info(f"Initializing local Ollama LLM (Model: {ollama_model})")
@@ -388,14 +397,6 @@ def get_llm(model_name: str = "gemini-3.1-flash-lite", temperature: float = 0.2)
             base_url=settings.OLLAMA_BASE_URL,
             temperature=temperature,
         )
-
-    if settings.GEMINI_API_KEY and "your_" not in settings.GEMINI_API_KEY:
-        models = list(PRIMARY_GEMINI_MODELS)
-        if model_name:
-            if model_name in models:
-                models.remove(model_name)
-            models.insert(0, model_name)
-        return FallbackGeminiChatModel(models=models, google_api_key=settings.GEMINI_API_KEY, temperature=temperature)
 
     raise ValueError("No valid LLM provider configured. Set GEMINI_API_KEY or install langchain_ollama.")
 

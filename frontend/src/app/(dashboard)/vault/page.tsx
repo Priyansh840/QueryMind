@@ -87,6 +87,7 @@ export default function VaultPage() {
   const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const addDocument = useMyndStore((state) => state.addDocument);
   const deleteDocument = useMyndStore((state) => state.deleteDocument);
+  const syncWithBackend = useMyndStore((state) => state.syncWithBackend);
 
   // Controls & Filters
   const [viewMode, setViewMode] = useState<"grid" | "studio">("grid");
@@ -105,12 +106,14 @@ export default function VaultPage() {
 
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDraggingOverWindow, setIsDraggingOverWindow] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    syncWithBackend().catch((err) => console.warn("Vault sync error:", err));
+  }, [syncWithBackend]);
 
   // Metrics
   const totalChunks = useMemo(() => {

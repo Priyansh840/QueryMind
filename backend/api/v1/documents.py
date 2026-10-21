@@ -109,24 +109,55 @@ async def _resolve_user_space(
     if len(user_spaces) == 1:
         return user_spaces[0]
 
-    # Deterministic Academic & STEM theory fast-path:
-    # If the document title or snippet indicates academic coursework, mathematics,
-    # computer science theory, or college notes, route directly to the Study workspace.
+    # Deterministic Domain Fast-Paths:
     lower_fn = (filename or "").lower()
     lower_snip = (snippet or "").lower()
     combined_meta = f"{lower_fn} {lower_snip}"
 
+    # 1. Deterministic Career Fast-Path:
+    # Resumes, CVs, job descriptions, interview prep, internships, offers, appraisals
+    is_career = any(kw in combined_meta for kw in [
+        "resume", "cv", "curriculum vitae", "internship", "offer letter",
+        "job description", "interview prep", "placement", "experience letter",
+        "cover letter", "portfolio", "work experience", "hiring", "appraisal",
+        "recommendation letter", "salary slip", "pay slip", "skillsbuild"
+    ])
+    if is_career:
+        career_sp = next((s for s in user_spaces if "career" in s.name.lower() or "job" in s.name.lower()), None)
+        if career_sp:
+            logger.info(f"Auto-routed career document '{filename}' directly to '{career_sp.name}' space.")
+            return career_sp
+
+    # 2. Deterministic Academic & STEM Coursework Fast-Path:
+    # Mathematics, Computer Science, Engineering, Physics, Chemistry, Unit notes, Lecture notes, Textbook
     is_academic_study = any(kw in combined_meta for kw in [
         "mathematics", "math", "calculus", "linear algebra", "discrete math",
         "differential equation", "probability", "combinatorics", "matrices",
-        "eigenvalues", "data structures", "algorithms", "dsa", "physics", "chemistry",
-        "unit notes", "lecture notes", "syllabus", "coursework", "gate exam", "academics"
+        "eigenvalues", "data structures", "algorithms", "dsa", "physics", "chemistry", "biology",
+        "cns", "cryptography", "network security", "computer networks", "networking",
+        "operating system", "os", "dbms", "database management", "compiler",
+        "theory of computation", "automata", "toc", "software engineering",
+        "chap-", "chapter", "chap ", "unit ", "unit-", "unit_", "module ", "module-",
+        "lecture", "lecture notes", "unit notes", "syllabus", "coursework",
+        "gate exam", "academics", "assignment", "homework", "midsem", "endsem", "textbook", "notes"
     ])
     if is_academic_study:
-        study_sp = next((s for s in user_spaces if "study" in s.name.lower() or "academic" in s.name.lower()), None)
+        study_sp = next((s for s in user_spaces if "study" in s.name.lower() or "academic" in s.name.lower() or "course" in s.name.lower()), None)
         if study_sp:
             logger.info(f"Auto-routed academic document '{filename}' directly to '{study_sp.name}' space.")
             return study_sp
+
+    # 3. Deterministic Project Fast-Path:
+    # Source code, repositories, engineering builds, pull requests
+    is_project = any(kw in combined_meta for kw in [
+        "github", "repo", "repository", "codebase", "source code", "pull request",
+        "sprint", "bug tracker", "deliverable", "milestone", "dockerfile", "package.json"
+    ])
+    if is_project:
+        project_sp = next((s for s in user_spaces if "project" in s.name.lower() or "code" in s.name.lower() or "repo" in s.name.lower()), None)
+        if project_sp:
+            logger.info(f"Auto-routed project document '{filename}' directly to '{project_sp.name}' space.")
+            return project_sp
 
     # Auto-classification with fast LLM if filename or snippet is available
     if filename or snippet:
@@ -300,6 +331,23 @@ async def upload_document(
         if space_id and space_id.strip() not in ("", "auto"):
             from api.deps import get_space_membership
             space, membership = await get_space_membership(space_id, current_user, db, min_role="admin")
+            is_general = space.is_default or "general" in space.name.lower()
+            lower_name = space.name.lower()
+
+            # Check for strong domain conflict
+            lower_fn = (filename or "").lower()
+            lower_snip = (snippet_peek or "").lower()
+            meta = f"{lower_fn} {lower_snip}"
+
+            is_career_doc = any(k in meta for k in ["resume", "cv", "curriculum vitae", "internship", "offer letter"])
+            is_study_doc = any(k in meta for k in ["math", "cns", "chap-", "unit ", "unit_", "assignment", "calculus", "data structures", "syllabus", "coursework"])
+
+            conflict = (is_career_doc and "career" not in lower_name) or (is_study_doc and "study" not in lower_name)
+
+            if is_general or conflict:
+                resolved = await _resolve_user_space(None, current_user.id, db, filename=filename, snippet=snippet_peek)
+                if resolved:
+                    space = resolved
             space_uuid = space.id
         else:
             space = await _resolve_user_space(None, current_user.id, db, filename=filename, snippet=snippet_peek)

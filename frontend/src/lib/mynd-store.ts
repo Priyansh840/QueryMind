@@ -1229,10 +1229,11 @@ export const useMyndStore = create<MyndState>()(
 
       syncWithBackend: async () => {
         try {
-          const [meData, spacesData, knowledgeData] = await Promise.allSettled([
+          const [meData, spacesData, knowledgeData, documentsData] = await Promise.allSettled([
             authApi.getMe(),
             queryMindApi.getSpaces(),
             queryMindApi.getKnowledge(),
+            queryMindApi.listDocuments(),
           ]);
 
           const updates: Partial<MyndState> = {};
@@ -1322,7 +1323,6 @@ export const useMyndStore = create<MyndState>()(
               tags: [k.knowledge_type],
             }));
             updates.recentObjects = objects;
-            updates.uploadedDocuments = objects.filter((o) => o.type === "DOCUMENT");
 
             if (objects.length > 0 && get().activityFeed.length === 0) {
               updates.activityFeed = objects.slice(0, 8).map((obj) => ({
@@ -1336,6 +1336,31 @@ export const useMyndStore = create<MyndState>()(
                 bg: "var(--surface-hover)",
               }));
             }
+          }
+
+          if (documentsData.status === "fulfilled" && Array.isArray(documentsData.value)) {
+            const apiDocs: KnowledgeObject[] = documentsData.value.map((d: any) => {
+              const ext = (d.title || "").split(".").pop()?.toLowerCase() || "doc";
+              return {
+                id: d.id,
+                name: d.title,
+                title: d.title,
+                type: ext,
+                badge: ext.toUpperCase(),
+                size: "1.5 MB",
+                chunks: 1,
+                vectorsStored: 1,
+                updated: d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently",
+                time: d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently",
+                spaceId: d.space_id,
+                status: d.status || "completed",
+                summary: `Document indexed in ${d.space_id ? "assigned workspace" : "knowledge vault"}.`,
+                content: d.title,
+                meta: `${ext.toUpperCase()} • ${d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently"}`,
+                tags: [ext.toUpperCase()],
+              };
+            });
+            updates.uploadedDocuments = apiDocs;
           }
 
           set((state) => ({ ...state, ...updates }));
