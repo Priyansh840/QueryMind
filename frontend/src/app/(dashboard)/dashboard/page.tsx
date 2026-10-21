@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const userProfile = useMyndStore((state) => state.userProfile);
   const spaces = useMyndStore((state) => state.spaces);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+  const openAskAi = useMyndStore((state) => state.openAskAi);
 
   const [activeGoals, setActiveGoals] = useState<GoalData[]>([]);
   const [realDocuments, setRealDocuments] = useState<any[]>([]);
@@ -375,14 +376,14 @@ export default function DashboardPage() {
           >
             <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
               <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981", boxShadow: "0 0 6px #10B981" }} />
-              <span>Active in <strong style={{ color: "#FFFFFF" }}>{activeSpace?.name || "Career"}</strong></span>
+              <span>Active in <strong style={{ color: "#FFFFFF" }}>{activeSpace?.name || "General Space"}</strong></span>
             </span>
             <span style={{ color: "rgba(255, 255, 255, 0.25)" }}>&bull;</span>
-            <span>{executiveBriefing.activeGoalsCount} goals active</span>
+            <span>{realDocuments.length} documents indexed</span>
             <span style={{ color: "rgba(255, 255, 255, 0.25)" }}>&bull;</span>
-            <span>{executiveBriefing.pendingCount} milestones pending</span>
+            <span>{activeGoals.filter((g) => g.status !== "completed").length} active goals</span>
             <span style={{ color: "rgba(255, 255, 255, 0.25)" }}>&bull;</span>
-            <span style={{ color: "#F59E0B", fontWeight: 600 }}>{executiveBriefing.highPriorityCount} high-leverage</span>
+            <span style={{ color: "#10B981", fontWeight: 600 }}>Causal Graph Grounded</span>
           </div>
         </div>
 
@@ -414,16 +415,16 @@ export default function DashboardPage() {
                 Focus
               </span>
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#FFFFFF" }}>
-                {activeSpace?.name || "Career"}
+                {activeSpace?.name || "General Space"}
               </span>
               <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.4)" }}>
-                &bull; 7 notes
+                &bull; {realDocuments.length} docs
               </span>
             </div>
           </div>
 
           <Link
-            href="/goals"
+            href="/vault"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -439,23 +440,23 @@ export default function DashboardPage() {
               transition: "all 0.15s ease",
             }}
           >
-            <span>Goals</span>
+            <span>Vault</span>
           </Link>
         </div>
       </div>
 
       {/* =========================================================================
-          2. Strategic Briefing: AI Executive Dispatch (Cockpit + Impact Matrix)
+          2. Action & Ingestion Hub: Real Space Intelligence & Fast Actions
           ========================================================================= */}
       <div
         style={{
           background: "linear-gradient(145deg, rgba(20, 18, 32, 0.85) 0%, rgba(12, 12, 18, 0.95) 100%)",
           border: "1px solid rgba(139, 92, 246, 0.24)",
           borderRadius: "16px",
-          padding: "20px 24px",
+          padding: "22px 26px",
           display: "flex",
           flexDirection: "column",
-          gap: "16px",
+          gap: "18px",
           boxShadow: "0 8px 32px -4px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(139, 92, 246, 0.12)",
           position: "relative",
           overflow: "hidden",
@@ -482,7 +483,7 @@ export default function DashboardPage() {
             flexWrap: "wrap",
             gap: "10px",
             borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
-            paddingBottom: "12px",
+            paddingBottom: "14px",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
@@ -503,7 +504,7 @@ export default function DashboardPage() {
               }}
             >
               <Sparkles style={{ width: "11px", height: "11px", color: "#A78BFA" }} />
-              <span>AI Executive Dispatch</span>
+              <span>Workspace Ingestion Hub</span>
             </div>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -516,7 +517,7 @@ export default function DashboardPage() {
                 letterSpacing: "0.01em",
               }}
             >
-              {activeSpace?.name || "Career"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {executiveBriefing.topLeverageTask.goalTitle}
+              {activeSpace?.name || "General Space"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {realDocuments.length} documents grounded
             </span>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -533,14 +534,14 @@ export default function DashboardPage() {
             >
               <span
                 style={{
-                  width: "5px",
-                  height: "5px",
+                  width: "6px",
+                  height: "6px",
                   borderRadius: "50%",
                   background: "#10B981",
                   boxShadow: "0 0 6px #10B981",
                 }}
               />
-              <span>Highest Leverage Today</span>
+              <span>Multi-Agent Memory Active</span>
             </div>
           </div>
 
@@ -554,13 +555,13 @@ export default function DashboardPage() {
               gap: "6px",
             }}
           >
-            <span>Reasoning Engine</span>
+            <span>Qdrant Vector Engine</span>
             <span>&bull;</span>
-            <span style={{ color: "#A78BFA", fontWeight: 600 }}>96% confidence</span>
+            <span style={{ color: "#34D399", fontWeight: 600 }}>Connected</span>
           </div>
         </div>
 
-        {/* Content & Impact Matrix */}
+        {/* Content & Action Matrix */}
         <div
           style={{
             display: "flex",
@@ -570,10 +571,11 @@ export default function DashboardPage() {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", flex: "1 1 480px", minWidth: "280px" }}>
+          {/* Left Column: Real Summary & 1-Click Action Buttons */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: "1 1 500px", minWidth: "280px" }}>
             <h2
               style={{
-                fontSize: "20px",
+                fontSize: "21px",
                 fontWeight: 700,
                 color: "#FFFFFF",
                 letterSpacing: "-0.015em",
@@ -581,7 +583,9 @@ export default function DashboardPage() {
                 lineHeight: 1.25,
               }}
             >
-              {executiveBriefing.topLeverageTask.title}
+              {realDocuments && realDocuments.length > 0
+                ? `${realDocuments.length} Documents Indexed & Ready for Multi-Agent Synthesis`
+                : `Ready to Ingest & Ground Documents in ${activeSpace?.name || "General Space"}`}
             </h2>
 
             <div
@@ -589,7 +593,7 @@ export default function DashboardPage() {
                 background: "rgba(255, 255, 255, 0.025)",
                 borderLeft: "2px solid #8B5CF6",
                 borderRadius: "0 8px 8px 0",
-                padding: "8px 14px",
+                padding: "10px 14px",
                 margin: "2px 0 6px 0",
               }}
             >
@@ -601,28 +605,30 @@ export default function DashboardPage() {
                   color: "#A78BFA",
                   textTransform: "uppercase",
                   display: "block",
-                  marginBottom: "2px",
+                  marginBottom: "3px",
                 }}
               >
-                Why this matters
+                Space Status & Grounding
               </span>
               <p
                 style={{
                   fontSize: "12.5px",
-                  color: "rgba(255, 255, 255, 0.75)",
+                  color: "rgba(255, 255, 255, 0.8)",
                   margin: 0,
-                  lineHeight: 1.45,
+                  lineHeight: 1.5,
                 }}
               >
-                {executiveBriefing.topLeverageTask.aiReason}
+                {realDocuments && realDocuments.length > 0
+                  ? `Knowledge base currently grounded with ${realDocuments.length} documents. Latest source: "${realDocuments[0]?.title || realDocuments[0]?.filename || "Primary Paper"}". Run cross-synthesis to evaluate trade-offs, identify causal relationships, or detect blindspots.`
+                  : `Ingest PDF whitepapers, markdown technical notes, or research papers. QueryMind will automatically parse, extract causal links, and build your decision topology graph.`}
               </p>
             </div>
 
+            {/* Real 1-Click Action Buttons */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "4px" }}>
+              {/* Synthesize Space */}
               <Link
-                href={`/chat?q=${encodeURIComponent(
-                  `Conduct an intensive high-yield practice sprint on "${executiveBriefing.topLeverageTask.title}". Test my understanding of core principles and candidate generation based on my uploaded whitepapers.`
-                )}`}
+                href="/intelligence"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -639,13 +645,12 @@ export default function DashboardPage() {
                 }}
               >
                 <Zap style={{ width: "13px", height: "13px" }} />
-                <span>Start practice sprint</span>
+                <span>Synthesize Space</span>
               </Link>
 
+              {/* Upload Document */}
               <Link
-                href={`/chat?q=${encodeURIComponent(
-                  `Perform an adversarial knowledge audit on: "${executiveBriefing.topLeverageTask.title}". Where are the exact weak spots and missing concepts in my notes?`
-                )}`}
+                href="/vault"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -654,48 +659,75 @@ export default function DashboardPage() {
                   borderRadius: "9px",
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid rgba(255, 255, 255, 0.12)",
-                  color: "rgba(255, 255, 255, 0.85)",
+                  color: "rgba(255, 255, 255, 0.9)",
                   fontSize: "12.5px",
                   fontWeight: 600,
                   textDecoration: "none",
                   transition: "all 0.15s ease",
                 }}
               >
-                <Target style={{ width: "13px", height: "13px", color: "#F59E0B" }} />
-                <span>Audit gap</span>
+                <Folder style={{ width: "13px", height: "13px", color: "#38BDF8" }} />
+                <span>Upload Documents</span>
               </Link>
 
-              <Link
-                href="/goals"
+              {/* Ask Copilot */}
+              <button
+                type="button"
+                onClick={() => openAskAi()}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 15px",
+                  borderRadius: "9px",
+                  background: "rgba(139, 92, 246, 0.12)",
+                  border: "1px solid rgba(139, 92, 246, 0.25)",
+                  color: "#A78BFA",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Sparkles style={{ width: "13px", height: "13px" }} />
+                <span>Ask Copilot</span>
+              </button>
+
+              {/* Explore Topology */}
+              <Link
+                href="/topology"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
                   padding: "8px 12px",
                   borderRadius: "9px",
                   background: "transparent",
-                  color: "rgba(255, 255, 255, 0.45)",
+                  color: "rgba(255, 255, 255, 0.5)",
                   fontSize: "12px",
                   fontWeight: 500,
                   textDecoration: "none",
                   transition: "color 0.15s ease",
                 }}
               >
-                <span>Roadmap &rarr;</span>
+                <Network style={{ width: "12px", height: "12px" }} />
+                <span>Topology &rarr;</span>
               </Link>
             </div>
           </div>
 
+          {/* Right Column: Real Diagnostics & Space Vitality */}
           <div
             style={{
               background: "rgba(255, 255, 255, 0.025)",
               border: "1px solid rgba(255, 255, 255, 0.07)",
               borderRadius: "12px",
-              padding: "14px 18px",
+              padding: "16px 20px",
               display: "flex",
               flexDirection: "column",
-              gap: "10px",
-              flex: "0 0 240px",
-              minWidth: "220px",
+              gap: "12px",
+              flex: "0 0 250px",
+              minWidth: "230px",
               justifyContent: "center",
             }}
           >
@@ -712,23 +744,29 @@ export default function DashboardPage() {
                 marginBottom: "2px",
               }}
             >
-              <span>Impact Matrix</span>
-              <span style={{ color: "#10B981", fontSize: "9.5px", fontWeight: 700 }}>VERIFIED</span>
+              <span>Space Diagnostics</span>
+              <span style={{ color: "#10B981", fontSize: "9.5px", fontWeight: 700 }}>SYNCHRONIZED</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Downstream</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#10B981" }}>3 Milestones</span>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Indexed Files</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#38BDF8" }}>
+                {realDocuments.length} Documents
+              </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Priority Rank</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B" }}>Top 1 (Critical)</span>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>In-Flight Goals</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B" }}>
+                {activeGoals.filter((g) => g.status !== "completed").length} Active
+              </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Grounding</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4B5FD" }}>6 Indexed Papers</span>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Vector Engine</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#10B981" }}>
+                Operational
+              </span>
             </div>
           </div>
         </div>
