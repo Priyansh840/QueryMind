@@ -65,7 +65,7 @@ export default function KnowledgeMap() {
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
   const setActiveContextTab = useMyndStore((state) => state.setActiveContextTab);
   const setContextPanelCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
-  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
+  const toggleZenMode = useMyndStore((state) => state.toggleZenMode);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
   const selectedObject = useMyndStore((state) => state.selectedObject);
@@ -618,7 +618,7 @@ export default function KnowledgeMap() {
             </button>
 
             <button
-              onClick={toggleFocusMode}
+              onClick={toggleZenMode}
               style={{
                 width: "28px",
                 height: "28px",

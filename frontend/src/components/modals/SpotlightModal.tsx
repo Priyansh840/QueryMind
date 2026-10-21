@@ -14,7 +14,7 @@ export default function SpotlightModal() {
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
   const setRoute = useMyndStore((state) => state.setRoute);
   const toggleTheme = useMyndStore((state) => state.toggleTheme);
-  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
+  const toggleZenMode = useMyndStore((state) => state.toggleZenMode);
   const openAskAi = useMyndStore((state) => state.openAskAi);
 
   const [query, setQuery] = useState("");
@@ -47,8 +47,8 @@ export default function SpotlightModal() {
     { id: "cmd-vault", title: "View Documents & Vault", type: "Navigation", action: () => { setRoute("vault"); router.push("/vault"); } },
     { id: "cmd-intelligence", title: "View Activity & Intelligence Feed", type: "Navigation", action: () => { setRoute("intelligence"); router.push("/activity"); } },
     { id: "cmd-search", title: "Semantic Knowledge Search", type: "Search", action: () => setRoute("search") },
-    { id: "cmd-theme", title: "Toggle Theme (Light / Dark / Zen)", type: "Action", action: () => toggleTheme() },
-    { id: "cmd-focus", title: "Toggle Focus Mode", type: "Action", action: () => toggleFocusMode() },
+    { id: "cmd-theme", title: "Toggle Theme (Light / Dark)", type: "Action", action: () => toggleTheme() },
+    { id: "cmd-zen", title: "Toggle Zen Mode (Fullscreen)", type: "Action", action: () => toggleZenMode() },
   ];
 
   const matchedSpaces = spaces

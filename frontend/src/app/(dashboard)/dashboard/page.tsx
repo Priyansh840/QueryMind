@@ -22,8 +22,6 @@ import {
 
 export default function DashboardPage() {
   const userProfile = useMyndStore((state) => state.userProfile);
-  const isFocusMode = useMyndStore((state) => state.isFocusMode);
-  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
   const spaces = useMyndStore((state) => state.spaces);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
 
@@ -443,36 +441,6 @@ export default function DashboardPage() {
           >
             <span>Goals</span>
           </Link>
-
-
-          <button
-            onClick={toggleFocusMode}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 15px",
-              borderRadius: "9999px",
-              background: isFocusMode ? "#FFFFFF" : "rgba(255, 255, 255, 0.04)",
-              border: isFocusMode ? "1px solid #FFFFFF" : "1px solid rgba(255, 255, 255, 0.1)",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: isFocusMode ? "#000000" : "var(--text-secondary, #D4D4D4)",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: isFocusMode ? "#10B981" : "#737373",
-                boxShadow: isFocusMode ? "0 0 6px #10B981" : "none",
-              }}
-            />
-            <span>{isFocusMode ? "Exit Focus" : "Focus Mode"}</span>
-          </button>
         </div>
       </div>
 
