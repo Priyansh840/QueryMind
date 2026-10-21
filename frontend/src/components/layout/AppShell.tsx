@@ -11,7 +11,6 @@ import SettingsModal from "../modals/SettingsModal";
 import EditProfileModal from "../modals/EditProfileModal";
 import ObjectDetailModal from "../modals/ObjectDetailModal";
 import CreateSpaceModal from "../modals/CreateSpaceModal";
-import ThemeAuditionBar from "./ThemeAuditionBar";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi } from "@/lib/api";
 
@@ -193,7 +192,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <EditProfileModal />
       <ObjectDetailModal />
       <CreateSpaceModal />
-      <ThemeAuditionBar />
 
       {/* Zen Mode Exit Button */}
       {isZenMode && (
