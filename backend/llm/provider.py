@@ -30,12 +30,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 PRIMARY_GEMINI_MODELS: List[str] = [
-    "gemini-3.1-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
     "gemini-flash-latest",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
 ]
 
 _model_cooldowns: dict[str, float] = {}
@@ -200,8 +200,13 @@ class FallbackGeminiChatModel(BaseChatModel):
                 last_error = e
                 continue
 
-        # Fallback to local Ollama if available
-        if ChatOllama is not None:
+        is_multimodal = any(
+            isinstance(m.content, list) and any(isinstance(p, dict) and p.get("type") == "image_url" for p in m.content)
+            for m in messages
+        )
+
+        # Fallback to local Ollama if available (text-only)
+        if ChatOllama is not None and not is_multimodal:
             for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
                 try:
                     ollama_model = settings.OLLAMA_MODEL or "llama3.2"
@@ -237,8 +242,13 @@ class FallbackGeminiChatModel(BaseChatModel):
                 last_error = e
                 continue
 
-        # Fallback to local Ollama if available
-        if ChatOllama is not None:
+        is_multimodal = any(
+            isinstance(m.content, list) and any(isinstance(p, dict) and p.get("type") == "image_url" for p in m.content)
+            for m in messages
+        )
+
+        # Fallback to local Ollama if available (text-only)
+        if ChatOllama is not None and not is_multimodal:
             for ollama_url in [settings.OLLAMA_BASE_URL, "http://host.docker.internal:11434", "http://localhost:11434"]:
                 try:
                     ollama_model = settings.OLLAMA_MODEL or "llama3.2"

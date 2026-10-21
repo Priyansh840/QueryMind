@@ -303,15 +303,17 @@ class IngestionEngine:
             for page_idx, page in enumerate(reader.pages):
                 # First check if the page already has extracted text
                 raw_page_text = (page.extract_text() or "").strip()
-                if len(raw_page_text) >= 50:
+                page_images = getattr(page, "images", [])
+
+                # If text is substantial (>= 150 chars) and no images, or rich text, keep it directly
+                if len(raw_page_text) >= 150 and not page_images:
                     ocr_docs.append(
                         LCDocument(page_content=raw_page_text, metadata={"page": page_idx, "source": file_path})
                     )
                     continue
 
-                # If text is empty or minimal, inspect embedded page images
+                # If text is sparse or embedded page images exist, inspect images with multimodal Vision LLM
                 extracted_image_texts = []
-                page_images = getattr(page, "images", [])
                 for img_idx, img in enumerate(page_images):
                     try:
                         raw_data = getattr(img, "data", None)
@@ -356,6 +358,8 @@ class IngestionEngine:
 
                 if extracted_image_texts:
                     page_content = "\n\n".join(extracted_image_texts)
+                    if raw_page_text and raw_page_text not in page_content and len(raw_page_text) > 20:
+                        page_content = f"{raw_page_text}\n\n{page_content}"
                     ocr_docs.append(
                         LCDocument(page_content=page_content, metadata={"page": page_idx, "source": file_path})
                     )
@@ -385,14 +389,23 @@ class IngestionEngine:
                     logger.warning(f"PyPDFLoader failed for {file_path}: {pdf_err}")
 
                 total_chars = sum(len(d.page_content.strip()) for d in docs) if docs else 0
-                if total_chars >= 50:
+                avg_chars_per_page = (total_chars / len(docs)) if docs else 0
+
+                # Check if text is sparse, low char-yield, or mostly watermarks
+                is_scanned_or_sparse = (
+                    total_chars < 150
+                    or avg_chars_per_page < 120
+                    or (docs and all(len(d.page_content.strip()) < 150 for d in docs))
+                )
+
+                if not is_scanned_or_sparse:
                     for d in docs:
                         if d.page_content and "\x00" in d.page_content:
                             d.page_content = d.page_content.replace("\x00", "")
                     return docs
 
                 logger.info(
-                    f"PyPDFLoader produced low text yield ({total_chars} chars) for {file_path}. Initiating multimodal vision OCR..."
+                    f"PyPDFLoader produced sparse/watermark text yield ({total_chars} chars across {len(docs)} pages) for {file_path}. Initiating multimodal vision OCR..."
                 )
                 ocr_docs = self._ocr_pdf(file_path)
                 if ocr_docs and sum(len(d.page_content.strip()) for d in ocr_docs) > 0:

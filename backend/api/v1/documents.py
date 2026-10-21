@@ -109,6 +109,25 @@ async def _resolve_user_space(
     if len(user_spaces) == 1:
         return user_spaces[0]
 
+    # Deterministic Academic & STEM theory fast-path:
+    # If the document title or snippet indicates academic coursework, mathematics,
+    # computer science theory, or college notes, route directly to the Study workspace.
+    lower_fn = (filename or "").lower()
+    lower_snip = (snippet or "").lower()
+    combined_meta = f"{lower_fn} {lower_snip}"
+
+    is_academic_study = any(kw in combined_meta for kw in [
+        "mathematics", "math", "calculus", "linear algebra", "discrete math",
+        "differential equation", "probability", "combinatorics", "matrices",
+        "eigenvalues", "data structures", "algorithms", "dsa", "physics", "chemistry",
+        "unit notes", "lecture notes", "syllabus", "coursework", "gate exam", "academics"
+    ])
+    if is_academic_study:
+        study_sp = next((s for s in user_spaces if "study" in s.name.lower() or "academic" in s.name.lower()), None)
+        if study_sp:
+            logger.info(f"Auto-routed academic document '{filename}' directly to '{study_sp.name}' space.")
+            return study_sp
+
     # Auto-classification with fast LLM if filename or snippet is available
     if filename or snippet:
         try:
@@ -130,11 +149,11 @@ async def _resolve_user_space(
                     return s.description.strip()
                 n = s.name.lower()
                 if "study" in n or "academic" in n or "course" in n:
-                    return "Coursework, college subjects, textbooks, unit notes, exams, syllabi"
-                elif "career" in n or "job" in n or "interview" in n:
+                    return "Academic coursework, textbooks, lecture notes, syllabus, mathematics, engineering math, science, exam prep"
+                elif "career" in n or "job" in n or "interview" in n or "resume" in n:
                     return "Resumes, CVs, job descriptions, interview prep, performance reviews, company research"
-                elif "eng" in n or "system" in n or "code" in n:
-                    return "Software architectures, system design, coding projects, technical RFCs"
+                elif "project" in n or "eng" in n or "system" in n or "code" in n or "repo" in n:
+                    return "Software source code, build repositories, engineering projects, developer implementations, apps"
                 return "General personal notes and miscellaneous resources"
 
             spaces_catalog = "\n".join([
@@ -148,10 +167,12 @@ async def _resolve_user_space(
                 f"Document Name: {filename or 'Unnamed'}\n"
                 f"Content Sample:\n{sample_text}\n\n"
                 "Classification Guidelines:\n"
-                "1. If this document is college coursework/unit material, match it to Study.\n"
+                "1. If this document is academic coursework, lecture notes, textbooks, engineering math, or theory, match it to Study.\n"
                 "2. If this document is a resume, CV, job application, or placement prep, match it to Career.\n"
-                "3. If this document represents a clearly distinct domain (like Developer Tools, AI Workflows, System Design, or Finance) and NO appropriate space exists, set suggest_new_space=True, provide a proposed space name/description/icon, and set selected_space_id to the default General space for now.\n"
-                "4. NEVER force developer tools or technical guides into Career."
+                "3. If this document is software code, technical specs for an app or engineering project build, match it to Project.\n"
+                "4. NEVER categorize academic theory, engineering math, or textbook coursework into Project. Project is strictly for hands-on software/hardware projects, apps, and codebases.\n"
+                "5. If this document represents a clearly distinct domain (like Developer Tools, AI Workflows, System Design, or Finance) and NO appropriate space exists, set suggest_new_space=True, provide a proposed space name/description/icon, and set selected_space_id to the default General space for now.\n"
+                "6. NEVER force developer tools or technical guides into Career."
             )
 
             llm = get_llm(temperature=0.0)
@@ -242,7 +263,37 @@ async def upload_document(
                     import pypdf
                     reader = pypdf.PdfReader(file_path)
                     if len(reader.pages) > 0:
-                        snippet_peek = reader.pages[0].extract_text()[:1500]
+                        first_page = reader.pages[0]
+                        raw_first = first_page.extract_text() or ""
+                        snippet_peek = raw_first[:1500].strip()
+                        # If first page text is sparse/watermark (< 120 chars) and page has images, peek with Vision OCR
+                        page_images = getattr(first_page, "images", [])
+                        if len(snippet_peek) < 120 and page_images:
+                            try:
+                                first_img = page_images[0]
+                                img_data = getattr(first_img, "data", None)
+                                if img_data and len(img_data) > 500:
+                                    import base64
+                                    from llm.provider import get_llm
+                                    from langchain_core.messages import HumanMessage
+                                    b64_str = base64.b64encode(img_data).decode("utf-8")
+                                    img_name = getattr(first_img, "name", "").lower()
+                                    mime = "image/png" if img_name.endswith(".png") else "image/jpeg"
+                                    peek_llm = get_llm(temperature=0.0)
+                                    peek_res = await peek_llm.ainvoke([
+                                        HumanMessage(content=[
+                                            {"type": "text", "text": "Describe the subject, topics, and nature of this document in 2-3 sentences."},
+                                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_str}"}}
+                                        ])
+                                    ])
+                                    peek_text = peek_res.content
+                                    if isinstance(peek_text, list):
+                                        peek_text = "".join([p.get("text", "") if isinstance(p, dict) else str(p) for p in peek_text])
+                                    if peek_text and str(peek_text).strip():
+                                        snippet_peek = f"{snippet_peek}\n{str(peek_text).strip()}".strip()
+                                        logger.info(f"Vision OCR peek extracted for auto-routing: {snippet_peek[:200]}")
+                            except Exception as vision_peek_err:
+                                logger.warning(f"Vision OCR peek failed: {vision_peek_err}")
             except Exception as e:
                 logger.debug(f"Snippet extraction for auto-routing notice: {e}")
 
