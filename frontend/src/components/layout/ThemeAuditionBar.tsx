@@ -127,6 +127,27 @@ export const TOP_5_THEMES: AuditionTheme[] = [
   },
 ];
 
+export const ORIGINAL_BASELINE_THEME: AuditionTheme = {
+  id: "original-baseline",
+  num: "0",
+  name: "Original Baseline",
+  family: "Original Baseline",
+  desc: "Your original color scheme: pure black canvas (#000000) with white borders & accents.",
+  bg: "#000000",
+  surface: "#141414",
+  surfaceHover: "#262626",
+  accent: "#FFFFFF",
+  accentSoft: "rgba(255, 255, 255, 0.12)",
+  accentSecondary: "#FFFFFF",
+  border: "rgba(255, 255, 255, 0.14)",
+  borderStrong: "rgba(255, 255, 255, 0.24)",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#D4D4D4",
+  textTertiary: "#A3A3A3",
+  sidebarBg: "#000000",
+  badgeColor: "#FFFFFF",
+};
+
 export function applyAuditionTheme(theme: AuditionTheme) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
@@ -281,6 +302,32 @@ export default function ThemeAuditionBar() {
                 </button>
               );
             })}
+
+            {/* Undo to Original Button */}
+            <button
+              type="button"
+              onClick={() => handleSelect(ORIGINAL_BASELINE_THEME)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "5px 11px",
+                borderRadius: "9999px",
+                background: activeThemeId === "original-baseline" ? "#FFFFFF" : "rgba(255, 255, 255, 0.08)",
+                color: activeThemeId === "original-baseline" ? "#000000" : "#D4D4D4",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 150ms ease",
+                whiteSpace: "nowrap",
+                marginLeft: "4px",
+              }}
+              title="Undo all changes and revert back to your original baseline color scheme"
+            >
+              <span>↺ Undo (Original)</span>
+              {activeThemeId === "original-baseline" && <Check size={11} />}
+            </button>
           </div>
         )}
       </div>
