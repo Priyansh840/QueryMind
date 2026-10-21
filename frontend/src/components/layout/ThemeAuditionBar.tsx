@@ -173,14 +173,19 @@ export function applyAuditionTheme(theme: AuditionTheme) {
 }
 
 export default function ThemeAuditionBar() {
-  const [activeThemeId, setActiveThemeId] = useState<string>("noir-titanium");
+  const [activeThemeId, setActiveThemeId] = useState<string>("original-baseline");
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-  // Restore saved audition theme on mount
+  // Restore saved audition theme on mount, defaulting to original-baseline
   useEffect(() => {
     try {
       const saved = localStorage.getItem("qm-audition-theme");
       if (saved) {
+        if (saved === "original-baseline") {
+          setActiveThemeId("original-baseline");
+          applyAuditionTheme(ORIGINAL_BASELINE_THEME);
+          return;
+        }
         const found = TOP_5_THEMES.find((t) => t.id === saved);
         if (found) {
           setActiveThemeId(found.id);
@@ -188,9 +193,9 @@ export default function ThemeAuditionBar() {
           return;
         }
       }
-      // Default to Option 1: Architectural Noir & Titanium
-      const defaultTheme = TOP_5_THEMES[0];
-      applyAuditionTheme(defaultTheme);
+      // Default to Original Baseline
+      setActiveThemeId("original-baseline");
+      applyAuditionTheme(ORIGINAL_BASELINE_THEME);
     } catch {}
   }, []);
 
@@ -199,7 +204,10 @@ export default function ThemeAuditionBar() {
     applyAuditionTheme(theme);
   };
 
-  const currentTheme = TOP_5_THEMES.find((t) => t.id === activeThemeId) || TOP_5_THEMES[1];
+  const currentTheme =
+    activeThemeId === "original-baseline"
+      ? ORIGINAL_BASELINE_THEME
+      : TOP_5_THEMES.find((t) => t.id === activeThemeId) || TOP_5_THEMES[0];
 
   return (
     <div
