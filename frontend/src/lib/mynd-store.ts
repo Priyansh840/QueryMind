@@ -627,7 +627,7 @@ export const useMyndStore = create<MyndState>()(
       isObjectModalOpen: false,
       activeGoal: null,
       setActiveGoal: (goal) => set({ activeGoal: goal }),
-      isContextPanelCollapsed: false,
+      isContextPanelCollapsed: true,
       toggleContextPanel: () => set((state) => ({ isContextPanelCollapsed: !state.isContextPanelCollapsed })),
       setContextPanelCollapsed: (collapsed) => set({ isContextPanelCollapsed: collapsed }),
       activeContextTab: "now",
@@ -704,7 +704,11 @@ export const useMyndStore = create<MyndState>()(
       },
       setSpaceTab: (tab) => set({ activeSpaceTab: tab }),
       setSpaceSection: (section) => set({ activeSpaceSection: section }),
-      setSelectedObject: (obj) => set({ selectedObject: obj }),
+      setSelectedObject: (obj) =>
+        set((state) => ({
+          selectedObject: obj,
+          isContextPanelCollapsed: obj ? false : state.isContextPanelCollapsed,
+        })),
       openObjectModal: (obj) => set({ selectedObject: obj, isObjectModalOpen: true }),
       closeObjectModal: () => set({ isObjectModalOpen: false }),
 

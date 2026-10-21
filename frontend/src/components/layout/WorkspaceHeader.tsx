@@ -2,6 +2,7 @@
 
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { PanelRight } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
 
 export default function WorkspaceHeader() {
@@ -11,6 +12,9 @@ export default function WorkspaceHeader() {
 
   const openSpotlight = useMyndStore((state) => state.openSpotlight);
   const userProfile = useMyndStore((state) => state.userProfile);
+  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
+  const isContextPanelCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
+  const selectedObject = useMyndStore((state) => state.selectedObject);
 
   const initials = (() => {
     const name = userProfile?.name?.trim() || "User";
@@ -56,7 +60,44 @@ export default function WorkspaceHeader() {
       )}
 
       {/* Header Right Actions */}
-      <div className="workspace-header-actions">
+      <div className="workspace-header-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        {/* Toggle Context Inspector Button */}
+        <button
+          type="button"
+          onClick={toggleContextPanel}
+          title={!isContextPanelCollapsed || selectedObject ? "Close Context Inspector (Alt+I)" : "Open Context Inspector (Alt+I)"}
+          style={{
+            position: "relative",
+            width: "32px",
+            height: "32px",
+            borderRadius: "7px",
+            border: (!isContextPanelCollapsed || selectedObject) ? "1px solid rgba(139, 92, 246, 0.4)" : "1px solid rgba(255, 255, 255, 0.1)",
+            background: (!isContextPanelCollapsed || selectedObject) ? "rgba(139, 92, 246, 0.12)" : "rgba(255, 255, 255, 0.04)",
+            color: (!isContextPanelCollapsed || selectedObject) ? "#A78BFA" : "rgba(255, 255, 255, 0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <PanelRight style={{ width: "15px", height: "15px" }} />
+          {selectedObject && (
+            <span
+              style={{
+                position: "absolute",
+                top: "5px",
+                right: "5px",
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#10B981",
+                boxShadow: "0 0 6px #10B981",
+              }}
+            />
+          )}
+        </button>
+
         {/* User DP / Profile Avatar */}
         <div
           className="text-avatar"

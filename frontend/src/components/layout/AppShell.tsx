@@ -34,6 +34,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const setSpaces = useMyndStore((state) => state.setSpaces);
   const setActiveSpaceId = useMyndStore((state) => state.setActiveSpaceId);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+  const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
+  const selectedObject = useMyndStore((state) => state.selectedObject);
+  const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
 
   // Sync body class for zen mode
   useEffect(() => {
@@ -82,6 +85,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Alt + I -> Toggle Inspector Drawer
+      if (e.altKey && (e.key === "i" || e.key === "I")) {
+        e.preventDefault();
+        toggleContextPanel();
+        return;
+      }
+
       // Cmd/Ctrl + Shift + Z -> Zen Mode
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "z" || e.key === "Z")) {
         e.preventDefault();
@@ -103,6 +113,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     closeAskAi,
     closeObjectModal,
     toggleZenMode,
+    toggleContextPanel,
+    selectedObject,
+    setSelectedObject,
   ]);
 
   return (
