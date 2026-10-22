@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -116,6 +117,11 @@ function GoalsPageContent() {
 
   const spaces = useMyndStore((state) => state.spaces);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Core Goals State
   const [goals, setGoals] = useState<GoalData[]>([]);
@@ -1972,18 +1978,24 @@ Include:
         </div>
 
         {/* Regenerate Roadmap Calibration Modal */}
-        {isRegenerateModalOpen && (
+        {isMounted && isRegenerateModalOpen && createPortal(
           <div
             style={{
               position: "fixed",
-              inset: 0,
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100vw",
+              height: "100vh",
               background: "rgba(0, 0, 0, 0.75)",
-              backdropFilter: "blur(4px)",
+              backdropFilter: "blur(6px)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              zIndex: 100,
+              zIndex: 99999,
               padding: "20px",
+              boxSizing: "border-box",
             }}
             onClick={() => !isWorkspaceDecomposing && setIsRegenerateModalOpen(false)}
           >
@@ -1994,11 +2006,15 @@ Include:
                 borderRadius: "16px",
                 width: "100%",
                 maxWidth: "540px",
+                maxHeight: "calc(100vh - 40px)",
+                overflowY: "auto",
                 padding: "24px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "20px",
                 boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
+                boxSizing: "border-box",
+                margin: "auto",
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -2183,17 +2199,18 @@ Include:
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Competency Verified Floating Toast */}
-        {skillToast && (
+        {isMounted && skillToast && createPortal(
           <div
             style={{
               position: "fixed",
               bottom: "28px",
               right: "28px",
-              zIndex: 9999,
+              zIndex: 99999,
               background: "rgba(15, 23, 42, 0.95)",
               backdropFilter: "blur(16px)",
               border: "1px solid rgba(59, 130, 246, 0.45)",
@@ -2265,7 +2282,8 @@ Include:
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     );
@@ -2949,18 +2967,24 @@ Include:
       )}
 
       {/* 7. Create Goal Modal with Space Auto-Route Verification */}
-      {isCreateModalOpen && (
+      {isMounted && isCreateModalOpen && createPortal(
         <div
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
             background: "rgba(0, 0, 0, 0.75)",
             backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 99999,
             padding: "20px",
+            boxSizing: "border-box",
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsCreateModalOpen(false);
@@ -2974,8 +2998,10 @@ Include:
               border: "1px solid var(--border-subtle)",
               borderRadius: "16px",
               padding: "28px",
-              maxHeight: "90vh",
+              maxHeight: "calc(100vh - 40px)",
               overflowY: "auto",
+              boxSizing: "border-box",
+              margin: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -3494,17 +3520,18 @@ Include:
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Competency Verified Floating Toast */}
-      {skillToast && (
+      {isMounted && skillToast && createPortal(
         <div
           style={{
             position: "fixed",
             bottom: "28px",
             right: "28px",
-            zIndex: 9999,
+            zIndex: 99999,
             background: "rgba(15, 23, 42, 0.95)",
             backdropFilter: "blur(16px)",
             border: "1px solid rgba(59, 130, 246, 0.45)",
@@ -3576,7 +3603,8 @@ Include:
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
