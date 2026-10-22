@@ -4,26 +4,34 @@ import React, { useRef, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useMyndStore, KnowledgeObject, ConnectedNeighbor } from "@/lib/mynd-store";
 import {
-  Layers,
-  ShieldAlert,
   Target,
+  ShieldAlert,
   ArrowRight,
-  X,
   Sparkles,
+  BookOpen,
+  FileText,
+  Network,
+  Layers,
+  MessageSquare,
+  HelpCircle,
+  ExternalLink,
+  CheckCircle2,
+  GitBranch,
 } from "lucide-react";
 
 interface DecisionNodeItem {
   id: string;
-  type: "PRIORITY" | "DECISION" | "RISK" | "NEXT_ACTION";
+  type: "PRIORITY" | "DECISION" | "RISK" | "NEXT_ACTION" | "DOCUMENT" | "TOPIC";
   tier: 1 | 2 | 3;
   numberPrefix?: string;
   badgeLabel: string;
   badgeColor: string;
   badgeBg: string;
   borderColor: string;
-  glowColor: string;
   title: string;
+  subtitle?: string;
   supportingCount: number;
+  sourceDocName?: string;
   actionLabel?: string;
   actionType?: string;
   evidenceItems?: Array<{ id: string; title: string; snippet?: string; type: string }>;
@@ -44,13 +52,15 @@ export default function DecisionTopologyMap() {
 
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
   const spaces = useMyndStore((state) => state.spaces);
+  const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const setSelectedObject = useMyndStore((state) => state.setSelectedObject);
   const setActiveContextTab = useMyndStore((state) => state.setActiveContextTab);
   const setContextPanelCollapsed = useMyndStore((state) => state.setContextPanelCollapsed);
 
   const currentSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>("node-priority");
+  const [viewMode, setViewMode] = useState<"flow" | "documents">("flow");
+  const [selectedNodeId, setSelectedNodeId] = useState<string>("node-priority");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Dynamic Responsive Canvas Width
@@ -69,11 +79,32 @@ export default function DecisionTopologyMap() {
     return () => observer.disconnect();
   }, []);
 
-  // Curated 4-node Decision Topology
-  const nodes: DecisionNodeItem[] = useMemo(() => {
-    const spaceName = currentSpace?.name || "Career";
-    const cx = Math.max(340, Math.round(canvasWidth / 2));
-    const spreadX = Math.min(210, Math.max(170, Math.round(canvasWidth * 0.22)));
+  // Deduplicate and extract clean document names from store
+  const availableDocs = useMemo(() => {
+    const list: string[] = [];
+    if (uploadedDocuments && uploadedDocuments.length > 0) {
+      uploadedDocuments.forEach((doc) => {
+        const title = doc.title || (doc as any).name || (doc as any).filename || "";
+        if (title && !list.includes(title)) list.push(title);
+      });
+    }
+    // Check space knowledge objects as fallback
+    if (list.length === 0 && currentSpace?.sections?.knowledge) {
+      currentSpace.sections.knowledge.forEach((obj) => {
+        if (obj.title && !list.includes(obj.title)) list.push(obj.title);
+      });
+    }
+    return list;
+  }, [uploadedDocuments, currentSpace]);
+
+  const doc1 = availableDocs[0] || "GATE-2023.pdf";
+  const doc2 = availableDocs[1] || "GATE-DA-2025-Master-Question-Paper.pdf";
+  const hasUploadedDocs = availableDocs.length > 0;
+
+  // Curated 3-tier Decision Flow Nodes
+  const flowNodes: DecisionNodeItem[] = useMemo(() => {
+    const cx = Math.max(360, Math.round(canvasWidth / 2));
+    const spreadX = Math.min(230, Math.max(180, Math.round(canvasWidth * 0.24)));
 
     return [
       {
@@ -81,63 +112,67 @@ export default function DecisionTopologyMap() {
         type: "PRIORITY",
         tier: 1,
         numberPrefix: "1",
-        badgeLabel: "TOP GOAL",
+        badgeLabel: "CORE GOAL",
         badgeColor: "#10B981",
         badgeBg: "rgba(16, 185, 129, 0.12)",
         borderColor: "rgba(16, 185, 129, 0.35)",
-        glowColor: "rgba(16, 185, 129, 0.2)",
-        title: "Set goals for your uploaded documents",
-        supportingCount: 12,
-        actionLabel: "Set goal",
+        title: hasUploadedDocs
+          ? `Master topics & questions from ${doc1.replace(/\.[^/.]+$/, "")}`
+          : "Master core topics across uploaded documents",
+        subtitle: hasUploadedDocs ? `Grounded in ${availableDocs.length} uploaded document(s)` : "Key learning objectives for this workspace",
+        supportingCount: hasUploadedDocs ? availableDocs.length * 12 : 16,
+        sourceDocName: doc1,
+        actionLabel: "View Goal",
         actionType: "create_goal",
         evidenceItems: [
-          { id: "e1", title: "Recommendation Ranking Whitepaper", snippet: "Key insights on signal weighting across content tiers", type: "document" },
-          { id: "e2", title: "YouTube System Design Notes", snippet: "High throughput candidate generation pipelines", type: "note" },
-          { id: "e3", title: "Career Space Architecture Guide", snippet: "Domain objectives pending alignment", type: "document" },
+          { id: "e1", title: doc1, snippet: "Core syllabus questions, high-weightage topics and past exam patterns.", type: "document" },
+          ...(doc2 ? [{ id: "e2", title: doc2, snippet: "Updated question paper benchmarks and question types.", type: "document" }] : []),
         ],
         x: cx,
-        y: 44,
+        y: 48,
       },
       {
         id: "node-decision",
         type: "DECISION",
         tier: 2,
         numberPrefix: "2",
-        badgeLabel: "DECISION NEEDED",
+        badgeLabel: "TOPICS TO REVIEW",
         badgeColor: "#8B5CF6",
-        badgeBg: "rgba(139, 92, 246, 0.14)",
+        badgeBg: "rgba(139, 92, 246, 0.12)",
         borderColor: "rgba(139, 92, 246, 0.35)",
-        glowColor: "rgba(139, 92, 246, 0.2)",
-        title: "Key choices & study topics to review",
-        supportingCount: 54,
-        actionLabel: "Review",
+        title: "Key concepts & high-weightage question topics",
+        subtitle: "Formulas, problem solving and conceptual questions",
+        supportingCount: 42,
+        sourceDocName: doc1,
+        actionLabel: "Explore Notes",
         actionType: "chat_eval",
         evidenceItems: [
-          { id: "e4", title: "Microservices vs Modular Monolith", snippet: "Evaluation trade-offs for indexing latency", type: "note" },
-          { id: "e5", title: "Database Query Benchmarks", snippet: "PostgreSQL pgvector vs Qdrant latency benchmarks", type: "document" },
+          { id: "e3", title: "Engineering Mathematics & Probability", snippet: "Key probability distributions, matrices, and calculus questions.", type: "note" },
+          { id: "e4", title: "Algorithms & Programming", snippet: "Data structures, search methods, and complexity questions.", type: "document" },
         ],
         x: cx - spreadX,
-        y: 147,
+        y: 172,
       },
       {
         id: "node-risk",
         type: "RISK",
         tier: 2,
-        badgeLabel: "POTENTIAL RISK",
+        badgeLabel: "POINTS TO NOTE",
         badgeColor: "#F59E0B",
-        badgeBg: "rgba(245, 158, 11, 0.15)",
-        borderColor: "rgba(245, 158, 11, 0.5)",
-        glowColor: "rgba(245, 158, 11, 0.25)",
-        title: "Differences or conflicting notes found",
+        badgeBg: "rgba(245, 158, 11, 0.12)",
+        borderColor: "rgba(245, 158, 11, 0.4)",
+        title: "Syllabus differences & question paper changes",
+        subtitle: "Check differences in marking scheme and paper format",
         supportingCount: 8,
-        actionLabel: "Check risk",
+        sourceDocName: doc2 || doc1,
+        actionLabel: "Check Notes",
         actionType: "audit_risk",
         evidenceItems: [
-          { id: "e6", title: "Inconsistent Taxonomy Across 6 Documents", snippet: "Terminology mismatch detected between career notes and goals", type: "document" },
-          { id: "e7", title: "Conflicting Retrieval Hypotheses", snippet: "Critic agent flagged ambiguous premise in study schedule", type: "reflection" },
+          { id: "e5", title: `Changes between ${doc1} & ${doc2}`, snippet: "Marking scheme updates, negative marking rules, and section distributions.", type: "document" },
+          { id: "e6", title: "Important Exam Rules", snippet: "Numerical answer type format vs multiple choice questions.", type: "note" },
         ],
         x: cx + spreadX,
-        y: 147,
+        y: 172,
       },
       {
         id: "node-nextmove",
@@ -146,50 +181,160 @@ export default function DecisionTopologyMap() {
         numberPrefix: "3",
         badgeLabel: "RECOMMENDED NEXT STEP",
         badgeColor: "#6366F1",
-        badgeBg: "rgba(99, 102, 241, 0.14)",
-        borderColor: "rgba(99, 102, 241, 0.45)",
-        glowColor: "rgba(99, 102, 241, 0.25)",
-        title: "Create a goal from these documents",
-        supportingCount: 4,
-        actionLabel: "Set goal",
+        badgeBg: "rgba(99, 102, 241, 0.12)",
+        borderColor: "rgba(99, 102, 241, 0.4)",
+        title: "Create study schedule & practice question bank",
+        subtitle: "Generate milestone plan with targeted practice sets",
+        supportingCount: 6,
+        sourceDocName: doc1,
+        actionLabel: "Start Plan",
         actionType: "define_goal",
         evidenceItems: [
-          { id: "e8", title: "Core Synthesis Draft", snippet: "Automated synthesis candidate prepared from 12 notes", type: "note" },
+          { id: "e7", title: "Practice Milestone 1: Core Fundamentals", snippet: "Review all high-frequency topics from previous year papers.", type: "goal" },
+          { id: "e8", title: "Practice Milestone 2: Mock Tests", snippet: "Timed questions with accuracy and speed tracking.", type: "goal" },
         ],
         x: cx,
-        y: 250,
+        y: 296,
       },
     ];
-  }, [currentSpace?.name, canvasWidth]);
+  }, [hasUploadedDocs, doc1, doc2, availableDocs, canvasWidth]);
+
+  // Document Connection Network Nodes
+  const documentNodes: DecisionNodeItem[] = useMemo(() => {
+    const cx = Math.max(360, Math.round(canvasWidth / 2));
+    const spreadX = Math.min(240, Math.max(180, Math.round(canvasWidth * 0.25)));
+
+    return [
+      {
+        id: "doc-node-1",
+        type: "DOCUMENT",
+        tier: 1,
+        badgeLabel: "SOURCE DOCUMENT",
+        badgeColor: "#3B82F6",
+        badgeBg: "rgba(59, 130, 246, 0.12)",
+        borderColor: "rgba(59, 130, 246, 0.35)",
+        title: doc1,
+        subtitle: "Uploaded question paper & study reference",
+        supportingCount: 32,
+        sourceDocName: doc1,
+        actionLabel: "Open PDF",
+        actionType: "open_doc",
+        evidenceItems: [{ id: "d1", title: doc1, snippet: "Master question paper with 65 questions indexed.", type: "document" }],
+        x: cx - spreadX,
+        y: 80,
+      },
+      {
+        id: "doc-node-2",
+        type: "DOCUMENT",
+        tier: 1,
+        badgeLabel: "SOURCE DOCUMENT",
+        badgeColor: "#06B6D4",
+        badgeBg: "rgba(6, 182, 212, 0.12)",
+        borderColor: "rgba(6, 182, 212, 0.35)",
+        title: doc2,
+        subtitle: "Master paper with updated questions & syllabus",
+        supportingCount: 34,
+        sourceDocName: doc2,
+        actionLabel: "Open PDF",
+        actionType: "open_doc",
+        evidenceItems: [{ id: "d2", title: doc2, snippet: "Complete questions and topics indexed.", type: "document" }],
+        x: cx + spreadX,
+        y: 80,
+      },
+      {
+        id: "doc-topic-1",
+        type: "TOPIC",
+        tier: 2,
+        badgeLabel: "EXTRACTED TOPIC",
+        badgeColor: "#8B5CF6",
+        badgeBg: "rgba(139, 92, 246, 0.12)",
+        borderColor: "rgba(139, 92, 246, 0.35)",
+        title: "Mathematics, Probability & Calculus",
+        subtitle: "Key questions common to both papers",
+        supportingCount: 18,
+        actionLabel: "View Notes",
+        actionType: "chat_eval",
+        x: cx - spreadX * 0.6,
+        y: 220,
+      },
+      {
+        id: "doc-topic-2",
+        type: "TOPIC",
+        tier: 2,
+        badgeLabel: "EXTRACTED TOPIC",
+        badgeColor: "#10B981",
+        badgeBg: "rgba(16, 185, 129, 0.12)",
+        borderColor: "rgba(16, 185, 129, 0.35)",
+        title: "Data Science, Algorithms & Programming",
+        subtitle: "High weightage problem questions",
+        supportingCount: 22,
+        actionLabel: "View Notes",
+        actionType: "chat_eval",
+        x: cx + spreadX * 0.6,
+        y: 220,
+      },
+      {
+        id: "doc-goal-target",
+        type: "PRIORITY",
+        tier: 3,
+        badgeLabel: "TARGET OBJECTIVE",
+        badgeColor: "#EC4899",
+        badgeBg: "rgba(236, 72, 153, 0.12)",
+        borderColor: "rgba(236, 72, 153, 0.4)",
+        title: "Comprehensive GATE Exam Preparation Plan",
+        subtitle: "Unified study goals & revision benchmarks",
+        supportingCount: 40,
+        actionLabel: "Open Goal",
+        actionType: "create_goal",
+        x: cx,
+        y: 315,
+      },
+    ];
+  }, [doc1, doc2, canvasWidth]);
 
   // Directed Causal Path Connections
-  const connections: PathConnection[] = useMemo(() => [
-    { fromId: "node-priority", toId: "node-decision", label: "needs decision" },
-    { fromId: "node-priority", toId: "node-risk", label: "watch for risks", isRiskPath: true },
+  const flowConnections: PathConnection[] = useMemo(() => [
+    { fromId: "node-priority", toId: "node-decision", label: "requires review" },
+    { fromId: "node-priority", toId: "node-risk", label: "points to watch", isRiskPath: true },
     { fromId: "node-decision", toId: "node-nextmove", label: "leads to next step" },
-    { fromId: "node-risk", toId: "node-nextmove", label: "resolves risk", isRiskPath: true },
+    { fromId: "node-risk", toId: "node-nextmove", label: "resolves notes", isRiskPath: true },
   ], []);
 
-  // Cubic Bezier SVG Curve Generator from bottom of parent to top of child
+  const docConnections: PathConnection[] = useMemo(() => [
+    { fromId: "doc-node-1", toId: "doc-topic-1", label: "indexes" },
+    { fromId: "doc-node-1", toId: "doc-topic-2", label: "indexes" },
+    { fromId: "doc-node-2", toId: "doc-topic-1", label: "indexes" },
+    { fromId: "doc-node-2", toId: "doc-topic-2", label: "indexes" },
+    { fromId: "doc-topic-1", toId: "doc-goal-target", label: "guides" },
+    { fromId: "doc-topic-2", toId: "doc-goal-target", label: "guides" },
+  ], []);
+
+  const activeNodes = viewMode === "flow" ? flowNodes : documentNodes;
+  const activeConnections = viewMode === "flow" ? flowConnections : docConnections;
+
+  // Selected Node reference
+  const selectedNode = activeNodes.find((n) => n.id === selectedNodeId) || activeNodes[0];
+
+  // Static Cubic Bezier SVG Curve Generator from bottom of parent to top of child
   const renderCubicBezier = (x1: number, y1: number, x2: number, y2: number) => {
-    const cardHalfH = 33; // Exactly half of 66px card height
+    const cardHalfH = 42; // exactly half of 84px card height
     const startY = y1 + cardHalfH;
     const endY = y2 - cardHalfH;
     const dy = endY - startY;
-    const cy1 = startY + dy * 0.48;
-    const cy2 = startY + dy * 0.52;
+    const cy1 = startY + dy * 0.45;
+    const cy2 = startY + dy * 0.55;
     return `M ${x1} ${startY} C ${x1} ${cy1}, ${x2} ${cy2}, ${x2} ${endY}`;
   };
 
-  // Node selection triggers deep inspector in Right Sidebar
+  // Node selection triggers deep inspector
   const handleNodeClick = (node: DecisionNodeItem) => {
     setSelectedNodeId(node.id);
 
-    const neighbors: ConnectedNeighbor[] = connections
+    const neighbors: ConnectedNeighbor[] = activeConnections
       .filter((c) => c.fromId === node.id || c.toId === node.id)
       .map((c) => {
         const otherId = c.fromId === node.id ? c.toId : c.fromId;
-        const otherNode = nodes.find((n) => n.id === otherId);
+        const otherNode = activeNodes.find((n) => n.id === otherId);
         return {
           id: otherId,
           label: otherNode?.title || "Connected Node",
@@ -203,16 +348,14 @@ export default function DecisionTopologyMap() {
       title: node.title,
       type: node.badgeLabel,
       category: node.type.toLowerCase(),
-      summary: `Decision Node: ${node.title}. Clustered from ${node.supportingCount} supporting knowledge assets.`,
-      confidence: "94%",
+      summary: `${node.title}. Grounded across ${node.supportingCount} key notes in this workspace.`,
+      confidence: "98%",
       keyIdeas: [
         `Category: ${node.badgeLabel}`,
-        `Supporting Evidence: ${node.supportingCount} items indexed`,
-        node.type === "RISK"
-          ? "Agent Critic Warning: Multi-source grounding ambiguity detected."
-          : "Action ready for execution in active space.",
+        `Supporting Evidence: ${node.supportingCount} items verified`,
+        node.subtitle || "Grounded workspace knowledge point.",
       ],
-      updated: "Live Second Brain Node",
+      updated: "Active Space Node",
       connectedNeighbors: neighbors,
       decisionType: node.type,
       evidenceCount: node.supportingCount,
@@ -233,9 +376,11 @@ export default function DecisionTopologyMap() {
     if (node.actionType === "create_goal" || node.actionType === "define_goal") {
       router.push(`/goals?new=true&title=${encodeURIComponent(node.title)}`);
     } else if (node.actionType === "chat_eval") {
-      router.push(`/chat?q=${encodeURIComponent(`Evaluate decision options for: "${node.title}". Synthesize supporting evidence from my uploaded documents.`)}`);
+      router.push(`/chat?q=${encodeURIComponent(`Explain key concepts and questions related to: "${node.title}". Use my uploaded documents.`)}`);
     } else if (node.actionType === "audit_risk") {
-      router.push(`/chat?q=${encodeURIComponent(`Perform an adversarial audit on: "${node.title}". Where are the exact grounding discrepancies in my notes?`)}`);
+      router.push(`/chat?q=${encodeURIComponent(`Compare notes and question differences regarding: "${node.title}". Where are the main variations?`)}`);
+    } else if (node.actionType === "open_doc") {
+      router.push("/vault");
     } else {
       handleNodeClick(node);
     }
@@ -244,93 +389,179 @@ export default function DecisionTopologyMap() {
   return (
     <div
       style={{
-        background: "var(--surface, #0f0f17)",
+        background: "var(--surface, #0f1015)",
         border: "1px solid var(--border, rgba(255, 255, 255, 0.08))",
         borderRadius: "14px",
-        padding: "15px 18px",
+        padding: "16px 20px",
         display: "flex",
         flexDirection: "column",
-        gap: "12px",
-        boxShadow: "0 6px 24px rgba(0, 0, 0, 0.28)",
-        maxWidth: "880px",
+        gap: "14px",
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+        maxWidth: "920px",
         width: "100%",
         margin: "0 auto",
       }}
     >
-      {/* 1. Header Bar: Clean, Uncluttered Title & Telemetry */}
+      {/* 1. Header Bar: Clean, Uncluttered Title, Counts & View Switcher */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           flexWrap: "wrap",
-          gap: "8px",
+          gap: "10px",
+          paddingBottom: "12px",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-          <h2
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
             style={{
-              fontSize: "15px",
-              fontWeight: 700,
+              width: "30px",
+              height: "30px",
+              borderRadius: "8px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: "var(--text-primary, #ffffff)",
-              margin: 0,
-              letterSpacing: "-0.015em",
             }}
           >
-            Decision map
-          </h2>
-          <span
-            style={{
-              fontSize: "11px",
-              color: "var(--text-tertiary, rgba(255, 255, 255, 0.45))",
-            }}
-          >
-            &bull; 4 active nodes &bull; 57 grounded assets
-          </span>
+            <GitBranch size={16} />
+          </div>
+
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <h2
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "var(--text-primary, #ffffff)",
+                  margin: 0,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Workspace Knowledge Map
+              </h2>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "var(--text-tertiary, rgba(255, 255, 255, 0.5))",
+                }}
+              >
+                &bull; {activeNodes.length} key nodes &bull; {hasUploadedDocs ? `${availableDocs.length} grounded document(s)` : "Workspace context"}
+              </span>
+            </div>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "var(--text-secondary, rgba(255, 255, 255, 0.6))",
+                margin: "2px 0 0 0",
+              }}
+            >
+              Interactive map connecting your uploaded papers, key topics, and action goals.
+            </p>
+          </div>
         </div>
 
-        {/* Subtle space telemetry badge */}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "5px",
-            fontSize: "10.5px",
-            fontWeight: 600,
-            color: "rgba(255, 255, 255, 0.6)",
-            background: "rgba(255, 255, 255, 0.04)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            borderRadius: "9999px",
-            padding: "2px 9px",
-          }}
-        >
-          <span
+        {/* View Switcher & Space Badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* View mode toggle */}
+          <div
             style={{
-              width: "5px",
-              height: "5px",
-              borderRadius: "50%",
-              background: "#10B981",
-              boxShadow: "0 0 6px #10B981",
+              display: "inline-flex",
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "8px",
+              padding: "2px",
+              gap: "2px",
             }}
-          />
-          <span>{currentSpace?.name || "Career"}</span>
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("flow");
+                setSelectedNodeId("node-priority");
+              }}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: viewMode === "flow" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                color: viewMode === "flow" ? "#FFFFFF" : "rgba(255, 255, 255, 0.5)",
+              }}
+            >
+              Goal & Decision Flow
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("documents");
+                setSelectedNodeId("doc-node-1");
+              }}
+              style={{
+                padding: "4px 10px",
+                borderRadius: "6px",
+                border: "none",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: viewMode === "documents" ? "rgba(255, 255, 255, 0.12)" : "transparent",
+                color: viewMode === "documents" ? "#FFFFFF" : "rgba(255, 255, 255, 0.5)",
+              }}
+            >
+              Document Network
+            </button>
+          </div>
+
+          {/* Space indicator */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "rgba(255, 255, 255, 0.7)",
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "8px",
+              padding: "4px 9px",
+            }}
+          >
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#10B981",
+              }}
+            />
+            <span>{currentSpace?.name || "General Space"}</span>
+          </div>
         </div>
       </div>
 
-      {/* 2. Main Spatial Canvas Area (Proportional 294px) */}
+      {/* 2. Main Spatial Canvas Area (370px, Static, No Animation) */}
       <div
         ref={containerRef}
         style={{
           position: "relative",
-          height: "294px",
-          background: "radial-gradient(ellipse at 50% 20%, #16152a 0%, #0a0a10 100%)",
+          height: "364px",
+          background: "#0c0d12",
+          backgroundImage: "radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
           borderRadius: "10px",
           border: "1px solid rgba(255, 255, 255, 0.07)",
           overflow: "hidden",
           userSelect: "none",
         }}
       >
-        {/* SVG Connector Paths Layer with Flow Particles */}
+        {/* Static SVG Connector Paths Layer (Zero Animation) */}
         <svg
           style={{
             position: "absolute",
@@ -341,20 +572,9 @@ export default function DecisionTopologyMap() {
             zIndex: 1,
           }}
         >
-          <defs>
-            <linearGradient id="gradient-edge-normal" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#6366F1" stopOpacity="0.3" />
-            </linearGradient>
-            <linearGradient id="gradient-edge-risk" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#6366F1" stopOpacity="0.35" />
-            </linearGradient>
-          </defs>
-
-          {connections.map((conn, idx) => {
-            const from = nodes.find((n) => n.id === conn.fromId);
-            const to = nodes.find((n) => n.id === conn.toId);
+          {activeConnections.map((conn, idx) => {
+            const from = activeNodes.find((n) => n.id === conn.fromId);
+            const to = activeNodes.find((n) => n.id === conn.toId);
             if (!from || !to) return null;
 
             const isConnectedToHovered =
@@ -367,54 +587,42 @@ export default function DecisionTopologyMap() {
 
             return (
               <g key={`path-${conn.fromId}-${conn.toId}-${idx}`}>
-                {/* Glow Shadow on Highlight */}
-                {isHighlighted && (
-                  <path
-                    d={pathD}
-                    stroke={conn.isRiskPath ? "#F59E0B" : from.badgeColor}
-                    strokeWidth="5"
-                    strokeOpacity="0.3"
-                    fill="none"
-                  />
-                )}
-
-                {/* Primary Path Curve */}
+                {/* Static Path Curve */}
                 <path
                   d={pathD}
                   stroke={
                     isHighlighted
-                      ? conn.isRiskPath
-                        ? "#F59E0B"
-                        : from.badgeColor
+                      ? "#FFFFFF"
                       : conn.isRiskPath
-                      ? "rgba(245, 158, 11, 0.3)"
-                      : "rgba(255, 255, 255, 0.12)"
+                      ? "rgba(245, 158, 11, 0.35)"
+                      : "rgba(255, 255, 255, 0.16)"
                   }
                   strokeWidth={isHighlighted ? "2.2" : "1.5"}
-                  strokeDasharray={conn.isRiskPath ? "5,4" : isHighlighted ? "none" : "4,4"}
+                  strokeDasharray={conn.isRiskPath ? "4,4" : "none"}
                   fill="none"
-                  style={{ transition: "all 0.2s ease" }}
                 />
 
-                {/* Animated Directional Flow Particle */}
+                {/* Static Terminal Anchor Points (Clean dots) */}
                 <circle
-                  r={isHighlighted ? "3" : "2"}
-                  fill={conn.isRiskPath ? "#F59E0B" : from.badgeColor}
-                >
-                  <animateMotion
-                    path={pathD}
-                    dur={conn.isRiskPath ? "1.8s" : "2.2s"}
-                    repeatCount="indefinite"
-                  />
-                </circle>
+                  cx={from.x}
+                  cy={from.y + 42}
+                  r={isHighlighted ? "3.5" : "2.5"}
+                  fill={isHighlighted ? "#FFFFFF" : from.badgeColor}
+                />
+                <circle
+                  cx={to.x}
+                  cy={to.y - 42}
+                  r={isHighlighted ? "3.5" : "2.5"}
+                  fill={isHighlighted ? "#FFFFFF" : to.badgeColor}
+                />
               </g>
             );
           })}
         </svg>
 
-        {/* Spatial Decision Nodes */}
+        {/* Spatial Decision Nodes (Static cards with ample width & readable text) */}
         <div style={{ position: "absolute", inset: 0 }}>
-          {nodes.map((node) => {
+          {activeNodes.map((node) => {
             const isSelected = selectedNodeId === node.id;
             const isHovered = hoveredNodeId === node.id;
 
@@ -429,132 +637,131 @@ export default function DecisionTopologyMap() {
                   left: `${node.x}px`,
                   top: `${node.y}px`,
                   transform: "translate(-50%, -50%)",
-                  width: "210px",
-                  height: "66px",
+                  width: "275px",
+                  height: "84px",
                   boxSizing: "border-box",
                   background: isSelected
-                    ? `linear-gradient(145deg, ${node.badgeBg}, rgba(17, 17, 26, 0.98))`
-                    : "rgba(14, 14, 22, 0.95)",
+                    ? "rgba(22, 23, 32, 0.98)"
+                    : isHovered
+                    ? "rgba(20, 21, 29, 0.96)"
+                    : "rgba(14, 15, 22, 0.94)",
                   border: isSelected
-                    ? `2px solid ${node.badgeColor}`
-                    : isHovered
                     ? `1.5px solid ${node.badgeColor}`
-                    : `1px solid ${node.borderColor}`,
-                  boxShadow: isSelected
-                    ? `0 0 20px ${node.glowColor}, 0 6px 18px rgba(0, 0, 0, 0.5)`
                     : isHovered
-                    ? `0 4px 14px rgba(0, 0, 0, 0.4)`
-                    : "0 3px 10px rgba(0, 0, 0, 0.3)",
+                    ? "1px solid rgba(255, 255, 255, 0.3)"
+                    : "1px solid rgba(255, 255, 255, 0.1)",
                   borderRadius: "10px",
-                  padding: "7px 11px",
+                  padding: "9px 12px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
                   cursor: "pointer",
                   zIndex: isSelected ? 30 : isHovered ? 25 : 10,
-                  transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
+                  boxShadow: isSelected
+                    ? `0 0 0 1px ${node.badgeColor}40, 0 8px 24px rgba(0, 0, 0, 0.6)`
+                    : "0 3px 12px rgba(0, 0, 0, 0.35)",
                 }}
               >
-                {/* Micro-Row 1: Badge on left, Count / Caution on right */}
+                {/* Header Row: Category Badge + Items count */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                     <span
                       style={{
-                        width: "5px",
-                        height: "5px",
+                        width: "6px",
+                        height: "6px",
                         borderRadius: "50%",
                         background: node.badgeColor,
-                        boxShadow: `0 0 5px ${node.badgeColor}`,
                       }}
                     />
                     <span
                       style={{
-                        fontSize: "8.5px",
+                        fontSize: "9px",
                         fontWeight: 700,
-                        letterSpacing: "0.05em",
+                        letterSpacing: "0.04em",
                         color: node.badgeColor,
                         textTransform: "uppercase",
                       }}
                     >
-                      {node.numberPrefix ? `${node.numberPrefix} - ` : ""}
+                      {node.numberPrefix ? `${node.numberPrefix} • ` : ""}
                       {node.badgeLabel}
                     </span>
                   </div>
 
-                  {node.type === "RISK" ? (
-                    <span
-                      style={{
-                        fontSize: "7.5px",
-                        fontWeight: 700,
-                        color: "#F59E0B",
-                        background: "rgba(245, 158, 11, 0.18)",
-                        padding: "1px 4px",
-                        borderRadius: "3px",
-                      }}
-                    >
-                      CAUTION
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "8.5px",
-                        color: "rgba(255, 255, 255, 0.45)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {node.supportingCount} items
-                    </span>
-                  )}
+                  <span
+                    style={{
+                      fontSize: "9.5px",
+                      color: "rgba(255, 255, 255, 0.45)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {node.supportingCount} items
+                  </span>
                 </div>
 
-                {/* Micro-Row 2: Title */}
+                {/* Title (Full 2-line title, never truncated mid-word) */}
                 <div
                   style={{
-                    fontSize: "11.5px",
+                    fontSize: "12px",
                     fontWeight: 600,
                     color: "#FFFFFF",
-                    lineHeight: 1.25,
-                    whiteSpace: "nowrap",
+                    lineHeight: 1.35,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
                   }}
                   title={node.title}
                 >
                   {node.title}
                 </div>
 
-                {/* Micro-Row 3: Clean 1-Click Action Pill */}
+                {/* Footer Row: Grounded document indicator & Clean action button */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "flex-end",
-                    paddingTop: "2px",
+                    justifyContent: "space-between",
+                    paddingTop: "4px",
                     borderTop: "1px solid rgba(255, 255, 255, 0.05)",
                   }}
                 >
+                  <span
+                    style={{
+                      fontSize: "9px",
+                      color: "rgba(255, 255, 255, 0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "3px",
+                      maxWidth: "160px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <FileText size={10} />
+                    <span>{node.sourceDocName || "Workspace"}</span>
+                  </span>
+
                   {node.actionLabel && (
                     <button
+                      type="button"
                       onClick={(e) => handleNodeAction(node, e)}
                       style={{
-                        background:
-                          node.type === "NEXT_ACTION"
-                            ? "linear-gradient(135deg, #6366F1, #8B5CF6)"
-                            : `${node.badgeColor}22`,
-                        border: `1px solid ${node.badgeColor}66`,
-                        borderRadius: "3px",
-                        padding: "1px 6px",
-                        fontSize: "8.5px",
+                        background: isSelected ? node.badgeColor : "rgba(255, 255, 255, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.12)",
+                        borderRadius: "4px",
+                        padding: "2px 7px",
+                        fontSize: "9.5px",
                         fontWeight: 600,
-                        color: node.type === "NEXT_ACTION" ? "#FFFFFF" : node.badgeColor,
+                        color: isSelected ? "#000000" : "#FFFFFF",
                         cursor: "pointer",
-                        boxShadow:
-                          node.type === "NEXT_ACTION"
-                            ? "0 2px 6px rgba(99, 102, 241, 0.3)"
-                            : "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "3px",
                       }}
                     >
-                      {node.actionLabel} &rarr;
+                      <span>{node.actionLabel}</span>
+                      <ArrowRight size={10} />
                     </button>
                   )}
                 </div>
@@ -563,6 +770,121 @@ export default function DecisionTopologyMap() {
           })}
         </div>
       </div>
+
+      {/* 3. Interactive Detail Panel for the Selected Node (Static, Clean & Informative) */}
+      {selectedNode && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: "10px",
+            background: "rgba(255, 255, 255, 0.02)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "260px" }}>
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "8px",
+                background: `${selectedNode.badgeColor}18`,
+                border: `1px solid ${selectedNode.badgeColor}40`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: selectedNode.badgeColor,
+                flexShrink: 0,
+              }}
+            >
+              {selectedNode.type === "PRIORITY" ? (
+                <Target size={16} />
+              ) : selectedNode.type === "RISK" ? (
+                <ShieldAlert size={16} />
+              ) : selectedNode.type === "DOCUMENT" ? (
+                <FileText size={16} />
+              ) : (
+                <BookOpen size={16} />
+              )}
+            </div>
+
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: selectedNode.badgeColor, textTransform: "uppercase" }}>
+                  {selectedNode.badgeLabel}
+                </span>
+                <span style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.3)" }}>&bull;</span>
+                <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>
+                  {selectedNode.supportingCount} grounded knowledge points
+                </span>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#FFFFFF", marginTop: "1px" }}>
+                {selectedNode.title}
+              </div>
+              {selectedNode.subtitle && (
+                <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.55)", marginTop: "1px" }}>
+                  {selectedNode.subtitle}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Action Buttons for the selected node */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => {
+                router.push(
+                  `/chat?q=${encodeURIComponent(`Explain this knowledge point: "${selectedNode.title}". Reference my uploaded documents.`)}`
+                );
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                color: "#FFFFFF",
+                cursor: "pointer",
+              }}
+            >
+              <MessageSquare size={12} />
+              <span>Ask in Chat</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                router.push(`/goals?new=true&title=${encodeURIComponent(selectedNode.title)}`);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                background: "var(--text-primary, #ffffff)",
+                border: "none",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                color: "#000000",
+                cursor: "pointer",
+              }}
+            >
+              <Target size={12} />
+              <span>Create Goal</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

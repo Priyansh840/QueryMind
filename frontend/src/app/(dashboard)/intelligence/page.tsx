@@ -814,10 +814,10 @@ function IntelligencePageContent() {
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px" }}>
                 <span style={{ color: "#F59E0B", display: "flex", alignItems: "center", gap: "5px", fontWeight: 700 }}>
                   <ShieldAlert size={15} />
-                  <span>Agent Critic Telemetry:</span>
+                  <span>Document Insights:</span>
                 </span>
                 <span style={{ color: "var(--text-secondary)" }}>
-                  Grounding mismatch identified between 6 active knowledge documents in {getSpaceName(activeSpaceId)}.
+                  Connected across {displayDocs.length > 0 ? `${displayDocs.length} uploaded` : "active"} documents in {getSpaceName(activeSpaceId)}. Key topics and questions analyzed.
                 </span>
               </div>
 
@@ -831,23 +831,23 @@ function IntelligencePageContent() {
                     gap: "6px",
                     padding: "6px 14px",
                     borderRadius: "8px",
-                    background: "rgba(239, 68, 68, 0.12)",
-                    border: "1px solid rgba(239, 68, 68, 0.3)",
-                    color: "#EF4444",
+                    background: "rgba(245, 158, 11, 0.12)",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    color: "#F59E0B",
                     fontSize: "12px",
                     fontWeight: 600,
                     cursor: "pointer",
                     transition: "all 150ms ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+                    e.currentTarget.style.background = "rgba(245, 158, 11, 0.2)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                    e.currentTarget.style.background = "rgba(245, 158, 11, 0.12)";
                   }}
                 >
-                  <Zap size={13} />
-                  <span>Audit Risk in Cross-Synthesis</span>
+                  <Search size={13} />
+                  <span>Review Differences &amp; Notes</span>
                 </button>
 
                 <button
@@ -875,7 +875,7 @@ function IntelligencePageContent() {
                   }}
                 >
                   <ArrowRight size={13} />
-                  <span>Formulate Roadmap</span>
+                  <span>Create Study Plan</span>
                 </button>
               </div>
             </div>

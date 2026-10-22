@@ -748,12 +748,6 @@ export default function KnowledgeMap() {
                     style={{ transition: "stroke 200ms ease, stroke-width 200ms ease" }}
                   />
 
-                  {/* Flow particle */}
-                  {isEdgeHighlighted && (
-                    <circle r="3.5" fill={fromNode.color}>
-                      <animateMotion path={pathD} dur="2.4s" repeatCount="indefinite" />
-                    </circle>
-                  )}
                 </g>
               );
             })}
