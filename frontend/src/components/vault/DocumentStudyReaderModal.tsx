@@ -1049,6 +1049,21 @@ export default function DocumentStudyReaderModal({
       await queryMindApi.updateGoal(goal.id, {
         tasks: updatedTasks,
       });
+
+      // Synchronize directly with Competency Skill Tracker:
+      const targetTask = updatedTasks.find((t) => t.id === taskId);
+      if (targetTask) {
+        await queryMindApi.syncTaskSkill({
+          goal_id: goal.id,
+          task_id: taskId,
+          task_title: targetTask.title,
+          completed: isNowCompleted,
+          deliverable: targetTask.deliverable,
+          tools: (targetTask as any).tools || [],
+          sub_goal: (targetTask as any).sub_goal,
+          category: goal.category || "engineering",
+        });
+      }
     } catch (err: any) {
       console.error("Failed to sync task completion in Study Reader:", err);
     }
