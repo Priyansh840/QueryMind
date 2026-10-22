@@ -1764,10 +1764,12 @@ Include:
               style={{
                 flex: 1,
                 overflowY: "auto",
+                overflowX: "hidden",
                 padding: "16px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "14px",
+                minWidth: 0,
               }}
             >
               {copilotMessages.map((msg, idx) => {
@@ -1777,7 +1779,10 @@ Include:
                     key={idx}
                     style={{
                       alignSelf: isUser ? "flex-end" : "flex-start",
-                      maxWidth: isUser ? "88%" : "94%",
+                      maxWidth: isUser ? "88%" : "100%",
+                      width: isUser ? "auto" : "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box",
                     }}
                   >
                     <div
@@ -1790,12 +1795,17 @@ Include:
                         fontSize: "13px",
                         lineHeight: 1.55,
                         boxShadow: isUser ? "0 2px 10px rgba(0, 0, 0, 0.4)" : "0 2px 8px rgba(0, 0, 0, 0.2)",
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        minWidth: 0,
+                        maxWidth: "100%",
+                        boxSizing: "border-box",
                       }}
                     >
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
+                          p: ({ children }) => <p style={{ margin: "0 0 8px 0", wordBreak: "break-word" }}>{children}</p>,
                           strong: ({ children }) => (
                             <strong style={{ color: isUser ? "#FFFFFF" : "var(--text-primary)", fontWeight: 600 }}>
                               {children}
@@ -1822,6 +1832,49 @@ Include:
                               {children}
                             </h4>
                           ),
+                          pre: ({ children }) => (
+                            <pre
+                              style={{
+                                maxWidth: "100%",
+                                overflowX: "auto",
+                                background: "rgba(0, 0, 0, 0.45)",
+                                border: "1px solid var(--border-subtle)",
+                                borderRadius: "8px",
+                                padding: "10px 12px",
+                                margin: "10px 0",
+                                fontSize: "12px",
+                                fontFamily: "var(--font-mono, monospace)",
+                                lineHeight: 1.5,
+                                whiteSpace: "pre",
+                                wordBreak: "normal",
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              {children}
+                            </pre>
+                          ),
+                          code: ({ inline, children, ...props }: any) => {
+                            if (inline) {
+                              return (
+                                <code
+                                  style={{
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    padding: "2px 5px",
+                                    borderRadius: "4px",
+                                    fontSize: "12px",
+                                    fontFamily: "var(--font-mono, monospace)",
+                                    border: "1px solid var(--border-subtle)",
+                                    color: "#93c5fd",
+                                    wordBreak: "break-word",
+                                  }}
+                                  {...props}
+                                >
+                                  {children}
+                                </code>
+                              );
+                            }
+                            return <code style={{ fontFamily: "inherit" }} {...props}>{children}</code>;
+                          },
                         }}
                       >
                         {msg.content}

@@ -59,20 +59,48 @@ export default function MarkdownRenderer({ content, className = "" }: MarkdownRe
               {children}
             </li>
           ),
-          code: ({ children }) => (
-            <code
+          pre: ({ children }) => (
+            <pre
               style={{
-                background: "var(--surface-subtle)",
-                padding: "2px 5px",
-                borderRadius: "4px",
+                maxWidth: "100%",
+                overflowX: "auto",
+                background: "rgba(0, 0, 0, 0.4)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "10px 12px",
+                margin: "8px 0",
                 fontSize: "12px",
                 fontFamily: "var(--font-mono, monospace)",
-                border: "1px solid var(--border)",
+                lineHeight: 1.5,
+                whiteSpace: "pre",
+                wordBreak: "normal",
+                boxSizing: "border-box",
               }}
             >
               {children}
-            </code>
+            </pre>
           ),
+          code: ({ inline, children, ...props }: any) => {
+            if (inline) {
+              return (
+                <code
+                  style={{
+                    background: "var(--surface-subtle)",
+                    padding: "2px 5px",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    fontFamily: "var(--font-mono, monospace)",
+                    border: "1px solid var(--border)",
+                    wordBreak: "break-word",
+                  }}
+                  {...props}
+                >
+                  {children}
+                </code>
+              );
+            }
+            return <code style={{ fontFamily: "inherit" }} {...props}>{children}</code>;
+          },
           blockquote: ({ children }) => (
             <blockquote
               style={{
