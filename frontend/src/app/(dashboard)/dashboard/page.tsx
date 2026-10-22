@@ -492,19 +492,9 @@ export default function DashboardPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
-                background: "rgba(139, 92, 246, 0.15)",
-                border: "1px solid rgba(139, 92, 246, 0.3)",
+                background: "rgba(255, 255, 255, 0.04)",
+                border: "1px solid var(--border)",
                 borderRadius: "6px",
-<<<<<<< HEAD
-                padding: "3px 9px",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "#C4B5FD",
-              }}
-            >
-              <Sparkles style={{ width: "12px", height: "12px", color: "#A78BFA" }} />
-              <span>Recommended Next Step</span>
-=======
                 padding: "2px 8px",
                 fontSize: "10.5px",
                 fontWeight: 700,
@@ -515,7 +505,6 @@ export default function DashboardPage() {
             >
               <Sparkles style={{ width: "11px", height: "11px", color: "var(--text-secondary)" }} />
               <span>Document & Action Hub</span>
->>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </div>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -527,11 +516,7 @@ export default function DashboardPage() {
                 color: "rgba(255, 255, 255, 0.75)",
               }}
             >
-<<<<<<< HEAD
-              {activeSpace?.name || "Career"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {executiveBriefing.topLeverageTask.goalTitle}
-=======
               {activeSpace?.name || "General Space"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {realDocuments.length} documents ready
->>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </span>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -555,11 +540,7 @@ export default function DashboardPage() {
                   boxShadow: "0 0 6px #10B981",
                 }}
               />
-<<<<<<< HEAD
-              <span>Top Priority Today</span>
-=======
               <span>AI Memory Active</span>
->>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </div>
           </div>
 
@@ -573,13 +554,9 @@ export default function DashboardPage() {
               gap: "6px",
             }}
           >
-<<<<<<< HEAD
-            <span>AI Match</span>
-=======
             <span>Search Engine</span>
->>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             <span>&bull;</span>
-            <span style={{ color: "#A78BFA", fontWeight: 600 }}>96%</span>
+            <span style={{ color: "#10B981", fontWeight: 600 }}>Connected</span>
           </div>
         </div>
 
