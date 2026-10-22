@@ -769,10 +769,17 @@ export default function DocumentStudyReaderModal({
 
     // 1. If real AI Study Companion has generated, use the authentic AI extracted curriculum!
     if (aiCompanionData) {
+      const companionKeywords = Array.from(
+        new Set([
+          ...(aiCompanionData.key_topics || []),
+          ...(aiCompanionData.roadmap || []).map((r: any) => r.title),
+        ])
+      ).filter(Boolean);
+
       return {
         domain: aiCompanionData.domain || document.title || document.name || "Technical Study Space",
         keyTopics: aiCompanionData.key_topics || [],
-        domainKeywords: [],
+        domainKeywords: companionKeywords,
         suggestedRoadmap: (aiCompanionData.roadmap || []).map((r: any) => ({
           title: r.title,
           pageRange: r.page_range,
@@ -795,91 +802,53 @@ export default function DocumentStudyReaderModal({
     };
   }, [document, docDetails, aiCompanionData]);
 
-  // Deep Task Scanner: Uses LLM Semantic Task Matching if available, with heuristic fallback
+  // Deep Task Scanner: Multi-signal matcher (Document ID, Title, AI Semantic, Space, Keywords)
   const { matchedTasks, otherTasks, connectedGoals, connectedGoalsCount, allDisplayTasks } = useMemo(() => {
     if (!document) return { matchedTasks: [], otherTasks: [], connectedGoals: [], connectedGoalsCount: 0, allDisplayTasks: [] };
 
     const docCleanName = (document.title || document.name || "").toLowerCase().replace(/\.pdf|\.docx|\.md/g, "").trim();
     const docCleanTokens = docCleanName.split(/[\s_\-]+/).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+    const docSpaceId = (document as any)?.space_id || document?.spaceId || (docDetails as any)?.space_id;
+    const docId = document?.id || (docDetails as any)?.id;
+
+    // Build active keyword list from keyTopics + domainKeywords + clean document tokens
+    const combinedKeywords = Array.from(
+      new Set([
+        ...domainKeywords,
+        ...keyTopics.map((k) => k.toLowerCase()),
+        ...keyTopics.flatMap((k) => k.toLowerCase().split(/[\s,()&/-]+/).filter((w) => w.length >= 4 && !STOP_WORDS.has(w))),
+        ...docCleanTokens,
+      ])
+    ).filter((w) => w.length >= 3);
+
+    const aiMap = new Map(
+      (aiCompanionData?.matched_task_ids || []).map((item: any) => [item.task_id, item])
+    );
 
     const matched: Array<{ goal: GoalData; task: any; matchScore: number; matchReason?: string }> = [];
     const other: Array<{ goal: GoalData; task: any }> = [];
     const connectedGoalMap = new Map<string, GoalData>();
 
-    // 1. REAL AI SEMANTIC TASK MATCHING (from LLM)
-    if (aiCompanionData?.matched_task_ids && Array.isArray(aiCompanionData.matched_task_ids)) {
-      const aiMap = new Map(
-        aiCompanionData.matched_task_ids.map((item: any) => [item.task_id, item])
-      );
-
-      goals.forEach((g) => {
-        (g.tasks || []).forEach((t) => {
-          const aiMatch = aiMap.get(t.id);
-          const isDirectIdMatch =
-            Array.isArray(g.document_ids) &&
-            (g.document_ids.includes(document.id) || (docDetails?.id && g.document_ids.includes(docDetails.id)));
-
-          if (isDirectIdMatch) {
-            matched.push({ goal: g, task: t, matchScore: 100, matchReason: "Linked Document" });
-            connectedGoalMap.set(g.id, g);
-          } else if (aiMatch) {
-            matched.push({
-              goal: g,
-              task: t,
-              matchScore: aiMatch.match_score || 90,
-              matchReason: aiMatch.match_reason || "AI Semantic Match",
-            });
-            connectedGoalMap.set(g.id, g);
-          } else {
-            other.push({ goal: g, task: t });
-          }
-        });
-      });
-
-      matched.sort((a, b) => b.matchScore - a.matchScore);
-      const connectedGoals = Array.from(connectedGoalMap.values());
-
-      let allDisplay = matched;
-      if (selectedGoalFilter !== "all") {
-        const selectedG = goals.find((g) => g.id === selectedGoalFilter);
-        if (selectedG) {
-          allDisplay = (selectedG.tasks || []).map((t) => {
-            const m = matched.find((item) => item.task.id === t.id);
-            return {
-              goal: selectedG,
-              task: t,
-              matchScore: m?.matchScore || 0,
-              matchReason: m?.matchReason || `Goal: ${selectedG.description}`,
-            };
-          });
-        }
-      }
-
-      return {
-        matchedTasks: matched,
-        otherTasks: other,
-        connectedGoals,
-        connectedGoalsCount: connectedGoals.length,
-        allDisplayTasks: allDisplay,
-      };
-    }
-
-    // 2. Instant heuristic fallback while LLM is generating in background
     goals.forEach((g) => {
       const goalCleanDesc = (g.description || "").toLowerCase();
 
-      // Check 1: Direct Document ID link
+      // Signal 1: Direct document ID link
       const isDirectIdMatch =
         Array.isArray(g.document_ids) &&
-        (g.document_ids.includes(document.id) || (docDetails?.id && g.document_ids.includes(docDetails.id)));
+        (g.document_ids.includes(docId) || (document.id && g.document_ids.includes(document.id)));
 
-      // Check 2: Goal description specifically names this document/subject
+      // Signal 2: Goal description specifically mentions this document or its clean title
       const isDirectGoalTitleMatch =
-        docCleanName.length >= 4 &&
-        (goalCleanDesc.includes(docCleanName) || (docCleanTokens.length > 0 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok))));
+        docCleanName.length >= 3 &&
+        (goalCleanDesc.includes(docCleanName) || (docCleanTokens.length >= 2 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok))));
+
+      // Signal 3: Same Knowledge Space
+      const isSameSpaceMatch = Boolean(docSpaceId && g.space_id && g.space_id === docSpaceId);
 
       (g.tasks || []).forEach((t) => {
-        const coreIntentText = `${t.title || ""} ${t.sub_goal || ""}`.toLowerCase();
+        const aiMatch = aiMap.get(t.id);
+        const taskTitle = (t.title || "").toLowerCase();
+        const subGoalText = (t.sub_goal || "").toLowerCase();
         const secondaryNotesText = `${t.reasoning || ""} ${t.deliverable || ""}`.toLowerCase();
 
         let matchScore = 0;
@@ -889,50 +858,31 @@ export default function DocumentStudyReaderModal({
           matchScore = 100;
           matchReason = "Linked Document";
         } else if (isDirectGoalTitleMatch) {
-          matchScore = 90;
-          const titleKw = domainKeywords.find((kw) => matchWordInText(kw, (t.title || "").toLowerCase()));
+          matchScore = 98;
+          matchReason = "Direct Study Goal";
+        } else if (aiMatch) {
+          matchScore = aiMatch.match_score || 92;
+          matchReason = aiMatch.match_reason || "AI Semantic Match";
+        } else if (isSameSpaceMatch) {
+          matchScore = 88;
+          matchReason = `Space Goal: ${(g.description || "").slice(0, 26)}`;
+        } else if (combinedKeywords.length > 0) {
+          const sortedKws = [...combinedKeywords].sort((a, b) => b.length - a.length);
+          const titleKw = sortedKws.find((kw) => matchWordInText(kw, taskTitle));
           if (titleKw) {
-            matchReason = `Topic: ${titleKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`;
-          } else {
-            matchReason = "Direct Goal Match";
-          }
-        } else if (domainKeywords && domainKeywords.length > 0) {
-          // Sort domainKeywords by length descending so multi-word phrases match first
-          const sortedKeywords = [...domainKeywords].sort((a, b) => b.length - a.length);
-
-          // Tier 1A: Specific topic match in the Task Title itself
-          const titleKw = sortedKeywords.find((kw) => matchWordInText(kw, (t.title || "").toLowerCase()));
-          if (titleKw) {
-            matchScore = 88;
-            const formatted = titleKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            matchScore = 85;
+            const formatted = titleKw.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
             matchReason = `Topic: ${formatted}`;
           } else {
-            // Tier 1B: Primary match on Sub-Goal / Module Name
-            const subGoalKw = sortedKeywords.find((kw) => matchWordInText(kw, (t.sub_goal || "").toLowerCase()));
+            const subGoalKw = sortedKws.find((kw) => matchWordInText(kw, subGoalText));
             if (subGoalKw) {
-              matchScore = 82;
-              const cleanModule = (t.sub_goal || "")
-                .replace(/^Phase\s*\d+[^:]*:\s*/i, "")
-                .replace(/^Week\s*\d+[^:]*:\s*/i, "")
-                .replace(/Core Prep/i, "")
-                .trim();
-              const formattedKw = subGoalKw.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-              matchReason = cleanModule.length > 0 && cleanModule.length <= 25 ? `Module: ${cleanModule}` : `Topic: ${formattedKw}`;
+              matchScore = 80;
+              matchReason = `Module: ${t.sub_goal || subGoalKw}`;
             } else {
-              // Tier 2: Secondary mention in deliverable or reasoning notes
-              const isGoalDomainAligned = sortedKeywords.some((kw) => matchWordInText(kw, goalCleanDesc));
-              const matchedSecondaryKws = sortedKeywords.filter((kw) => matchWordInText(kw, secondaryNotesText));
-
-              const isPureCodingPuzzle =
-                secondaryNotesText.includes("leetcode") ||
-                secondaryNotesText.includes("rotting oranges") ||
-                secondaryNotesText.includes("knapsack") ||
-                secondaryNotesText.includes("tabulation problem") ||
-                secondaryNotesText.includes("numpy");
-
-              if ((isGoalDomainAligned || matchedSecondaryKws.length >= 2) && !isPureCodingPuzzle && matchedSecondaryKws.length > 0) {
-                matchScore = 70;
-                matchReason = `Context: ${matchedSecondaryKws[0]}`;
+              const secKw = sortedKws.find((kw) => matchWordInText(kw, secondaryNotesText));
+              if (secKw && (goalCleanDesc.includes(secKw) || sortedKws.some((k) => matchWordInText(k, goalCleanDesc)))) {
+                matchScore = 75;
+                matchReason = `Context: ${secKw}`;
               }
             }
           }
@@ -959,11 +909,19 @@ export default function DocumentStudyReaderModal({
           return {
             goal: selectedG,
             task: t,
-            matchScore: m?.matchScore || 0,
+            matchScore: m?.matchScore || 70,
             matchReason: m?.matchReason || `Goal: ${selectedG.description}`,
           };
         });
       }
+    } else if (matched.length === 0 && other.length > 0) {
+      // Fallback: If 0 direct matches, display other active goals so the user is never stranded
+      allDisplay = other.map((item) => ({
+        goal: item.goal,
+        task: item.task,
+        matchScore: 60,
+        matchReason: `Goal: ${item.goal.description.slice(0, 30)}`,
+      }));
     }
 
     return {
@@ -973,7 +931,7 @@ export default function DocumentStudyReaderModal({
       connectedGoalsCount: connectedGoals.length,
       allDisplayTasks: allDisplay,
     };
-  }, [document, docDetails, goals, domainKeywords, selectedGoalFilter, aiCompanionData]);
+  }, [document, docDetails, goals, domainKeywords, keyTopics, selectedGoalFilter, aiCompanionData]);
 
   // Generate Tailored Study Roadmap from Document
   const handleGenerateDocumentRoadmap = async () => {
@@ -991,9 +949,11 @@ export default function DocumentStudyReaderModal({
         deliverable: item.deliverable,
       }));
 
+      const docSpaceId = (document as any)?.space_id || document?.spaceId || (docDetails as any)?.space_id;
       const newGoal = await queryMindApi.createGoal({
-        description: `Master ${document.title || document.name}: ${keyTopics.slice(0, 2).join(" & ")}`,
-        space_id: document.spaceId,
+        description: `Master ${document.title || document.name}: ${keyTopics.slice(0, 2).join(" & ") || "Core Principles"}`,
+        space_id: docSpaceId,
+        document_ids: [document.id],
         tasks: roadmapTasks,
       });
 
@@ -1832,7 +1792,9 @@ export default function DocumentStudyReaderModal({
                   Active Goal Tasks
                 </div>
                 <div style={{ fontSize: "10.5px", color: "rgba(255, 255, 255, 0.5)" }}>
-                  Scanned {goals.length} goals • {matchedTasks.length} task{matchedTasks.length === 1 ? "" : "s"} matched to this document
+                  {matchedTasks.length > 0
+                    ? `${matchedTasks.length} task${matchedTasks.length === 1 ? "" : "s"} matched • ${connectedGoals.length} connected goal${connectedGoals.length === 1 ? "" : "s"}`
+                    : `Showing ${allDisplayTasks.length} active tasks across your goals`}
                 </div>
               </div>
             </div>
@@ -1893,7 +1855,7 @@ export default function DocumentStudyReaderModal({
               }}
             >
               <option value="all" style={{ background: "#11141C" }}>
-                🎯 All Related Goals ({matchedTasks.length} tasks)
+                🎯 {matchedTasks.length > 0 ? `All Matched Goals (${matchedTasks.length} tasks)` : `All Active Goals (${allDisplayTasks.length} tasks)`}
               </option>
               {goals.map((g) => {
                 const isMatched = connectedGoals.some((cg) => cg.id === g.id);
@@ -1962,7 +1924,48 @@ export default function DocumentStudyReaderModal({
                 </button>
               </div>
             ) : (
-              allDisplayTasks.map(({ goal, task, matchReason }) => {
+              <>
+                {document && !connectedGoals.some((g) => g.description.toLowerCase().includes((document.title || document.name || "").toLowerCase().replace(/\.pdf|\.docx|\.md/g, "").trim())) && (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      background: "rgba(255, 255, 255, 0.03)",
+                      border: "1px dashed rgba(255, 255, 255, 0.12)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.6)" }}>
+                      Need a tailored roadmap for this specific document?
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateDocumentRoadmap}
+                      disabled={isGeneratingRoadmap}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        padding: "5px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(255, 255, 255, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                        color: "#FFFFFF",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: isGeneratingRoadmap ? "not-allowed" : "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Sparkles size={11} />
+                      <span>{isGeneratingRoadmap ? "Creating..." : "Create Goal"}</span>
+                    </button>
+                  </div>
+                )}
+                {allDisplayTasks.map(({ goal, task, matchReason }) => {
                 const isCompleted = task.completed;
                 return (
                   <div
@@ -2100,7 +2103,8 @@ export default function DocumentStudyReaderModal({
                     </div>
                   </div>
                 );
-              })
+              })}
+            </>
             )}
           </div>
         </div>

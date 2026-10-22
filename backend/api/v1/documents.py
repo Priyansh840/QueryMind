@@ -783,7 +783,43 @@ async def get_or_generate_study_companion(
         k_res = await db.execute(k_stmt)
         cached_k = k_res.scalars().first()
         if cached_k and cached_k.metadata_json:
-            return cached_k.metadata_json
+            cached_data = dict(cached_k.metadata_json)
+            # Dynamically augment with active goals that directly link to this document or space
+            goals_stmt = select(Goal).where(Goal.user_id == current_user.id)
+            goals_res = await db.execute(goals_stmt)
+            user_goals = goals_res.scalars().all()
+
+            existing_matched_ids = {m.get("task_id") for m in (cached_data.get("matched_task_ids") or [])}
+            additional_matches = []
+            doc_title_clean = doc.title.lower().replace(".pdf", "").replace(".docx", "").replace(".md", "").strip()
+
+            for g in user_goals:
+                g_desc = (g.description or "").lower()
+                is_direct_doc = doc.id in (g.document_ids or []) or (doc_title_clean in g_desc if len(doc_title_clean) >= 4 else False)
+                is_same_space = g.space_id == doc.space_id
+
+                for t in (g.tasks or []):
+                    tid = t.get("id")
+                    if tid and tid not in existing_matched_ids:
+                        if is_direct_doc:
+                            additional_matches.append({
+                                "task_id": tid,
+                                "match_score": 98,
+                                "match_reason": "Direct Study Goal",
+                            })
+                            existing_matched_ids.add(tid)
+                        elif is_same_space:
+                            additional_matches.append({
+                                "task_id": tid,
+                                "match_score": 88,
+                                "match_reason": f"Space Goal: {g.description[:30]}",
+                            })
+                            existing_matched_ids.add(tid)
+
+            if additional_matches:
+                cached_data["matched_task_ids"] = (cached_data.get("matched_task_ids") or []) + additional_matches
+
+            return cached_data
 
     # 2. Prepare sample excerpts from document chunks
     sorted_chunks = sorted(doc.chunks or [], key=lambda c: (c.page_number or 0, c.chunk_index))
