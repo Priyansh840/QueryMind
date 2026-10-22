@@ -10,6 +10,7 @@ import {
   PenLine,
   FolderOpen,
   Zap,
+  ArrowRight,
   Plus,
   ArrowUp,
   CheckCircle2,
@@ -654,54 +655,6 @@ function ChatPageContent() {
               </div>
             )}
 
-            {/* Today's High-Yield Sprint Recommendation (Cross-Goal Synergy) */}
-            {!focusedGoalDesc && dailySprint && (
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                  padding: "5px 14px",
-                  borderRadius: "20px",
-                  background: "rgba(255, 255, 255, 0.04)",
-                  border: "1px solid var(--border-strong)",
-                  color: "var(--text-primary)",
-                  fontSize: "12px",
-                  marginBottom: "14px",
-                  boxShadow: "var(--shadow-xs)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-primary)", fontWeight: 700 }}>
-                  <Zap style={{ width: "13px", height: "13px" }} />
-                  <span>Recommended Study Task:</span>
-                </div>
-                <span style={{ color: "var(--text-secondary)", maxWidth: "340px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {dailySprint.taskTitle}
-                </span>
-                <span style={{ fontSize: "11px", color: "var(--text-tertiary)", fontWeight: 600 }}>
-                  ({dailySprint.goalTitles.length} Goals Waiting)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleSend(dailySprint.prompt)}
-                  style={{
-                    background: "var(--accent)",
-                    border: "none",
-                    color: "var(--accent-contrast)",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    padding: "4px 12px",
-                    borderRadius: "12px",
-                    cursor: "pointer",
-                    marginLeft: "4px",
-                    transition: "opacity 150ms ease",
-                  }}
-                >
-                  Start Task ⚡
-                </button>
-              </div>
-            )}
             <h1
               style={{
                 fontSize: "28px",
@@ -727,6 +680,100 @@ function ChatPageContent() {
                 ? "AI Assistant focused on helping you achieve this goal and its tasks." 
                 : "Ask anything about your documents, notes, or study topics."}
             </p>
+
+            {/* Today's High-Yield Sprint Recommendation - Seamless & Natural Pill */}
+            {!focusedGoalDesc && dailySprint && (
+              <div style={{ marginTop: "14px", display: "flex", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => handleSend(dailySprint.prompt)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "5px 12px 5px 8px",
+                    borderRadius: "20px",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    transition: "all 150ms var(--ease)",
+                    boxShadow: "var(--shadow-xs)",
+                    maxWidth: "600px",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-strong)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                    e.currentTarget.style.background = "var(--surface-hover)";
+                    const arrow = e.currentTarget.querySelector(".sprint-arrow") as HTMLElement;
+                    if (arrow) arrow.style.transform = "translateX(2px)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                    e.currentTarget.style.background = "var(--surface)";
+                    const arrow = e.currentTarget.querySelector(".sprint-arrow") as HTMLElement;
+                    if (arrow) arrow.style.transform = "translateX(0)";
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "2px 7px",
+                      borderRadius: "12px",
+                      background: "rgba(255, 255, 255, 0.06)",
+                      color: "var(--text-primary)",
+                      fontWeight: 600,
+                      fontSize: "11px",
+                    }}
+                  >
+                    <Zap style={{ width: "11px", height: "11px" }} />
+                    Suggested Focus
+                  </span>
+
+                  <span
+                    style={{
+                      color: "var(--text-primary)",
+                      fontWeight: 500,
+                      maxWidth: "280px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {dailySprint.taskTitle}
+                  </span>
+
+                  {dailySprint.goalTitles.length > 1 && (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-tertiary)",
+                        padding: "1px 6px",
+                        borderRadius: "10px",
+                        background: "rgba(255, 255, 255, 0.03)",
+                      }}
+                    >
+                      {dailySprint.goalTitles.length} goals
+                    </span>
+                  )}
+
+                  <ArrowRight
+                    className="sprint-arrow"
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      color: "var(--text-tertiary)",
+                      marginLeft: "2px",
+                      transition: "transform 150ms ease",
+                    }}
+                  />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Central Composer Box - ChatGPT Pill Style */}
