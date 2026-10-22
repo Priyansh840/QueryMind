@@ -832,6 +832,32 @@ export default function DocumentStudyReaderModal({
     goals.forEach((g) => {
       const goalCleanDesc = (g.description || "").toLowerCase();
 
+      // Check if this goal was created specifically for a different document
+      const isGoalDedicatedToAnotherDoc = (() => {
+        // 1. Explicit document_ids on goal, but none match this document
+        if (Array.isArray(g.document_ids) && g.document_ids.length > 0) {
+          const hasThisDoc = g.document_ids.includes(docId) || (document?.id && g.document_ids.includes(document.id));
+          if (!hasThisDoc) return true;
+        }
+
+        // 2. Goal was auto-generated for a specific document ("Master <filename>...")
+        const isMasterDocPattern = goalCleanDesc.startsWith("master ") || /\.(pdf|docx|md|pptx|txt)/i.test(goalCleanDesc);
+        if (isMasterDocPattern) {
+          const isForThisDoc =
+            (docCleanName.length >= 3 && goalCleanDesc.includes(docCleanName)) ||
+            (docCleanTokens.length >= 2 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok)));
+          if (!isForThisDoc) return true;
+        }
+
+        return false;
+      })();
+
+      // If this goal is specifically dedicated to another document, completely exclude it from this document's matches!
+      if (isGoalDedicatedToAnotherDoc) {
+        (g.tasks || []).forEach((t) => other.push({ goal: g, task: t }));
+        return;
+      }
+
       // Signal 1: Direct document ID link
       const isDirectIdMatch =
         Array.isArray(g.document_ids) &&
@@ -841,9 +867,6 @@ export default function DocumentStudyReaderModal({
       const isDirectGoalTitleMatch =
         docCleanName.length >= 3 &&
         (goalCleanDesc.includes(docCleanName) || (docCleanTokens.length >= 2 && docCleanTokens.every((tok) => goalCleanDesc.includes(tok))));
-
-      // Signal 3: Same Knowledge Space
-      const isSameSpaceMatch = Boolean(docSpaceId && g.space_id && g.space_id === docSpaceId);
 
       (g.tasks || []).forEach((t) => {
         const aiMatch = aiMap.get(t.id);
@@ -861,12 +884,15 @@ export default function DocumentStudyReaderModal({
           matchScore = 98;
           matchReason = "Direct Study Goal";
         } else if (aiMatch) {
-          matchScore = aiMatch.match_score || 92;
-          matchReason = aiMatch.match_reason || "AI Semantic Match";
-        } else if (isSameSpaceMatch) {
-          matchScore = 88;
-          matchReason = `Space Goal: ${(g.description || "").slice(0, 26)}`;
-        } else if (combinedKeywords.length > 0) {
+          const rawReason = String(aiMatch.match_reason || "");
+          if (!rawReason.startsWith("Space Goal:") && aiMatch.match_source !== "space_shared") {
+            matchScore = aiMatch.match_score || 92;
+            matchReason = aiMatch.match_reason || "AI Semantic Match";
+          }
+        }
+
+        // Topic / Keyword matching for general goals (e.g. "Prepare for GATE")
+        if (matchScore === 0 && combinedKeywords.length > 0) {
           const sortedKws = [...combinedKeywords].sort((a, b) => b.length - a.length);
           const titleKw = sortedKws.find((kw) => matchWordInText(kw, taskTitle));
           if (titleKw) {
@@ -914,14 +940,6 @@ export default function DocumentStudyReaderModal({
           };
         });
       }
-    } else if (matched.length === 0 && other.length > 0) {
-      // Fallback: If 0 direct matches, display other active goals so the user is never stranded
-      allDisplay = other.map((item) => ({
-        goal: item.goal,
-        task: item.task,
-        matchScore: 60,
-        matchReason: `Goal: ${item.goal.description.slice(0, 30)}`,
-      }));
     }
 
     return {
@@ -1855,7 +1873,7 @@ export default function DocumentStudyReaderModal({
               }}
             >
               <option value="all" style={{ background: "#11141C" }}>
-                🎯 {matchedTasks.length > 0 ? `All Matched Goals (${matchedTasks.length} tasks)` : `All Active Goals (${allDisplayTasks.length} tasks)`}
+                🎯 All Matched Goals ({matchedTasks.length} tasks)
               </option>
               {goals.map((g) => {
                 const isMatched = connectedGoals.some((cg) => cg.id === g.id);

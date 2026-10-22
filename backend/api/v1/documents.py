@@ -784,7 +784,15 @@ async def get_or_generate_study_companion(
         cached_k = k_res.scalars().first()
         if cached_k and cached_k.metadata_json:
             cached_data = dict(cached_k.metadata_json)
-            # Dynamically augment with active goals that directly link to this document or space
+            # Filter out legacy false matches or space-wide matches
+            if "matched_task_ids" in cached_data:
+                cached_data["matched_task_ids"] = [
+                    m for m in (cached_data.get("matched_task_ids") or [])
+                    if not str(m.get("match_reason", "")).startswith("Space Goal:")
+                    and m.get("match_source") != "space_shared"
+                ]
+
+            # Dynamically augment ONLY with active goals that directly link to this document
             goals_stmt = select(Goal).where(Goal.user_id == current_user.id)
             goals_res = await db.execute(goals_stmt)
             user_goals = goals_res.scalars().all()
@@ -795,8 +803,14 @@ async def get_or_generate_study_companion(
 
             for g in user_goals:
                 g_desc = (g.description or "").lower()
+
+                # If goal is dedicated to another document, skip it completely
+                if g.document_ids and doc.id not in g.document_ids:
+                    continue
+                if (g_desc.startswith("master ") or any(ext in g_desc for ext in [".pdf", ".docx", ".md"])) and (len(doc_title_clean) < 4 or doc_title_clean not in g_desc):
+                    continue
+
                 is_direct_doc = doc.id in (g.document_ids or []) or (doc_title_clean in g_desc if len(doc_title_clean) >= 4 else False)
-                is_same_space = g.space_id == doc.space_id
 
                 for t in (g.tasks or []):
                     tid = t.get("id")
@@ -806,13 +820,6 @@ async def get_or_generate_study_companion(
                                 "task_id": tid,
                                 "match_score": 98,
                                 "match_reason": "Direct Study Goal",
-                            })
-                            existing_matched_ids.add(tid)
-                        elif is_same_space:
-                            additional_matches.append({
-                                "task_id": tid,
-                                "match_score": 88,
-                                "match_reason": f"Space Goal: {g.description[:30]}",
                             })
                             existing_matched_ids.add(tid)
 
@@ -851,6 +858,13 @@ async def get_or_generate_study_companion(
 
     for g in user_goals:
         goal_desc = (g.description or "").strip()
+        goal_desc_lower = goal_desc.lower()
+
+        # If goal is dedicated to another document, do not offer its tasks to this document's LLM prompt
+        if g.document_ids and doc.id not in g.document_ids:
+            continue
+        if (goal_desc_lower.startswith("master ") or any(ext in goal_desc_lower for ext in [".pdf", ".docx", ".md"])) and (len(doc_title_clean) < 4 or doc_title_clean not in goal_desc_lower):
+            continue
         goal_tokens = set(re.findall(r"[a-z0-9_]{3,}", goal_desc.lower()))
         goal_overlap = len(goal_tokens.intersection(doc_tokens))
 
