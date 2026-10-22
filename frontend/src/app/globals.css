@@ -33,3 +33,15 @@
   }
 }
 
+/* Enforce crisp readable contrast on primary/accent buttons across the entire website */
+button[style*="var(--accent)"]:not([style*="var(--accent-soft)"]):not([style*="transparent"]),
+a[style*="var(--accent)"]:not([style*="var(--accent-soft)"]):not([style*="transparent"]) {
+  color: var(--accent-contrast, #000000) !important;
+}
+
+button[style*="var(--accent)"]:not([style*="var(--accent-soft)"]):not([style*="transparent"]) svg,
+a[style*="var(--accent)"]:not([style*="var(--accent-soft)"]):not([style*="transparent"]) svg {
+  color: var(--accent-contrast, #000000) !important;
+}
+
+

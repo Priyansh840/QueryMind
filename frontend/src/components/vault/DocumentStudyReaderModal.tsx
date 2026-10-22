@@ -1382,7 +1382,7 @@ export default function DocumentStudyReaderModal({
                     border: "none",
                     cursor: "pointer",
                     background: readerViewMode === "visual_pdf" ? "var(--accent)" : "transparent",
-                    color: readerViewMode === "visual_pdf" ? "#FFFFFF" : "rgba(255, 255, 255, 0.6)",
+                    color: readerViewMode === "visual_pdf" ? "var(--accent-contrast, #000000)" : "rgba(255, 255, 255, 0.6)",
                   }}
                   title="View original visual PDF with diagrams, graphics and page formatting"
                 >
@@ -1405,7 +1405,7 @@ export default function DocumentStudyReaderModal({
                   border: "none",
                   cursor: "pointer",
                   background: readerViewMode === "continuous" ? "var(--accent)" : "transparent",
-                  color: readerViewMode === "continuous" ? "#FFFFFF" : "rgba(255, 255, 255, 0.6)",
+                  color: readerViewMode === "continuous" ? "var(--accent-contrast, #000000)" : "rgba(255, 255, 255, 0.6)",
                 }}
                 title="Continuous Book view with chronological page markers"
               >
@@ -1427,7 +1427,7 @@ export default function DocumentStudyReaderModal({
                   border: "none",
                   cursor: "pointer",
                   background: readerViewMode === "cards" ? "var(--accent)" : "transparent",
-                  color: readerViewMode === "cards" ? "#FFFFFF" : "rgba(255, 255, 255, 0.6)",
+                  color: readerViewMode === "cards" ? "var(--accent-contrast, #000000)" : "rgba(255, 255, 255, 0.6)",
                 }}
                 title="Chunked section cards view"
               >

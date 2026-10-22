@@ -1342,9 +1342,9 @@ Include:
                       borderRadius: "6px",
                       background: "var(--accent)",
                       border: "none",
-                      color: "#FFFFFF",
+                      color: "var(--accent-contrast, #000000)",
                       fontSize: "12px",
-                      fontWeight: 600,
+                      fontWeight: 700,
                       cursor: newSubGoalNameInput.trim() ? "pointer" : "not-allowed",
                     }}
                   >
@@ -1664,9 +1664,9 @@ Include:
                                 borderRadius: "6px",
                                 background: "var(--accent)",
                                 border: "none",
-                                color: "#FFFFFF",
+                                color: "var(--accent-contrast, #000000)",
                                 fontSize: "12px",
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 cursor:
                                   workspaceTargetSubGoal === subGoalTitle && workspaceTaskInput.trim()
                                     ? "pointer"
@@ -2114,16 +2114,17 @@ Include:
                     borderRadius: "8px",
                     background: "var(--accent)",
                     border: "none",
-                    color: "#FFFFFF",
+                    color: "var(--accent-contrast, #000000)",
                     fontSize: "12px",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: isWorkspaceDecomposing ? "not-allowed" : "pointer",
+                    opacity: isWorkspaceDecomposing ? 0.75 : 1,
                     display: "flex",
                     alignItems: "center",
                     gap: "6px",
                   }}
                 >
-                  {isWorkspaceDecomposing && <RefreshCw size={13} className="animate-spin" />}
+                  {isWorkspaceDecomposing && <RefreshCw size={13} className="animate-spin" color="var(--accent-contrast, #000000)" />}
                   <span>{isWorkspaceDecomposing ? "Generating Paced Plan..." : "Regenerate Roadmap"}</span>
                 </button>
               </div>
@@ -2284,9 +2285,9 @@ Include:
               borderRadius: "9px",
               background: "var(--accent)",
               border: "none",
-              color: "#FFFFFF",
+              color: "var(--accent-contrast, #000000)",
               fontSize: "13px",
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -2676,9 +2677,9 @@ Include:
               borderRadius: "9px",
               background: "var(--accent)",
               border: "none",
-              color: "#FFFFFF",
+              color: "var(--accent-contrast, #000000)",
               fontSize: "13px",
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -3003,9 +3004,9 @@ Include:
                         borderRadius: "6px",
                         background: "var(--accent)",
                         border: "none",
-                        color: "#FFFFFF",
+                        color: "var(--accent-contrast, #000000)",
                         fontSize: "11px",
-                        fontWeight: 600,
+                        fontWeight: 700,
                         cursor: "pointer",
                       }}
                     >
@@ -3428,9 +3429,9 @@ Include:
                     borderRadius: "8px",
                     background: "var(--accent)",
                     border: "none",
-                    color: "#FFFFFF",
+                    color: "var(--accent-contrast, #000000)",
                     fontSize: "13px",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: isSubmittingGoal || !newGoalDesc.trim() ? "not-allowed" : "pointer",
                   }}
                 >

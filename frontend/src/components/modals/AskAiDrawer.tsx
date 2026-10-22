@@ -157,7 +157,7 @@ export default function AskAiDrawer() {
               fontSize: "13px",
               lineHeight: "1.5",
               background: m.role === "user" ? "var(--accent)" : m.isError ? "#FEF2F2" : "var(--surface)",
-              color: m.role === "user" ? "#FFF" : m.isError ? "#991B1B" : "var(--text-primary)",
+              color: m.role === "user" ? "var(--accent-contrast, #000000)" : m.isError ? "#991B1B" : "var(--text-primary)",
               alignSelf: m.role === "user" ? "flex-end" : "flex-start",
               maxWidth: "85%",
               border: m.role === "user" ? "none" : "1px solid var(--border)",
