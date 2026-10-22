@@ -463,7 +463,17 @@ function IntelligencePageContent() {
   const currentActiveSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
 
   return (
-    <div className="w-full space-y-8 stagger" style={{ maxWidth: "1400px", margin: "0 auto" }}>
+    <div
+      className="w-full stagger"
+      style={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: "32px",
+        paddingBottom: "60px",
+      }}
+    >
       {/* ─────────────────────────────────────────────────────────────
           1. HERO & TELEMETRY HUD (Matches Spaces & Vault Design System)
           ───────────────────────────────────────────────────────────── */}
@@ -1032,6 +1042,7 @@ function IntelligencePageContent() {
           flexWrap: "wrap",
           gap: "12px",
           scrollMarginTop: "24px",
+          paddingTop: "4px",
         }}
       >
         <div
