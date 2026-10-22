@@ -364,9 +364,9 @@ export default function SkillsPage() {
     fetchSkills(selectedSpaceId === "all" ? undefined : selectedSpaceId);
   }, [selectedSpaceId]);
 
-  // View Mode & Accordions State (defaults to compact with localStorage persistence)
+  // View Mode & Accordions State (defaults to compact rows, all categories start collapsed/compacted)
   const [viewMode, setViewMode] = useState<"grid" | "compact">("compact");
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
@@ -419,20 +419,20 @@ export default function SkillsPage() {
   }, [filteredSkills]);
 
   const toggleCategoryCollapse = (cat: string) => {
-    setCollapsedCategories((prev) => ({
+    setExpandedCategories((prev) => ({
       ...prev,
       [cat]: !prev[cat],
     }));
   };
 
-  const expandAllCategories = () => setCollapsedCategories({});
-  const collapseAllCategories = () => {
+  const expandAllCategories = () => {
     const all: Record<string, boolean> = {};
     groupedSkills.forEach((_, cat) => {
       all[cat] = true;
     });
-    setCollapsedCategories(all);
+    setExpandedCategories(all);
   };
+  const collapseAllCategories = () => setExpandedCategories({});
 
   const openStudyGuide = (skill: UserSkillItem) => {
     setSelectedStudySkill(skill);
@@ -1072,7 +1072,7 @@ export default function SkillsPage() {
         {filteredSkills.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             {Array.from(groupedSkills.entries()).map(([categoryName, categorySkills]) => {
-              const isCollapsed = !!collapsedCategories[categoryName];
+              const isCollapsed = !expandedCategories[categoryName];
               const config = DISCIPLINE_CONFIG[categoryName] || {
                 icon: Layers,
                 color: "#60A5FA",
