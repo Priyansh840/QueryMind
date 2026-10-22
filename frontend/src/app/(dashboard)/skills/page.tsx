@@ -364,9 +364,29 @@ export default function SkillsPage() {
     fetchSkills(selectedSpaceId === "all" ? undefined : selectedSpaceId);
   }, [selectedSpaceId]);
 
-  // View Mode & Accordions State
-  const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
+  // View Mode & Accordions State (defaults to compact with localStorage persistence)
+  const [viewMode, setViewMode] = useState<"grid" | "compact">("compact");
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("mynd_skills_view_mode");
+      if (saved === "grid" || saved === "compact") {
+        setViewMode(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleSetViewMode = (mode: "grid" | "compact") => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("mynd_skills_view_mode", mode);
+    } catch {
+      // ignore
+    }
+  };
 
   // Distinct Categories
   const categories = useMemo(() => {
@@ -1004,7 +1024,7 @@ export default function SkillsPage() {
             >
               <button
                 type="button"
-                onClick={() => setViewMode("grid")}
+                onClick={() => handleSetViewMode("grid")}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -1025,7 +1045,7 @@ export default function SkillsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode("compact")}
+                onClick={() => handleSetViewMode("compact")}
                 style={{
                   display: "flex",
                   alignItems: "center",
