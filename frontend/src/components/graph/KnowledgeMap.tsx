@@ -437,7 +437,7 @@ export default function KnowledgeMap() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                {viewMode === "decision" ? "Decision Map & Strategic Surface" : "Evidence Vault & Knowledge Items"}
+                {viewMode === "decision" ? "Knowledge & Goal Map" : "All Files & Notes"}
               </h3>
               <span
                 style={{
@@ -455,14 +455,14 @@ export default function KnowledgeMap() {
               >
                 <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#A78BFA" }} />
                 {viewMode === "decision"
-                  ? `${nodes.length} Decision Nodes (Capped ≤ 7)`
-                  : `${rawDocuments.length + rawKnowledgeItems.length} Raw Assets`}
+                  ? `${nodes.length} Key Topics & Goals`
+                  : `${rawDocuments.length + rawKnowledgeItems.length} Files & Notes`}
               </span>
             </div>
             <p style={{ fontSize: "11.5px", color: "var(--text-tertiary)", margin: 0, marginTop: "2px" }}>
               {viewMode === "decision"
-                ? `Curated Decision Projection • Distilled from ${decisionSurface?.totalSupportingEvidence || 0} raw knowledge assets`
-                : `Exhaustive searchable repository of documents, notes, and captures across ${currentSpace?.name || "Workspace"}`}
+                ? `Visual map of your goals and key topics from ${decisionSurface?.totalSupportingEvidence || 0} files & notes`
+                : `Search and browse all documents and notes in ${currentSpace?.name || "Workspace"}`}
             </p>
           </div>
         </div>
@@ -483,7 +483,7 @@ export default function KnowledgeMap() {
               />
               <input
                 type="text"
-                placeholder="Search raw evidence..."
+                placeholder="Search files and notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -500,7 +500,7 @@ export default function KnowledgeMap() {
             </div>
           )}
 
-          {/* View Switcher: Decision Map vs Evidence Cards */}
+          {/* View Switcher: Topic Map vs Files */}
           <div
             style={{
               display: "flex",
@@ -528,10 +528,10 @@ export default function KnowledgeMap() {
                 boxShadow: viewMode === "decision" ? "0 1px 4px rgba(0,0,0,0.3)" : "none",
                 transition: "all 140ms ease",
               }}
-              title="Decision Map (Curated 4-7 node surface)"
+              title="Topic Map (Visual overview of goals and topics)"
             >
               <Compass style={{ width: "13px", height: "13px", color: viewMode === "decision" ? "#A78BFA" : "inherit" }} />
-              <span>Decision Map</span>
+              <span>Topic Map</span>
             </button>
 
             <button
@@ -551,10 +551,10 @@ export default function KnowledgeMap() {
                 boxShadow: viewMode === "cards" ? "0 1px 4px rgba(0,0,0,0.3)" : "none",
                 transition: "all 140ms ease",
               }}
-              title="Evidence Vault (Browse all raw documents & notes)"
+              title="All Files (Browse all documents & notes)"
             >
               <Database style={{ width: "13px", height: "13px", color: viewMode === "cards" ? "#60A5FA" : "inherit" }} />
-              <span>Evidence Vault</span>
+              <span>All Files</span>
             </button>
           </div>
 

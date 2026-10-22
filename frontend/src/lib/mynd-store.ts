@@ -1354,7 +1354,7 @@ export const useMyndStore = create<MyndState>()(
                 time: d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently",
                 spaceId: d.space_id,
                 status: d.status || "completed",
-                summary: `Document indexed in ${d.space_id ? "assigned workspace" : "knowledge vault"}.`,
+                summary: "Document ready for study, comparison, and questions.",
                 content: d.title,
                 meta: `${ext.toUpperCase()} • ${d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently"}`,
                 tags: [ext.toUpperCase()],

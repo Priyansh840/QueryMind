@@ -66,27 +66,27 @@ function renderFormatIcon(category: string, size = 16) {
 
 const PRESET_QUERIES = [
   {
-    label: "Contradiction & Risk Audit",
+    label: "Find Differences & Conflicts",
     icon: "⚡",
-    query: "Identify all conflicting statements, opposing security requirements, and incompatible architectural assumptions across these documents.",
+    query: "Identify all conflicting statements, opposing requirements, and incompatible assumptions across these documents.",
     focus: ["contradictions", "patterns"],
   },
   {
-    label: "Evolutionary Trajectory",
+    label: "Changes Over Time",
     icon: "📈",
-    query: "Trace how concepts, technical frameworks, and design decisions evolved or drifted across these documents over time.",
+    query: "Explain how key ideas, requirements, or designs evolved and changed across these documents over time.",
     focus: ["trends", "patterns"],
   },
   {
-    label: "Architecture & Trade-Offs Matrix",
+    label: "Compare Pros & Cons",
     icon: "🏛️",
-    query: "Synthesize core architectural decisions, performance trade-offs, and methodology differences across these documents.",
+    query: "Compare the main methodologies, performance trade-offs, and design differences across these documents.",
     focus: ["patterns", "recommendations"],
   },
   {
-    label: "Strategic Implementation Plan",
+    label: "Action Plan & Next Steps",
     icon: "💡",
-    query: "Generate a prioritized, actionable implementation roadmap with milestones and risk reconciliations based on these sources.",
+    query: "Create a prioritized, step-by-step action plan with recommendations and milestones based on these documents.",
     focus: ["recommendations", "patterns"],
   },
 ];
@@ -376,7 +376,7 @@ function IntelligencePageContent() {
     setAnalysisResult(null);
     setAnalysisProgress({
       step: "initiating",
-      message: "Gathering vector passages and dense semantic embeddings...",
+      message: "Reading document content and finding key concepts...",
       progress: 20,
     });
 
@@ -384,7 +384,7 @@ function IntelligencePageContent() {
       const timer1 = setTimeout(() => {
         setAnalysisProgress({
           step: "clustering",
-          message: "Clustering cross-document themes and temporal trajectory drift...",
+          message: "Grouping common topics and tracking timeline changes...",
           progress: 55,
         });
       }, 1800);
@@ -392,7 +392,7 @@ function IntelligencePageContent() {
       const timer2 = setTimeout(() => {
         setAnalysisProgress({
           step: "auditing",
-          message: "Auditing conflicting claims, opposing stances, and divergence risks...",
+          message: "Checking for conflicting facts, differences, and risks...",
           progress: 85,
         });
       }, 4200);
@@ -499,7 +499,7 @@ function IntelligencePageContent() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981" }}>
-                # SECOND BRAIN COGNITIVE REASONING &amp; DECISION COMMAND
+                # DOCUMENT ANALYSIS &amp; COMPARISON
               </span>
             </div>
             <h1
@@ -511,10 +511,10 @@ function IntelligencePageContent() {
                 margin: 0,
               }}
             >
-              Intelligence &amp; Synthesis Engine
+              Document Intelligence &amp; Comparison
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: "6px", maxWidth: "700px", fontSize: "14px", lineHeight: "1.5" }}>
-              Spatial decision topologies, multi-agent cross-document pattern correlation, contradiction auditing, and strategic roadmaps grounded in verified knowledge.
+              Compare documents side-by-side, spot key differences and conflicting facts, and generate clear action steps using AI.
             </p>
           </div>
 
@@ -524,7 +524,7 @@ function IntelligencePageContent() {
                 if (selectedDocIds.length >= 2) {
                   handleRunAnalysis();
                 } else {
-                  alert("Please select at least 2 documents in the matrix below to run cross-synthesis.");
+                  alert("Please select at least 2 documents in the list below to compare.");
                 }
               }}
               disabled={isAnalyzing}
@@ -545,7 +545,7 @@ function IntelligencePageContent() {
               }}
             >
               {isAnalyzing ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
-              <span>{isAnalyzing ? "Synthesizing..." : "Run Multi-Doc Synthesis"}</span>
+              <span>{isAnalyzing ? "Analyzing..." : "Compare & Summarize"}</span>
             </button>
 
             <button
@@ -565,7 +565,7 @@ function IntelligencePageContent() {
               }}
             >
               <Network size={15} color="#8B5CF6" />
-              <span>{isTopologyExpanded ? "Minimize Topology" : "Expand Topology"}</span>
+              <span>{isTopologyExpanded ? "Hide Map" : "Show Map"}</span>
             </button>
           </div>
         </div>
@@ -583,31 +583,31 @@ function IntelligencePageContent() {
         >
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>
-              Knowledge Vault Sources
+              Uploaded Documents
             </div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               {displayDocs.length} Documents
             </div>
             <div style={{ fontSize: "11px", color: "#10B981", marginTop: "2px" }}>
-              {selectedDocIds.length} currently targeted
+              {selectedDocIds.length} currently selected
             </div>
           </div>
 
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>
-              Decision Graph Nodes
+              Key Topics
             </div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
-              4 Active Nodes
+              4 Active Notes
             </div>
             <div style={{ fontSize: "11px", color: "#8B5CF6", marginTop: "2px" }}>
-              Tier 1 Priority • Critic Risk
+              Decisions &amp; Next Steps
             </div>
           </div>
 
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>
-              Contradiction Radar
+              Differences Found
             </div>
             <div
               style={{
@@ -617,23 +617,23 @@ function IntelligencePageContent() {
                 marginTop: "4px",
               }}
             >
-              {analysisResult ? `${analysisResult.contradictions?.length || 0} Flagged` : "0 Divergences"}
+              {analysisResult ? `${analysisResult.contradictions?.length || 0} Flagged` : "0 Differences"}
             </div>
             <div style={{ fontSize: "11px", color: "var(--text-tertiary)", marginTop: "2px" }}>
-              Opposing claims &amp; risks
+              Conflicting details &amp; risks
             </div>
           </div>
 
           <div>
             <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>
-              Cognitive Engine
+              AI Model &amp; Search
             </div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
-              Qdrant + Gemini
+              Connected
             </div>
             <div style={{ fontSize: "11px", color: "#10B981", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
               <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981" }} />
-              <span>Multi-Agent ANN Active</span>
+              <span>Ready to analyze</span>
             </div>
           </div>
         </div>
@@ -697,7 +697,7 @@ function IntelligencePageContent() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#A78BFA" }}>
-                  SPATIAL DECISION TOPOLOGY
+                  CONNECTED WORKSPACE MAP
                 </span>
                 <span
                   style={{
@@ -713,11 +713,11 @@ function IntelligencePageContent() {
                   }}
                 >
                   <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#10B981" }} />
-                  Live Causal Graph
+                  Live Network
                 </span>
               </div>
               <h3 style={{ fontSize: "17px", fontWeight: 700, color: "var(--text-primary)", margin: "2px 0 0 0" }}>
-                Causal Graph &amp; Strategic Risk Map
+                Documents, Decisions &amp; Goals Map
               </h3>
             </div>
           </div>
@@ -1074,7 +1074,7 @@ function IntelligencePageContent() {
             }}
           >
             <Layers size={14} />
-            <span>Cross-Document Synthesis Engine</span>
+            <span>Group Summary (Multiple Docs)</span>
           </button>
 
           <button
@@ -1096,7 +1096,7 @@ function IntelligencePageContent() {
             }}
           >
             <GitCompare size={14} />
-            <span>Pairwise Contrast</span>
+            <span>Compare Two Docs</span>
           </button>
         </div>
 
@@ -1278,10 +1278,10 @@ function IntelligencePageContent() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
               <div>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                  Target Documents Matrix
+                  Select Documents to Analyze
                 </h3>
                 <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px", margin: 0 }}>
-                  Select at least 2 documents to correlate shared patterns, evolutionary drift, and conflicting claims.
+                  Choose at least 2 documents to find common themes, differences, and key takeaways.
                 </p>
               </div>
 
@@ -1583,7 +1583,7 @@ function IntelligencePageContent() {
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <Sparkles size={14} color="#10B981" />
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
-                      Targeted Cognitive Inquiry (Optional)
+                      Custom Question or Focus (Optional)
                     </span>
                   </div>
                   {userQuery && (
@@ -1605,7 +1605,7 @@ function IntelligencePageContent() {
                       onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
                     >
                       <X size={12} />
-                      <span>Clear Inquiry</span>
+                      <span>Clear Question</span>
                     </button>
                   )}
                 </div>
@@ -1613,7 +1613,7 @@ function IntelligencePageContent() {
                   type="text"
                   value={userQuery}
                   onChange={(e) => setUserQuery(e.target.value)}
-                  placeholder="e.g. Audit conflicting requirements, opposing security claims, or evaluate architectural trade-offs across these documents..."
+                  placeholder="e.g. What are the key differences between these documents? What are the main takeaways?"
                   style={{
                     width: "100%",
                     padding: "12px 16px",
@@ -1689,10 +1689,10 @@ function IntelligencePageContent() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Focus Areas:</span>
                   {[
-                    { id: "patterns", label: "Shared Patterns" },
-                    { id: "trends", label: "Temporal Trajectories" },
-                    { id: "contradictions", label: "Contradictions & Risks" },
-                    { id: "recommendations", label: "Strategic Roadmaps" },
+                    { id: "patterns", label: "Common Topics" },
+                    { id: "trends", label: "Changes Over Time" },
+                    { id: "contradictions", label: "Conflicts & Differences" },
+                    { id: "recommendations", label: "Action Steps" },
                   ].map((item) => {
                     const isActive = focusAreas.includes(item.id);
                     return (
@@ -1743,7 +1743,7 @@ function IntelligencePageContent() {
                   ) : (
                     <Sparkles size={15} />
                   )}
-                  <span>{isAnalyzing ? "Synthesizing Patterns..." : "Run Multi-Agent Synthesis"}</span>
+                  <span>{isAnalyzing ? "Analyzing Documents..." : "Summarize & Compare"}</span>
                 </button>
               </div>
             </div>
@@ -2375,10 +2375,10 @@ function IntelligencePageContent() {
           >
             <div>
               <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                Side-by-Side Pairwise Contrast
+                Compare Two Documents
               </h3>
               <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px", margin: 0 }}>
-                Select two specific documents to inspect unique focus areas, genuine conceptual overlap, and structural divergences.
+                Pick any two documents to see what each one covers, what they have in common, and how they differ.
               </p>
             </div>
 
@@ -2560,7 +2560,7 @@ function IntelligencePageContent() {
                 ) : (
                   <GitCompare size={15} />
                 )}
-                <span>{isComparing ? "Contrasting Documents..." : "Generate Deep Contrast"}</span>
+                <span>{isComparing ? "Comparing Documents..." : "Compare Documents"}</span>
               </button>
             </div>
           </div>

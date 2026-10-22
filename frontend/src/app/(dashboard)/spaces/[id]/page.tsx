@@ -421,15 +421,15 @@ export default function SpaceCockpitPage({
                 }}
               />
               <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981" }}>
-                Active Intelligence Cockpit
+                Space Workspace
               </span>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>•</span>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                {cockpit?.open_loops.length || 0} Open Loops
+                {cockpit?.open_loops.length || 0} Pending Tasks
               </span>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>•</span>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                {cockpit?.connections.length || 0} Semantic Connections
+                {cockpit?.connections.length || 0} Connected Topics
               </span>
             </div>
 
@@ -445,7 +445,7 @@ export default function SpaceCockpitPage({
               {space.name}
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: "6px", maxWidth: "720px", fontSize: "13.5px", lineHeight: "1.5" }}>
-              {space.desc || "Active cognitive workspace synthesizing domain memory, goals, and multi-agent execution."}
+              {space.desc || "Dedicated workspace to organize your files, study goals, notes, and AI questions."}
             </p>
           </div>
 
@@ -467,7 +467,7 @@ export default function SpaceCockpitPage({
                 alignItems: "center",
                 gap: "6px",
               }}
-              title="Re-synchronize intelligence state"
+              title="Refresh workspace overview"
             >
               <RefreshCw style={{ width: "13px", height: "13px", animation: isRefreshing ? "spin 1s infinite linear" : "none" }} />
               <span>{isRefreshing ? "Syncing..." : "Sync"}</span>
@@ -491,7 +491,7 @@ export default function SpaceCockpitPage({
               }}
             >
               <UploadCloud style={{ width: "14px", height: "14px", color: "#38BDF8" }} />
-              <span>{isUploading ? "Indexing..." : "Upload Resource"}</span>
+              <span>{isUploading ? "Uploading..." : "Upload File"}</span>
             </button>
 
             <button
@@ -511,7 +511,7 @@ export default function SpaceCockpitPage({
               }}
             >
               <FolderOpen style={{ width: "14px", height: "14px", color: "var(--text-secondary)" }} />
-              <span>Vault ({vaultDocs.length})</span>
+              <span>Files ({vaultDocs.length})</span>
             </button>
 
             <button
@@ -532,7 +532,7 @@ export default function SpaceCockpitPage({
               }}
             >
               <Sparkles style={{ width: "13px", height: "13px" }} />
-              <span>Ask MYND</span>
+              <span>Ask AI Assistant</span>
             </button>
 
             <button
@@ -566,9 +566,9 @@ export default function SpaceCockpitPage({
       {isLoading ? (
         <div style={{ padding: "60px", textAlign: "center", color: "var(--text-secondary)" }}>
           <RefreshCw style={{ width: "24px", height: "24px", animation: "spin 1s infinite linear", margin: "0 auto 12px" }} />
-          <div style={{ fontSize: "14px", fontWeight: 600 }}>Synthesizing Active Intelligence Cockpit...</div>
+          <div style={{ fontSize: "14px", fontWeight: 600 }}>Loading Workspace Overview...</div>
           <div style={{ fontSize: "12px", color: "var(--text-tertiary)", marginTop: "4px" }}>
-            Correlating goals, uncompleted loops, reflections, and document connections.
+            Connecting your files, goals, tasks, and notes.
           </div>
         </div>
       ) : (
@@ -607,7 +607,7 @@ export default function SpaceCockpitPage({
                     }}
                   >
                     <Zap style={{ width: "12px", height: "12px" }} />
-                    <span>RIGHT NOW • {cockpit.right_now.urgency.toUpperCase()} PRIORITY</span>
+                    <span>TOP FOCUS • {cockpit.right_now.urgency.toUpperCase()} PRIORITY</span>
                   </span>
                   <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
                     Source: {cockpit.right_now.source_context}
@@ -642,7 +642,7 @@ export default function SpaceCockpitPage({
               {cockpit.right_now.evidence && cockpit.right_now.evidence.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "11.5px", fontWeight: 600, color: "var(--text-tertiary)" }}>
-                    Supporting Evidence:
+                    Related Notes & Evidence:
                   </span>
                   {cockpit.right_now.evidence.map((ev, idx) => (
                     <div
@@ -877,18 +877,18 @@ export default function SpaceCockpitPage({
           </div>
 
           {/* ================================================================= */}
-          {/* LAYER 2: MYND NOTICED (Patterns, Contradictions, Shifts)          */}
+          {/* LAYER 2: AI INSIGHTS & PATTERNS                                  */}
           {/* ================================================================= */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Brain style={{ width: "16px", height: "16px", color: "#38BDF8" }} />
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                  MYND Noticed
+                  AI Insights & Patterns
                 </h3>
               </div>
               <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-                Patterns, tensions, and shifts detected across documents & sessions
+                Patterns, differences, and key topics found across your files and study sessions
               </span>
             </div>
 
@@ -903,7 +903,7 @@ export default function SpaceCockpitPage({
                   fontSize: "13px",
                 }}
               >
-                No recurring patterns or contradictions detected yet. As you interact and upload resources, MYND surfaces findings here.
+                No patterns or differences detected yet. As you upload files and ask questions, insights will appear here.
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "14px" }}>
@@ -1000,17 +1000,17 @@ export default function SpaceCockpitPage({
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <ShieldAlert style={{ width: "15px", height: "15px", color: "#F59E0B", flexShrink: 0 }} />
                   <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                    Knowledge Gaps & Blind Spots
+                    Topics to Review & Explore
                   </h3>
                 </div>
                 <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                  Incomplete domain context
+                  Recommended study areas
                 </span>
               </div>
 
               {(!cockpit?.knowledge_gaps || cockpit.knowledge_gaps.length === 0) ? (
                 <div style={{ padding: "26px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
-                  ✓ No isolated resources or blank goal dependencies detected.
+                  ✓ All topics and goals are up to date.
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -1075,17 +1075,17 @@ export default function SpaceCockpitPage({
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Link2 style={{ width: "15px", height: "15px", color: "#10B981", flexShrink: 0 }} />
                   <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                    Discovered Connections
+                    Connected Topics
                   </h3>
                 </div>
                 <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                  Semantic links & reasoning
+                  Related notes & links
                 </span>
               </div>
 
               {(!cockpit?.connections || cockpit.connections.length === 0) ? (
                 <div style={{ padding: "26px", textAlign: "center", color: "var(--text-tertiary)", fontSize: "12.5px" }}>
-                  No connections recorded yet. Upload related documents or chat with MYND to trigger relationship mapping.
+                  No connected topics found yet. Upload related documents or ask AI to find connections.
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "300px", overflowY: "auto" }}>
@@ -1148,11 +1148,11 @@ export default function SpaceCockpitPage({
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <TrendingUp style={{ width: "16px", height: "16px", color: "var(--text-secondary)" }} />
                 <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                  Intelligence Timeline
+                  Activity History
                 </h3>
               </div>
               <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                Meaningful state changes & cognitive discoveries
+                Recent updates, completed tasks, and file additions
               </span>
             </div>
 
@@ -1245,10 +1245,10 @@ export default function SpaceCockpitPage({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#FFFFFF", margin: 0 }}>
-                  Space Document Vault
+                  Space Documents
                 </h3>
                 <p style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.5)", margin: "4px 0 0 0" }}>
-                  Empirical resources indexed into Qdrant vectors for {space.name}.
+                  Files uploaded and ready for questions and study in {space.name}.
                 </p>
               </div>
               <button

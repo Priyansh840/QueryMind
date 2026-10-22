@@ -505,7 +505,7 @@ export default function SkillsPage() {
                 margin: 0,
               }}
             >
-              Competency Matrix & Skill Graph
+              Skills &amp; Experience Tracker
             </h1>
           </div>
           <p
@@ -517,8 +517,7 @@ export default function SkillsPage() {
               lineHeight: 1.5,
             }}
           >
-            Verifiable competencies organically derived from your completed roadmap deliverables.
-            MYND uses your verified skills to auto-accelerate future roadmaps and bypass already-mastered fundamentals.
+            Skills and topics earned from completing your goals and tasks. QueryMind tracks what you have already mastered so you can focus on new material.
           </p>
         </div>
 

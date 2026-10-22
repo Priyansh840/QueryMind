@@ -483,7 +483,7 @@ export default function VaultPage() {
         >
           <Upload size={48} style={{ color: "#FFFFFF", marginBottom: "16px" }} />
           <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#FFFFFF", margin: 0 }}>
-            Drop files to vectorize into Knowledge Vault
+            Drop files here to upload
           </h2>
           <p style={{ fontSize: "14px", color: "var(--text-secondary)", marginTop: "8px" }}>
             Supports PDF, Word, Markdown, Code, JSON, and CSV
@@ -518,7 +518,7 @@ export default function VaultPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <span style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>
-                Source Documents & Vector Storage
+                Your Documents &amp; Files
               </span>
             </div>
             <h1
@@ -530,10 +530,10 @@ export default function VaultPage() {
                 margin: 0,
               }}
             >
-              Knowledge Vault
+              Documents
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: "6px", maxWidth: "600px", fontSize: "14px", lineHeight: "1.5" }}>
-              Ground your intelligence workflows in verified source documents. Partition, inspect semantic chunks, and query with high-precision vector recall.
+              Upload and organize your study material, papers, and notes. Ask questions and search across all files with AI.
             </p>
           </div>
 
@@ -579,7 +579,7 @@ export default function VaultPage() {
                 }}
               >
                 <Sparkles size={15} style={{ color: "var(--accent)" }} />
-                <span>Load Sample Vault</span>
+                <span>Load Sample Files</span>
               </button>
             )}
           </div>
@@ -597,27 +597,27 @@ export default function VaultPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Indexed Documents</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Uploaded Documents</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={uploadedDocuments.length} />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Semantic Chunks</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Sections</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalChunks} />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Storage Volume</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Total Size</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               {totalVolumeMB} MB
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Vector Grounding</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Search Status</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "#10B981", marginTop: "4px" }}>
-              Qdrant ANN Active
+              Search Ready
             </div>
           </div>
         </div>
@@ -920,7 +920,7 @@ export default function VaultPage() {
                         {doc.title || doc.name}
                       </h3>
                       <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                        {doc.fileSize || doc.size || "1.0 MB"} · {doc.chunks || 1} chunks
+                        {doc.fileSize || doc.size || "1.0 MB"} · {doc.chunks || 1} sections
                       </span>
                     </div>
                   </div>
@@ -976,7 +976,7 @@ export default function VaultPage() {
                     flex: 1,
                   }}
                 >
-                  {doc.summary || "Document indexed into Knowledge Vault with vector grounding."}
+                  {doc.summary || "Document uploaded and ready for questions, comparison, and study."}
                 </p>
 
                 {/* Card Footer */}
@@ -1019,7 +1019,7 @@ export default function VaultPage() {
                       }}
                     >
                       <Eye size={12} />
-                      <span>Chunks</span>
+                      <span>Sections</span>
                     </button>
 
                     <button
@@ -1032,9 +1032,9 @@ export default function VaultPage() {
                       style={{
                         padding: "5px 10px",
                         borderRadius: "6px",
-                        background: "rgba(59, 130, 246, 0.12)",
-                        border: "1px solid rgba(59, 130, 246, 0.3)",
-                        color: "#60A5FA",
+                        background: "var(--surface-hover)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-primary)",
                         fontSize: "11px",
                         fontWeight: 600,
                         cursor: "pointer",
@@ -1059,7 +1059,7 @@ export default function VaultPage() {
                         borderRadius: "6px",
                         background: "var(--surface-hover)",
                         border: "1px solid var(--border)",
-                        color: "#818CF8",
+                        color: "var(--text-secondary)",
                         fontSize: "11px",
                         fontWeight: 600,
                         cursor: "pointer",
@@ -1170,7 +1170,7 @@ export default function VaultPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)" }}>
                       <span>{d.fileSize || d.size}</span>
                       <span>•</span>
-                      <span>{d.chunks || 1} chunks</span>
+                      <span>{d.chunks || 1} sections</span>
                     </div>
                   </div>
                 );
@@ -1214,7 +1214,7 @@ export default function VaultPage() {
                     </span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#10B981" }}>
                       <ShieldCheck size={13} />
-                      <span>Qdrant Grounded</span>
+                      <span>Search Ready</span>
                     </span>
                   </div>
 
@@ -1231,9 +1231,9 @@ export default function VaultPage() {
                     style={{
                       padding: "8px 14px",
                       borderRadius: "8px",
-                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                      background: "rgba(59, 130, 246, 0.12)",
-                      color: "#60A5FA",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface-hover)",
+                      color: "var(--text-primary)",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: "pointer",
@@ -1267,7 +1267,7 @@ export default function VaultPage() {
                     }}
                   >
                     <Sparkles size={14} />
-                    <span>Ask AI Copilot</span>
+                    <span>Ask AI Assistant</span>
                   </button>
 
                   <button
@@ -1324,7 +1324,7 @@ export default function VaultPage() {
                     cursor: "pointer",
                   }}
                 >
-                  AI Executive Summary
+                  AI Summary
                 </button>
                 <button
                   type="button"
@@ -1343,7 +1343,7 @@ export default function VaultPage() {
                     gap: "6px",
                   }}
                 >
-                  <span>Semantic Chunks</span>
+                  <span>Sections & Chunks</span>
                   <span
                     style={{
                       fontSize: "11px",
@@ -1452,7 +1452,7 @@ export default function VaultPage() {
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#818CF8" }}>
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-primary)" }}>
                                 Chunk #{chunk.chunk_index + 1}
                               </span>
                               {chunk.page_number && (
@@ -1633,7 +1633,7 @@ export default function VaultPage() {
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#818CF8" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-primary)" }}>
                           Chunk #{chunk.chunk_index + 1} • {chunk.token_count || 120} tokens
                         </span>
                         <button
@@ -1710,9 +1710,9 @@ export default function VaultPage() {
                     style={{
                       padding: "8px 14px",
                       borderRadius: "8px",
-                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                      background: "rgba(59, 130, 246, 0.12)",
-                      color: "#60A5FA",
+                      border: "1px solid #FFFFFF",
+                      background: "#FFFFFF",
+                      color: "#000000",
                       fontSize: "12px",
                       fontWeight: 600,
                       cursor: "pointer",

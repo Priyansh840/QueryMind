@@ -89,7 +89,7 @@ export default function SpacesDirectoryPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#10B981" }}>
-                # DOMAIN MEMORY PARTITIONS
+                # WORKSPACES & SUBJECTS
               </span>
             </div>
             <h1
@@ -104,7 +104,7 @@ export default function SpacesDirectoryPage() {
               Knowledge Spaces
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: "6px", maxWidth: "600px", fontSize: "14px", lineHeight: "1.5" }}>
-              Isolate contexts, stream continuous vector embeddings, and pair each project with a dedicated Resident AI Specialist.
+              Organize your study subjects, projects, and documents with a dedicated AI assistant for each space.
             </p>
           </div>
 
@@ -152,19 +152,19 @@ export default function SpacesDirectoryPage() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Knowledge Objects</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Documents</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalObjects} />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Indexed Passages</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Search Passages</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
               <AnimatedCounter target={totalVectors} prefix="~" />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>Resident AI Agents</div>
+            <div style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 500 }}>AI Assistants</div>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "#10B981", marginTop: "4px" }}>
               <AnimatedCounter target={activeAgents} suffix=" Active" />
             </div>
@@ -185,7 +185,7 @@ export default function SpacesDirectoryPage() {
             </span>
             <input
               type="text"
-              placeholder="Search spaces or specialists..."
+              placeholder="Search spaces or topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{

@@ -72,27 +72,27 @@ function formatRelativeTime(dateStr?: string) {
 const quickChips = [
   {
     icon: Code2,
-    label: "Architecture Deep Dive",
-    description: "Analyze codebase architecture, module boundaries, and dependency patterns.",
-    prompt: "Analyze the codebase architecture, module dependencies, and core patterns from my uploaded documents.",
+    label: "Technical Summary",
+    description: "Review core formulas, technical concepts, and methods from your files.",
+    prompt: "Review the key formulas, technical concepts, and main methods from my uploaded documents.",
   },
   {
     icon: BookOpen,
-    label: "Knowledge Synthesis",
-    description: "Synthesize key concepts, architectural decisions, and retained learnings.",
-    prompt: "Synthesize key concepts, architectural decisions, and retained learnings across all workspace documents.",
+    label: "Summarize My Notes",
+    description: "Summarize key points and important takeaways across all your files.",
+    prompt: "Summarize key concepts, main topics, and important takeaways across all my documents.",
   },
   {
     icon: Compass,
-    label: "Decision Proposals",
-    description: "Formulate concrete recommendations with citations and trade-offs.",
-    prompt: "Examine our current project goals and formulate recommended next actions with grounded evidence.",
+    label: "Next Action Steps",
+    description: "Suggest practical study steps and practice tasks.",
+    prompt: "Look at my uploaded documents and suggest practical study goals and next practice steps.",
   },
   {
     icon: Zap,
-    label: "QueryMind Insights",
-    description: "Uncover unexpected connections and leverage opportunities across files.",
-    prompt: "Analyze all uploaded documents and highlight unexpected patterns or high-leverage opportunities.",
+    label: "Key Insights & Tips",
+    description: "Highlight important connections and helpful tips from your materials.",
+    prompt: "Analyze all uploaded documents and highlight key points, common exam themes, and study tips.",
   },
 ];
 
@@ -674,7 +674,7 @@ function ChatPageContent() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-primary)", fontWeight: 700 }}>
                   <Zap style={{ width: "13px", height: "13px" }} />
-                  <span>High-Yield Synergy Sprint:</span>
+                  <span>Recommended Study Task:</span>
                 </div>
                 <span style={{ color: "var(--text-secondary)", maxWidth: "340px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {dailySprint.taskTitle}
@@ -698,7 +698,7 @@ function ChatPageContent() {
                     transition: "opacity 150ms ease",
                   }}
                 >
-                  Start Sprint ⚡
+                  Start Task ⚡
                 </button>
               </div>
             )}
@@ -712,7 +712,7 @@ function ChatPageContent() {
                 marginBottom: "6px",
               }}
             >
-              {focusedGoalDesc ? "Goal Strategizer & Execution Mode" : `Hey, ${userProfile.name || "there"}. Ready to dive in?`}
+              {focusedGoalDesc ? "Goal Assistant Mode" : `Hey, ${userProfile.name || "there"}. How can I help today?`}
             </h1>
             <p
               style={{
@@ -724,8 +724,8 @@ function ChatPageContent() {
               }}
             >
               {focusedGoalDesc 
-                ? "Autonomous multi-agent synthesis scoped to this goal's milestones and linked spaces." 
-                : "Ask anything about your workspace documents or explore strategic insights."}
+                ? "AI Assistant focused on helping you achieve this goal and its tasks." 
+                : "Ask anything about your documents, notes, or study topics."}
             </p>
           </div>
 

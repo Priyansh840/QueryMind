@@ -903,9 +903,17 @@ export const queryMindApi = {
     return res.data;
   },
 
-  // Semantic Vector Search
+  // Global & Semantic Search
+  search: async (query: string, spaceId?: string, types?: string) => {
+    const params: Record<string, string> = { query };
+    if (spaceId && spaceId !== "all") params.space_id = spaceId;
+    if (types && types !== "all") params.types = types;
+    const res = await api.get("/search", { params });
+    return res.data;
+  },
+
   searchVectors: async (query: string) => {
-    const res = await api.get(`/test/search?query=${encodeURIComponent(query)}`);
+    const res = await api.get(`/search?query=${encodeURIComponent(query)}`);
     return res.data;
   },
 

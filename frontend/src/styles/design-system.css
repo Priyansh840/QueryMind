@@ -1,36 +1,40 @@
 :root,
 [data-theme="dark"] {
   /* ==========================================================================
-     MYND DESIGN SYSTEM v3 — DARK THEME (DEFAULT)
-     Calm, elegant, minimal, Indigo-Purple Accents, soft borders
+     QUERYMIND CENTRALIZED MONOCHROME DESIGN SYSTEM
+     Linear Noir High-Contrast Minimalist Standard
      ========================================================================== */
 
-  /* DARK THEME (CLASSIC BLACK & WHITE - HIGH CONTRAST) */
+  /* 1. Canvas & Surface Layers (Strict 3 Shades) */
   --bg: #000000;
   --bg-translucent: rgba(0, 0, 0, 0.85);
-  --surface: #141414;
-  --surface-subtle: #1C1C1C;
-  --surface-hover: #262626;
+  --surface: #121214;
+  --surface-subtle: #18181B;
+  --surface-hover: #222226;
   --sidebar-bg: #000000;
-  --border: rgba(255, 255, 255, 0.14);
-  --border-strong: rgba(255, 255, 255, 0.24);
-  --divider: rgba(255, 255, 255, 0.12);
 
+  /* 2. Universal Lines & Borders */
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.20);
+  --divider: rgba(255, 255, 255, 0.08);
+
+  /* 3. Typography & Contrast Hierarchy */
   --text-primary: #FFFFFF;
-  --text-secondary: #D4D4D4; /* Crisp readable secondary text */
-  --text-tertiary: #A3A3A3;  /* High contrast readable metadata */
-  --text-ghost: #737373;     /* Visible subtle elements */
+  --text-secondary: #A1A1AA; /* Crisp readable zinc-400 */
+  --text-tertiary: #71717A;  /* High contrast zinc-500 */
+  --text-ghost: #52525B;     /* Subtle secondary metadata */
 
+  /* 4. Signature Monochrome Action */
   --accent: #FFFFFF;
   --accent-purple: #FFFFFF;
   --accent-contrast: #000000;
-  --accent-soft: rgba(255, 255, 255, 0.12);
-  --accent-soft-purple: rgba(255, 255, 255, 0.08);
+  --accent-soft: rgba(255, 255, 255, 0.10);
+  --accent-soft-purple: rgba(255, 255, 255, 0.06);
 
-  /* Functional Status Colors (Green tick, Red cross) */
-  --color-success: #10B981; /* Green for tick mark */
-  --color-error: #EF4444;   /* Red for cross mark */
-  --color-warning: #F59E0B; /* Amber warning */
+  /* 5. Functional Status Colors (Strictly 3 Semantics) */
+  --color-success: #10B981; /* Emerald for verified/live/active */
+  --color-error: #EF4444;   /* Red for errors/destructive/delete */
+  --color-warning: #F59E0B; /* Amber for pending/queued/warnings */
 
   /* Neutral Category Colors */
   --color-resume: #E5E5E5;
@@ -83,8 +87,8 @@
   /* Canvas & Knowledge Map Tokens */
   --canvas-bg: #000000;
   --canvas-border: rgba(255, 255, 255, 0.08);
-  --node-bg: #171717;
-  --node-border: rgba(255, 255, 255, 0.12);
+  --node-bg: #121214;
+  --node-border: rgba(255, 255, 255, 0.10);
   --node-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
   --node-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
 
@@ -94,7 +98,7 @@
   --context-w: 360px;
 }
 
-/* LIGHT THEME */
+/* LIGHT THEME (NORDIC DAYLIGHT) */
 [data-theme="light"] {
   --bg: #FFFFFF;
   --bg-translucent: rgba(255, 255, 255, 0.85);
@@ -131,14 +135,14 @@
   --node-hover-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
-/* OLED ZEN THEME (PURE BLACK) */
+/* OLED ZEN THEME (PURE OBSIDIAN) */
 [data-theme="zen"],
 body.zen-mode-active {
   --bg: #000000 !important;
   --bg-translucent: rgba(0, 0, 0, 0.95);
   --surface: #000000 !important;
-  --surface-subtle: #0A0A0A;
-  --surface-hover: #141414;
+  --surface-subtle: #080808;
+  --surface-hover: #121214;
   --sidebar-bg: #000000 !important;
   --border: #1F1F1F !important;
   --border-strong: #333333;
@@ -148,80 +152,12 @@ body.zen-mode-active {
   --text-tertiary: #666666;
   --text-ghost: #444444;
   --accent: #ECECEC !important;
+  --accent-contrast: #000000;
   --accent-soft: rgba(236, 236, 236, 0.12);
   --canvas-bg: #000000;
   --canvas-border: #141414;
-  --node-bg: #0A0A0A;
+  --node-bg: #080808;
   --node-border: #1F1F1F;
-}
-
-/* CYBER NEON THEME (MIDNIGHT CYAN & INDIGO) */
-[data-theme="cyberpunk"] {
-  --bg: #070B14;
-  --bg-translucent: rgba(7, 11, 20, 0.9);
-  --surface: #0E1626;
-  --surface-subtle: #141F36;
-  --surface-hover: #1C2B4B;
-  --sidebar-bg: #05080F;
-  --border: rgba(0, 240, 255, 0.18);
-  --border-strong: rgba(0, 240, 255, 0.38);
-  --divider: rgba(0, 240, 255, 0.15);
-  --text-primary: #E0F7FA;
-  --text-secondary: #80DEEA;
-  --text-tertiary: #4DD0E1;
-  --text-ghost: #00838F;
-  --accent: #00F0FF;
-  --accent-soft: rgba(0, 240, 255, 0.16);
-  --canvas-bg: #05080F;
-  --canvas-border: rgba(0, 240, 255, 0.15);
-  --node-bg: #0E1626;
-  --node-border: rgba(0, 240, 255, 0.25);
-}
-
-/* WARM SEPIA THEME (COFFEE & PAPER) */
-[data-theme="sepia"] {
-  --bg: #1C1917;
-  --bg-translucent: rgba(28, 25, 23, 0.92);
-  --surface: #292524;
-  --surface-subtle: #34302D;
-  --surface-hover: #44403C;
-  --sidebar-bg: #171412;
-  --border: rgba(245, 158, 11, 0.18);
-  --border-strong: rgba(245, 158, 11, 0.35);
-  --divider: rgba(245, 158, 11, 0.14);
-  --text-primary: #FEF3C7;
-  --text-secondary: #FDE68A;
-  --text-tertiary: #D97706;
-  --text-ghost: #92400E;
-  --accent: #F59E0B;
-  --accent-soft: rgba(245, 158, 11, 0.16);
-  --canvas-bg: #171412;
-  --canvas-border: rgba(245, 158, 11, 0.15);
-  --node-bg: #292524;
-  --node-border: rgba(245, 158, 11, 0.25);
-}
-
-/* ARCTIC SLATE THEME (MIDNIGHT OCEAN BLUE) */
-[data-theme="arctic"] {
-  --bg: #0B132B;
-  --bg-translucent: rgba(11, 19, 43, 0.92);
-  --surface: #1C2541;
-  --surface-subtle: #243056;
-  --surface-hover: #3A506B;
-  --sidebar-bg: #070D1F;
-  --border: rgba(91, 192, 190, 0.2);
-  --border-strong: rgba(91, 192, 190, 0.4);
-  --divider: rgba(91, 192, 190, 0.15);
-  --text-primary: #FFFFFF;
-  --text-secondary: #C5D3E8;
-  --text-tertiary: #8EA7E9;
-  --text-ghost: #4B6587;
-  --accent: #5BC0BE;
-  --accent-soft: rgba(91, 192, 190, 0.16);
-  --canvas-bg: #070D1F;
-  --canvas-border: rgba(91, 192, 190, 0.15);
-  --node-bg: #1C2541;
-  --node-border: rgba(91, 192, 190, 0.25);
 }
 
 /* ==========================================================================

@@ -62,11 +62,11 @@
 .sidebar-logo-circle {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(147, 51, 234, 0.28));
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  box-shadow: 0 0 16px rgba(139, 92, 246, 0.15);
-  color: #A78BFA;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -189,19 +189,19 @@
 }
 
 .nav-item.active {
-  background: rgba(139, 92, 246, 0.15);
-  color: #C084FC;
-  border: 1px solid rgba(139, 92, 246, 0.28);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.12);
+  background: var(--surface-hover);
+  color: #FFFFFF;
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   font-weight: var(--w-semi);
 }
 
 .nav-item.active .nav-item-icon {
-  color: #C084FC;
+  color: #FFFFFF;
 }
 
 .nav-item.active .nav-item-badge {
-  color: #C084FC;
+  color: #FFFFFF;
   font-weight: var(--w-semi);
 }
 
@@ -371,8 +371,8 @@
 }
 
 .workspace-search-capsule:focus-within {
-  border-color: rgba(139, 92, 246, 0.45);
-  box-shadow: 0 0 14px rgba(139, 92, 246, 0.15);
+  border-color: var(--border-strong);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
   background: var(--surface);
 }
 

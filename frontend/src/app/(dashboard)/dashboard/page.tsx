@@ -92,7 +92,7 @@ export default function DashboardPage() {
                 id: s.id,
                 name: s.name,
                 desc: s.description || "Workspace",
-                color: s.color || "#6366f1",
+                color: s.color || "#FFFFFF",
                 icon: s.icon || "folder",
                 status: "synced",
                 count: 0,
@@ -148,14 +148,14 @@ export default function DashboardPage() {
         id: "sp-career",
         name: "Career",
         desc: "Professional milestones, interview preparation & system architecture",
-        color: "#8B5CF6",
+        color: "#FFFFFF",
         icon: "folder",
       },
       {
         id: "sp-research",
         name: "Research",
         desc: "Academic whitepapers, retrieval models & algorithm proofs",
-        color: "#3B82F6",
+        color: "#FFFFFF",
         icon: "folder",
       },
       {
@@ -246,28 +246,28 @@ export default function DashboardPage() {
         title: "Deep Neural Candidate Generation for Recommendation.pdf",
         type: "PDF",
         spaceName: "Career",
-        spaceColor: "#8B5CF6",
+        spaceColor: "#FFFFFF",
       },
       {
         id: "doc-2",
         title: "Graph RAG Indexing & Community Detection.pdf",
         type: "PDF",
         spaceName: "Research",
-        spaceColor: "#3B82F6",
+        spaceColor: "#FFFFFF",
       },
       {
         id: "doc-3",
         title: "Qdrant Vector Quantization & HNSW Tuning.md",
         type: "DOC",
         spaceName: "Systems",
-        spaceColor: "#10B981",
+        spaceColor: "#FFFFFF",
       },
       {
         id: "doc-4",
         title: "GATE-DA-2025 Syllabus & Question Bank.pdf",
         type: "PDF",
         spaceName: "Career",
-        spaceColor: "#8B5CF6",
+        spaceColor: "#FFFFFF",
       },
     ];
   }, [realDocuments]);
@@ -383,7 +383,7 @@ export default function DashboardPage() {
             <span style={{ color: "rgba(255, 255, 255, 0.25)" }}>&bull;</span>
             <span>{activeGoals.filter((g) => g.status !== "completed").length} active goals</span>
             <span style={{ color: "rgba(255, 255, 255, 0.25)" }}>&bull;</span>
-            <span style={{ color: "#10B981", fontWeight: 600 }}>Causal Graph Grounded</span>
+            <span style={{ color: "#10B981", fontWeight: 600 }}>AI Ready & Connected</span>
           </div>
         </div>
 
@@ -405,9 +405,9 @@ export default function DashboardPage() {
             <div style={{ position: "relative", width: "22px", height: "22px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="22" height="22" viewBox="0 0 22 22" style={{ transform: "rotate(-90deg)" }}>
                 <circle cx="11" cy="11" r="8.5" fill="none" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="2.5" />
-                <circle cx="11" cy="11" r="8.5" fill="none" stroke="#A78BFA" strokeWidth="2.5" strokeDasharray="53.4" strokeDashoffset="16" strokeLinecap="round" />
+                <circle cx="11" cy="11" r="8.5" fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeDasharray="53.4" strokeDashoffset="16" strokeLinecap="round" />
               </svg>
-              <span style={{ position: "absolute", width: "4px", height: "4px", borderRadius: "50%", background: "#A78BFA", boxShadow: "0 0 6px #A78BFA" }} />
+              <span style={{ position: "absolute", width: "4px", height: "4px", borderRadius: "50%", background: "#FFFFFF", boxShadow: "0 0 6px rgba(255, 255, 255, 0.6)" }} />
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -440,7 +440,7 @@ export default function DashboardPage() {
               transition: "all 0.15s ease",
             }}
           >
-            <span>Vault</span>
+            <span>Documents</span>
           </Link>
         </div>
       </div>
@@ -495,6 +495,7 @@ export default function DashboardPage() {
                 background: "rgba(139, 92, 246, 0.15)",
                 border: "1px solid rgba(139, 92, 246, 0.3)",
                 borderRadius: "6px",
+<<<<<<< HEAD
                 padding: "3px 9px",
                 fontSize: "11px",
                 fontWeight: 600,
@@ -503,6 +504,18 @@ export default function DashboardPage() {
             >
               <Sparkles style={{ width: "12px", height: "12px", color: "#A78BFA" }} />
               <span>Recommended Next Step</span>
+=======
+                padding: "2px 8px",
+                fontSize: "10.5px",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                color: "var(--text-primary)",
+                textTransform: "uppercase",
+              }}
+            >
+              <Sparkles style={{ width: "11px", height: "11px", color: "var(--text-secondary)" }} />
+              <span>Document & Action Hub</span>
+>>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </div>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -514,7 +527,11 @@ export default function DashboardPage() {
                 color: "rgba(255, 255, 255, 0.75)",
               }}
             >
+<<<<<<< HEAD
               {activeSpace?.name || "Career"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {executiveBriefing.topLeverageTask.goalTitle}
+=======
+              {activeSpace?.name || "General Space"} <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>&rsaquo;</span> {realDocuments.length} documents ready
+>>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </span>
 
             <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>&bull;</span>
@@ -538,7 +555,11 @@ export default function DashboardPage() {
                   boxShadow: "0 0 6px #10B981",
                 }}
               />
+<<<<<<< HEAD
               <span>Top Priority Today</span>
+=======
+              <span>AI Memory Active</span>
+>>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             </div>
           </div>
 
@@ -552,7 +573,11 @@ export default function DashboardPage() {
               gap: "6px",
             }}
           >
+<<<<<<< HEAD
             <span>AI Match</span>
+=======
+            <span>Search Engine</span>
+>>>>>>> 55d24cf (feat(ui): unify monochrome design system, wire live search, and simplify UI language)
             <span>&bull;</span>
             <span style={{ color: "#A78BFA", fontWeight: 600 }}>96%</span>
           </div>
@@ -579,13 +604,15 @@ export default function DashboardPage() {
                 lineHeight: 1.3,
               }}
             >
-              {executiveBriefing.topLeverageTask.title}
+              {realDocuments && realDocuments.length > 0
+                ? `${realDocuments.length} Documents Ready to Compare & Summarize`
+                : `Ready to Upload Documents to ${activeSpace?.name || "General Space"}`}
             </h2>
 
             <div
               style={{
-                background: "rgba(255, 255, 255, 0.03)",
-                borderLeft: "2px solid #8B5CF6",
+                background: "rgba(255, 255, 255, 0.025)",
+                borderLeft: "2px solid #FFFFFF",
                 borderRadius: "0 8px 8px 0",
                 padding: "8px 14px",
                 margin: "2px 0 6px 0",
@@ -593,16 +620,16 @@ export default function DashboardPage() {
             >
               <span
                 style={{
-                  fontSize: "10.5px",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  color: "#A78BFA",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   display: "block",
                   marginBottom: "2px",
                 }}
               >
-                Why this matters
+                Workspace Status
               </span>
               <p
                 style={{
@@ -612,38 +639,36 @@ export default function DashboardPage() {
                   lineHeight: 1.5,
                 }}
               >
-                {executiveBriefing.topLeverageTask.aiReason}
+                {realDocuments && realDocuments.length > 0
+                  ? `You have ${realDocuments.length} documents ready. Latest file: "${realDocuments[0]?.title || realDocuments[0]?.filename || "Primary Paper"}". You can compare them, find key differences, or create study goals.`
+                  : `Upload PDF question papers, notes, or articles. QueryMind will automatically read them, highlight connections, and help you study and plan.`}
               </p>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "4px" }}>
               <Link
-                href={`/chat?q=${encodeURIComponent(
-                  `Start a practice session on "${executiveBriefing.topLeverageTask.title}". Test my understanding of the key concepts and give me feedback using my uploaded documents.`
-                )}`}
+                href="/intelligence"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
                   padding: "8px 16px",
                   borderRadius: "9px",
-                  background: "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)",
-                  color: "#FFFFFF",
+                  background: "#FFFFFF",
+                  color: "#000000",
                   fontSize: "12.5px",
                   fontWeight: 600,
                   textDecoration: "none",
-                  boxShadow: "0 3px 12px rgba(139, 92, 246, 0.35)",
+                  boxShadow: "0 2px 8px rgba(255, 255, 255, 0.12)",
                   transition: "transform 0.15s ease",
                 }}
               >
                 <Zap style={{ width: "13px", height: "13px" }} />
-                <span>Start practice session</span>
+                <span>Summarize Documents</span>
               </Link>
 
               <Link
-                href={`/chat?q=${encodeURIComponent(
-                  `Help me review my weak spots on "${executiveBriefing.topLeverageTask.title}". What key concepts should I review, and what am I missing based on my documents?`
-                )}`}
+                href="/vault"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -659,10 +684,34 @@ export default function DashboardPage() {
                   transition: "all 0.15s ease",
                 }}
               >
-                <Target style={{ width: "13px", height: "13px", color: "#F59E0B" }} />
-                <span>Check weak spots</span>
+                <Folder style={{ width: "13px", height: "13px", color: "#38BDF8" }} />
+                <span>Upload Documents</span>
               </Link>
 
+              {/* Ask Copilot */}
+              <button
+                type="button"
+                onClick={() => openAskAi()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 15px",
+                  borderRadius: "9px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Sparkles style={{ width: "13px", height: "13px" }} />
+                <span>Ask AI Assistant</span>
+              </button>
+
+              {/* Explore Topology */}
               <Link
                 href="/goals"
                 style={{
@@ -678,7 +727,8 @@ export default function DashboardPage() {
                   transition: "color 0.15s ease",
                 }}
               >
-                <span>View roadmap &rarr;</span>
+                <Network style={{ width: "12px", height: "12px" }} />
+                <span>Knowledge Map &rarr;</span>
               </Link>
             </div>
           </div>
@@ -706,48 +756,29 @@ export default function DashboardPage() {
                 borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
               }}
             >
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  color: "rgba(255, 255, 255, 0.6)",
-                  textTransform: "uppercase",
-                }}
-              >
-                Quick Summary
-              </span>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  color: "#10B981",
-                  fontSize: "10.5px",
-                  fontWeight: 600,
-                  background: "rgba(16, 185, 129, 0.1)",
-                  padding: "1px 6px",
-                  borderRadius: "4px",
-                }}
-              >
-                <CheckCircle2 style={{ width: "10px", height: "10px" }} />
-                <span>Verified</span>
+              <span>System Status</span>
+              <span style={{ color: "#10B981", fontSize: "9.5px", fontWeight: 700 }}>ONLINE</span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Uploaded Files</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#38BDF8" }}>
+                {realDocuments.length} Documents
               </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.55)" }}>Unlocks</span>
-              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#10B981" }}>3 Milestones</span>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Active Goals</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B" }}>
+                {activeGoals.filter((g) => g.status !== "completed").length} Active
+              </span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.55)" }}>Priority</span>
-              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#F59E0B" }}>Top Priority</span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
-              <span style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.55)" }}>Based on</span>
-              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#C4B5FD" }}>6 Saved Papers</span>
+              <span style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)" }}>Search Engine</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#10B981" }}>
+                Operational
+              </span>
             </div>
           </div>
         </div>
@@ -777,13 +808,13 @@ export default function DashboardPage() {
             <span style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--text-tertiary, #A3A3A3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Active Spaces
             </span>
-            <Boxes size={16} style={{ color: "var(--accent, #8b5cf6)" }} />
+            <Boxes size={16} style={{ color: "var(--text-secondary)" }} />
           </div>
           <div style={{ fontSize: "28px", fontWeight: 700, color: "var(--text-primary, #FFFFFF)", marginTop: "12px" }}>
             {effectiveSpaces.length}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary, #D4D4D4)", marginTop: "4px" }}>
-            Isolated domain environments
+            Folders for your subjects & projects
           </div>
         </div>
 
@@ -799,7 +830,7 @@ export default function DashboardPage() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--text-tertiary, #A3A3A3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Knowledge Vault
+              Documents
             </span>
             <FileText size={16} style={{ color: "#10B981" }} />
           </div>
@@ -807,7 +838,7 @@ export default function DashboardPage() {
             {totalDocsCount}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary, #D4D4D4)", marginTop: "4px" }}>
-            Total indexed documents
+            Total uploaded documents
           </div>
         </div>
 
@@ -823,7 +854,7 @@ export default function DashboardPage() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--text-tertiary, #A3A3A3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Tracked Goals
+              Active Goals
             </span>
             <Target size={16} style={{ color: "#F59E0B" }} />
           </div>
@@ -831,7 +862,7 @@ export default function DashboardPage() {
             {inFlightGoalsCount}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary, #D4D4D4)", marginTop: "4px" }}>
-            In-flight milestone objectives
+            Goals currently in progress
           </div>
         </div>
 
@@ -847,16 +878,16 @@ export default function DashboardPage() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--text-tertiary, #A3A3A3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Reasoning Engine
+              AI Assistant
             </span>
-            <Cpu size={16} style={{ color: "#A855F7" }} />
+            <Cpu size={16} style={{ color: "var(--text-secondary)" }} />
           </div>
           <div style={{ fontSize: "18px", fontWeight: 700, color: "#10B981", marginTop: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
-            Operational
+            Ready
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary, #D4D4D4)", marginTop: "6px" }}>
-            Autonomous proposal loop active
+            Ready to answer and help
           </div>
         </div>
       </div>
@@ -875,13 +906,13 @@ export default function DashboardPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Layers size={18} style={{ color: "var(--accent, #8B5CF6)" }} />
-              <h2 style={{ fontSize: "16.5px", fontWeight: 700, color: "var(--text-primary, #FFFFFF)", margin: 0 }}>
-                Domain Horizons
+              <Layers size={18} style={{ color: "var(--text-secondary)" }} />
+              <h2 style={{ fontSize: "16.5px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Your Spaces & Topics
               </h2>
             </div>
-            <p style={{ fontSize: "13px", color: "var(--text-tertiary, #A3A3A3)", marginTop: "4px", margin: 0 }}>
-              Knowledge grounding, document density, and active goals across your domains
+            <p style={{ fontSize: "13px", color: "var(--text-tertiary)", marginTop: "4px", margin: 0 }}>
+              Overview of your files, topics, and study goals across spaces
             </p>
           </div>
 
@@ -891,20 +922,20 @@ export default function DashboardPage() {
               style={{
                 fontSize: "12px",
                 fontWeight: 600,
-                color: "#A78BFA",
+                color: "var(--text-primary)",
                 textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "5px",
                 padding: "4px 10px",
                 borderRadius: "6px",
-                background: "rgba(139, 92, 246, 0.12)",
-                border: "1px solid rgba(139, 92, 246, 0.25)",
+                background: "var(--surface-subtle)",
+                border: "1px solid var(--border)",
                 transition: "all 0.15s ease",
               }}
             >
               <Network size={13} />
-              <span>Topology Map &rarr;</span>
+              <span>Knowledge Map &rarr;</span>
             </Link>
 
             <Link
@@ -912,7 +943,7 @@ export default function DashboardPage() {
               style={{
                 fontSize: "12px",
                 fontWeight: 600,
-                color: "var(--accent, #8B5CF6)",
+                color: "var(--text-primary)",
                 textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
@@ -944,7 +975,7 @@ export default function DashboardPage() {
                   key={h.id}
                   style={{
                     width: `${h.percentage}%`,
-                    background: h.color || "var(--accent, #8B5CF6)",
+                    background: h.color || "var(--accent)",
                     transition: "width 0.4s ease",
                   }}
                   title={`${h.name}: ${h.docsCount} docs (${h.percentage}%)`}
@@ -984,8 +1015,8 @@ export default function DashboardPage() {
                       width: "36px",
                       height: "36px",
                       borderRadius: "8px",
-                      background: `${domain.color || "#6366f1"}25`,
-                      color: domain.color || "var(--accent, #8B5CF6)",
+                      background: "var(--surface-hover)",
+                      color: "var(--text-primary)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -998,7 +1029,7 @@ export default function DashboardPage() {
                       {domain.name}
                     </h3>
                     <span style={{ fontSize: "12px", color: "var(--text-tertiary, #A3A3A3)" }}>
-                      {domain.percentage}% of knowledge
+                      {domain.percentage}% of your files
                     </span>
                   </div>
                 </div>
@@ -1083,7 +1114,7 @@ export default function DashboardPage() {
                 style={{
                   fontSize: "12px",
                   fontWeight: 600,
-                  color: "var(--accent, #8B5CF6)",
+                  color: "var(--text-primary)",
                   textDecoration: "none",
                   display: "flex",
                   alignItems: "center",
@@ -1119,7 +1150,7 @@ export default function DashboardPage() {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", overflow: "hidden" }}>
-                      <FileCode size={16} style={{ color: "var(--accent, #8B5CF6)", flexShrink: 0 }} />
+                      <FileCode size={16} style={{ color: "var(--text-secondary)", flexShrink: 0 }} />
                       <div style={{ overflow: "hidden" }}>
                         <div
                           style={{
@@ -1136,7 +1167,7 @@ export default function DashboardPage() {
                         <div style={{ fontSize: "11px", color: "var(--text-tertiary, #A3A3A3)", marginTop: "2px", display: "flex", gap: "8px" }}>
                           <span>{(doc.type || "PDF").toUpperCase()}</span>
                           {(spaceMatch?.name || doc.spaceName) && (
-                            <span style={{ color: spaceMatch?.color || doc.spaceColor || "#8B5CF6" }}>
+                            <span style={{ color: "var(--text-tertiary)" }}>
                               • {spaceMatch?.name || doc.spaceName}
                             </span>
                           )}
@@ -1220,10 +1251,10 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary, #FFFFFF)", margin: 0 }}>
-                    Active Goals & Milestones
+                    Active Goals & Tasks
                   </h2>
                   <p style={{ fontSize: "12px", color: "var(--text-tertiary, #A3A3A3)", margin: "2px 0 0 0" }}>
-                    Tangible outcomes from workspace decisions
+                    Tasks and goals created from your documents
                   </p>
                 </div>
               </div>
@@ -1233,7 +1264,7 @@ export default function DashboardPage() {
                 style={{
                   fontSize: "12px",
                   fontWeight: 600,
-                  color: "var(--accent, #8B5CF6)",
+                  color: "var(--text-primary)",
                   textDecoration: "none",
                   display: "flex",
                   alignItems: "center",

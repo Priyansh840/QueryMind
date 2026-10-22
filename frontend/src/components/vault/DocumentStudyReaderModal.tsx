@@ -498,34 +498,34 @@ function detectDocumentDomain(title: string, sampleText: string): {
 
   // Universal Default
   return {
-    domain: "Interdisciplinary Research & Technical Foundations",
-    keyTopics: ["Core Foundational Concepts", "Methodology & Architecture", "Practical Implementation"],
+    domain: "Study & Document Notes",
+    keyTopics: ["Key Topics & Concepts", "Main Explanations", "Practice & Next Steps"],
     domainKeywords: [], // Safe fallback: unvetted arbitrary words must never create spurious cross-discipline task matches
     suggestedRoadmap: [
       {
-        title: "Survey First Principles & Executive Summary",
+        title: "Read Overview & Main Ideas",
         pageRange: "Part 1",
         estimatedTime: "20 min",
-        deliverable: "Key takeaways and theoretical definitions extracted from introductory sections.",
+        deliverable: "Understand the main ideas and core terms introduced in this document.",
       },
       {
-        title: "Deep-Dive Technical Analysis & Framework Mechanics",
+        title: "Detailed Study & Key Topics",
         pageRange: "Part 2",
         estimatedTime: "35 min",
-        deliverable: "In-depth summary of operational steps and critical trade-offs.",
+        deliverable: "Review important questions, problem steps, and explanations.",
       },
       {
-        title: "Synthesize Findings & Formulate Execution Strategy",
+        title: "Review Summary & Next Steps",
         pageRange: "Part 3",
         estimatedTime: "25 min",
-        deliverable: "Actionable deliverable checklist mapped to your active project goals.",
+        deliverable: "Check what you learned and mark tasks completed for your goals.",
       },
     ],
     flashcards: [
       {
-        question: "What is the primary invariant or core thesis presented in this text?",
-        answer: "The fundamental principle governing the system behavior as detailed in the executive synthesis.",
-        hint: "Recall the central premise established in early sections.",
+        question: "What is the primary topic or question discussed in this document?",
+        answer: "The main concepts and explanations covered in the document overview.",
+        hint: "Check the first few pages and main headings.",
       },
     ],
   };
@@ -1194,7 +1194,7 @@ export default function DocumentStudyReaderModal({
         width: "100vw",
         height: "100vh",
         zIndex: 99999,
-        background: "#0D0F16",
+        background: "var(--bg)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -1206,11 +1206,11 @@ export default function DocumentStudyReaderModal({
           flexShrink: 0,
           height: "56px",
           padding: "0 24px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "#11141C",
+          background: "var(--surface)",
           gap: "16px",
           zIndex: 10,
         }}
@@ -1222,12 +1222,12 @@ export default function DocumentStudyReaderModal({
                 width: "34px",
                 height: "34px",
                 borderRadius: "8px",
-                background: "linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(16, 185, 129, 0.15))",
-                border: "1px solid rgba(59, 130, 246, 0.35)",
+                background: "var(--surface-hover)",
+                border: "1px solid var(--border)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#60A5FA",
+                color: "var(--text-primary)",
                 flexShrink: 0,
               }}
             >
@@ -1243,9 +1243,9 @@ export default function DocumentStudyReaderModal({
                     letterSpacing: "0.04em",
                     padding: "2px 6px",
                     borderRadius: "4px",
-                    background: "rgba(59, 130, 246, 0.15)",
-                    color: "#60A5FA",
-                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                    background: "var(--surface-hover)",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   {document.type || "PDF"} Study Space
@@ -1255,12 +1255,12 @@ export default function DocumentStudyReaderModal({
                 </span>
                 {isLoadingAiCompanion && (
                   <span style={{ fontSize: "10px", color: "#60A5FA", display: "inline-flex", alignItems: "center", gap: "3px", fontWeight: 500 }}>
-                    <Sparkles size={10} className="animate-spin" /> AI Curriculum Sync...
+                    <Sparkles size={10} className="animate-spin" /> Preparing AI Study Guide...
                   </span>
                 )}
                 {isAiCurriculum && (
                   <span style={{ fontSize: "9.5px", color: "#10B981", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "4px", padding: "1px 5px", display: "inline-flex", alignItems: "center", gap: "3px", fontWeight: 600 }}>
-                    <Sparkles size={9} /> AI Synthesized
+                    <Sparkles size={9} /> AI Study Guide Ready
                   </span>
                 )}
                 <button
@@ -1319,9 +1319,9 @@ export default function DocumentStudyReaderModal({
                 gap: "5px",
                 padding: "3px 8px",
                 borderRadius: "6px",
-                background: isTimerRunning ? "rgba(59, 130, 246, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                border: isTimerRunning ? "1px solid rgba(59, 130, 246, 0.35)" : "1px solid rgba(255, 255, 255, 0.1)",
-                color: isTimerRunning ? "#60A5FA" : "rgba(255, 255, 255, 0.6)",
+                background: isTimerRunning ? "rgba(16, 185, 129, 0.12)" : "var(--surface-subtle)",
+                border: isTimerRunning ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border)",
+                color: isTimerRunning ? "#10B981" : "var(--text-secondary)",
                 fontSize: "11px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -1348,7 +1348,7 @@ export default function DocumentStudyReaderModal({
                 border: "1px solid rgba(255, 255, 255, 0.08)",
               }}
             >
-              <BookOpen size={11} color="#60A5FA" />
+              <BookOpen size={11} color="var(--text-secondary)" />
               <span>Page {activePage} of {isLoadingDoc && totalPages <= 1 ? "..." : totalPages}</span>
             </div>
           </div>
@@ -1488,12 +1488,12 @@ export default function DocumentStudyReaderModal({
                 padding: "5px 12px",
                 borderRadius: "7px",
                 background: isTaskDrawerOpen
-                  ? "rgba(59, 130, 246, 0.25)"
-                  : "rgba(16, 185, 129, 0.12)",
+                  ? "#FFFFFF"
+                  : "var(--surface-hover)",
                 border: isTaskDrawerOpen
-                  ? "1px solid rgba(59, 130, 246, 0.5)"
-                  : "1px solid rgba(16, 185, 129, 0.35)",
-                color: isTaskDrawerOpen ? "#60A5FA" : "#34D399",
+                  ? "1px solid #FFFFFF"
+                  : "1px solid var(--border)",
+                color: isTaskDrawerOpen ? "#000000" : "var(--text-primary)",
                 fontSize: "11.5px",
                 fontWeight: 600,
                 cursor: "pointer",
@@ -1509,7 +1509,7 @@ export default function DocumentStudyReaderModal({
                     fontSize: "10px",
                     padding: "1px 6px",
                     borderRadius: "10px",
-                    background: isTaskDrawerOpen ? "#3B82F6" : "#10B981",
+                    background: isTaskDrawerOpen ? "#000000" : "rgba(255, 255, 255, 0.15)",
                     color: "#FFFFFF",
                     fontWeight: 700,
                   }}
@@ -1551,7 +1551,7 @@ export default function DocumentStudyReaderModal({
               width: "100%",
               display: "flex",
               flexDirection: "column",
-              background: "#0D0F16",
+              background: "var(--bg)",
               overflow: "hidden",
             }}
           >
@@ -1567,7 +1567,7 @@ export default function DocumentStudyReaderModal({
                       width: "100%",
                       height: "100%",
                       border: "none",
-                      background: "#1E222D",
+                      background: "var(--surface-subtle)",
                     }}
                     title="Visual PDF Reader"
                   />
@@ -1610,12 +1610,12 @@ export default function DocumentStudyReaderModal({
                                   style={{
                                     fontSize: "10px",
                                     fontWeight: 700,
-                                    color: "#60A5FA",
+                                    color: "var(--text-secondary)",
                                     textTransform: "uppercase",
                                     letterSpacing: "0.06em",
                                     padding: "2px 8px",
-                                    background: "rgba(59, 130, 246, 0.12)",
-                                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                                    background: "var(--surface-subtle)",
+                                    border: "1px solid var(--border)",
                                     borderRadius: "4px",
                                   }}
                                 >
@@ -1643,12 +1643,12 @@ export default function DocumentStudyReaderModal({
                                 onClick={() => setSelectedQuote(chunk.content_text)}
                                 style={{
                                   marginTop: "6px",
-                                  background: "rgba(59, 130, 246, 0.1)",
-                                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                                  background: "var(--surface-hover)",
+                                  border: "1px solid var(--border)",
                                   borderRadius: "4px",
                                   padding: "2px 7px",
                                   fontSize: "10px",
-                                  color: "#60A5FA",
+                                  color: "var(--text-primary)",
                                   cursor: "pointer",
                                   display: "inline-flex",
                                   alignItems: "center",
@@ -1706,12 +1706,12 @@ export default function DocumentStudyReaderModal({
                           type="button"
                           onClick={() => setSelectedQuote(chunk.content_text)}
                           style={{
-                            background: "rgba(59, 130, 246, 0.1)",
-                            border: "1px solid rgba(59, 130, 246, 0.25)",
+                            background: "var(--surface-hover)",
+                            border: "1px solid var(--border)",
                             borderRadius: "5px",
                             padding: "2px 6px",
                             fontSize: "10px",
-                            color: "#60A5FA",
+                            color: "var(--text-primary)",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
@@ -1774,8 +1774,8 @@ export default function DocumentStudyReaderModal({
           >
             <Zap size={15} />
             <div>
-              <div>Milestone Cleared!</div>
-              <div style={{ fontSize: "11px", opacity: 0.9 }}>+{recentCelebration.xp} XP Extracted</div>
+              <div>Task Completed!</div>
+              <div style={{ fontSize: "11px", opacity: 0.9 }}>+{recentCelebration.xp} XP Earned</div>
             </div>
           </div>
         )}
@@ -1947,9 +1947,9 @@ export default function DocumentStudyReaderModal({
                     gap: "8px",
                     padding: "8px 16px",
                     borderRadius: "8px",
-                    background: "linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(16, 185, 129, 0.25))",
-                    border: "1px solid rgba(59, 130, 246, 0.4)",
-                    color: "#93C5FD",
+                    background: "#FFFFFF",
+                    border: "1px solid #FFFFFF",
+                    color: "#000000",
                     fontSize: "12px",
                     fontWeight: 600,
                     cursor: isGeneratingRoadmap ? "not-allowed" : "pointer",
@@ -2010,9 +2010,9 @@ export default function DocumentStudyReaderModal({
                             fontWeight: 600,
                             padding: "1px 5px",
                             borderRadius: "4px",
-                            background: "rgba(59, 130, 246, 0.15)",
-                            color: "#93C5FD",
-                            border: "1px solid rgba(59, 130, 246, 0.25)",
+                            background: "var(--surface-hover)",
+                            color: "var(--text-secondary)",
+                            border: "1px solid var(--border)",
                             maxWidth: "180px",
                             overflow: "hidden",
                             textOverflow: "ellipsis",

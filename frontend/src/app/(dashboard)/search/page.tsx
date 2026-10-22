@@ -3,31 +3,34 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useMyndStore, KnowledgeObject } from "@/lib/mynd-store";
+import { queryMindApi } from "@/lib/api";
 import { Search as SearchIcon, FileText, Upload, Sparkles } from "lucide-react";
 
-interface VectorSearchResult {
+interface BackendSearchResultItem {
+  id: string;
+  type: string;
+  title: string;
+  snippet?: string;
   score?: number;
-  payload?: {
-    content?: string;
-    document_title?: string;
-    page_number?: number;
-    chunk_index?: number;
-  };
+  space_id: string;
+  created_at?: string;
+  metadata?: Record<string, any>;
+  href: string;
 }
 
 export default function SearchPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [vectorResults, setVectorResults] = useState<KnowledgeObject[]>([]);
+  const [searchResults, setSearchResults] = useState<KnowledgeObject[]>([]);
   const openObjectModal = useMyndStore((state) => state.openObjectModal);
-  const uploadedDocuments = useMyndStore((state) => state.uploadedDocuments);
   const recentObjects = useMyndStore((state) => state.recentObjects);
+  const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
 
-  // Debounced search to Qdrant backend
+  // Debounced search to unified backend
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setVectorResults([]);
+      setSearchResults([]);
       setIsSearching(false);
       return;
     }
@@ -35,38 +38,59 @@ export default function SearchPage() {
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(
-          `http://127.0.0.1:8000/api/v1/test/search?query=${encodeURIComponent(searchQuery)}`
+        let typeParam: string | undefined = undefined;
+        if (activeTab === "documents") typeParam = "document,knowledge";
+        if (activeTab === "notes") typeParam = "memory,conversation";
+
+        const data = await queryMindApi.search(
+          searchQuery,
+          activeSpaceId && activeSpaceId !== "all" ? activeSpaceId : undefined,
+          typeParam
         );
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results && data.results.length > 0) {
-            const mapped: KnowledgeObject[] = data.results.map((r: VectorSearchResult, idx: number) => ({
-              id: `vec-${idx}`,
-              title: r.payload?.document_title || `Vector Match ${idx + 1}`,
-              type: "Qdrant Chunk",
-              badge: `${Math.round((r.score || 0.85) * 100)}% match`,
-              meta: `Page ${r.payload?.page_number || 1} • Chunk ${r.payload?.chunk_index || 0}`,
-              summary: r.payload?.content || "",
-              content: r.payload?.content || "",
-            }));
-            setVectorResults(mapped);
-          } else {
-            setVectorResults([]);
-          }
+
+        if (data?.results && data.results.length > 0) {
+          const mapped: KnowledgeObject[] = data.results.map((r: BackendSearchResultItem) => {
+            const friendlyType =
+              r.type === "knowledge"
+                ? "Document Section"
+                : r.type === "document"
+                ? "Document"
+                : r.type === "conversation"
+                ? "Chat Note"
+                : r.type === "memory"
+                ? "Saved Note"
+                : r.type === "decision"
+                ? "Action Item"
+                : r.type;
+
+            const percentage = r.score ? Math.min(100, Math.round(r.score * 100)) : 85;
+
+            return {
+              id: r.id,
+              title: r.title,
+              type: friendlyType,
+              badge: `${percentage}% match`,
+              meta: r.type === "knowledge" ? "Relevant section from your document" : `Type: ${friendlyType}`,
+              summary: r.snippet || "",
+              content: r.snippet || "",
+            };
+          });
+          setSearchResults(mapped);
+        } else {
+          setSearchResults([]);
         }
-      } catch {
-        // Fallback gracefully
-        setVectorResults([]);
+      } catch (err) {
+        console.warn("Search fetch error:", err);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
-    }, 300);
+    }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, activeTab, activeSpaceId]);
 
-  // Combine real uploaded documents with Qdrant vector matches
+  // Fallback to local store when search query is empty
   const localMatching = recentObjects.filter(
     (r) =>
       !searchQuery.trim() ||
@@ -74,7 +98,7 @@ export default function SearchPage() {
       (r.summary && r.summary.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const displayedResults = vectorResults.length > 0 ? vectorResults : localMatching;
+  const displayedResults = searchQuery.trim() ? searchResults : localMatching;
 
   return (
     <div className="search-view-container stagger" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -107,7 +131,7 @@ export default function SearchPage() {
           <SearchIcon className="w-4 h-4 text-gray-400" style={{ position: "absolute", left: "12px" }} />
           <input
             type="text"
-            placeholder="Search knowledge or ask Qdrant…"
+            placeholder="Search across your documents and notes…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="kbd"
@@ -126,15 +150,15 @@ export default function SearchPage() {
       <div className="search-section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h2 className="search-section-title" style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
-            {vectorResults.length > 0
-              ? `Qdrant Vector Matches (${vectorResults.length})`
+            {searchResults.length > 0
+              ? `Top Matches (${searchResults.length})`
               : searchQuery.trim()
               ? `Search Results (${displayedResults.length})`
-              : `Indexed Workspace Items (${displayedResults.length})`}
+              : `Saved Documents (${displayedResults.length})`}
           </h2>
           {isSearching && (
             <span style={{ fontSize: "12px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
-              Searching vector store…
+              Searching your files…
             </span>
           )}
         </div>
@@ -151,12 +175,12 @@ export default function SearchPage() {
           >
             <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
             <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)" }}>
-              {searchQuery.trim() ? "No matching results found" : "No indexed documents yet"}
+              {searchQuery.trim() ? "No matching results found" : "No documents yet"}
             </h3>
             <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px", marginBottom: "16px" }}>
               {searchQuery.trim()
-                ? "Try searching for different keywords or upload relevant documents."
-                : "Upload PDF or text documents to start searching your knowledge base."}
+                ? "Try searching for different keywords or upload relevant files."
+                : "Upload PDF or text documents to start searching your files."}
             </p>
             <Link
               href="/vault"
@@ -176,7 +200,7 @@ export default function SearchPage() {
               }}
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Go to Knowledge Vault</span>
+              <span>Go to Documents</span>
             </Link>
           </div>
         ) : (

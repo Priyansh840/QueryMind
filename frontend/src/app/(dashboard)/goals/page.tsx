@@ -1012,13 +1012,13 @@ Include:
                     selectedGoal.priority === "high"
                       ? "rgba(239, 68, 68, 0.15)"
                       : selectedGoal.priority === "medium"
-                      ? "rgba(99, 102, 241, 0.15)"
-                      : "rgba(107, 114, 128, 0.15)",
+                      ? "rgba(255, 255, 255, 0.08)"
+                      : "rgba(255, 255, 255, 0.04)",
                   color:
                     selectedGoal.priority === "high"
                       ? "#f87171"
                       : selectedGoal.priority === "medium"
-                      ? "var(--accent)"
+                      ? "var(--text-primary)"
                       : "var(--text-tertiary)",
                 }}
               >
@@ -1579,8 +1579,9 @@ Include:
                                                   fontSize: "10px",
                                                   padding: "1px 6px",
                                                   borderRadius: "4px",
-                                                  background: "rgba(99, 102, 241, 0.12)",
-                                                  color: "#818cf8",
+                                                  background: "var(--surface-subtle)",
+                                                  border: "1px solid var(--border)",
+                                                  color: "var(--text-secondary)",
                                                   fontWeight: 500,
                                                 }}
                                               >
@@ -1721,12 +1722,12 @@ Include:
                     width: "32px",
                     height: "32px",
                     borderRadius: "8px",
-                    background: "rgba(99, 102, 241, 0.15)",
+                    background: "var(--surface-subtle)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "var(--accent)",
-                    border: "1px solid rgba(99, 102, 241, 0.3)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <Bot size={16} />
@@ -1789,12 +1790,12 @@ Include:
                       style={{
                         padding: "12px 16px",
                         borderRadius: "12px",
-                        background: isUser ? "#4338ca" : "var(--surface-secondary)",
-                        border: isUser ? "1px solid rgba(99, 102, 241, 0.45)" : "1px solid var(--border-subtle)",
-                        color: isUser ? "#FFFFFF" : "var(--text-primary)",
+                        background: isUser ? "var(--surface-hover)" : "var(--surface-subtle)",
+                        border: isUser ? "1px solid var(--border-strong)" : "1px solid var(--border)",
+                        color: "var(--text-primary)",
                         fontSize: "13px",
                         lineHeight: 1.55,
-                        boxShadow: isUser ? "0 2px 10px rgba(0, 0, 0, 0.4)" : "0 2px 8px rgba(0, 0, 0, 0.2)",
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
                         wordBreak: "break-word",
                         overflowWrap: "anywhere",
                         minWidth: 0,
@@ -1953,10 +1954,10 @@ Include:
                 style={{
                   padding: "10px 14px",
                   borderRadius: "8px",
-                  background: isSendingCopilot || !copilotInput.trim() ? "var(--surface-secondary)" : "#6366f1",
+                  background: isSendingCopilot || !copilotInput.trim() ? "var(--surface-subtle)" : "#FFFFFF",
                   border: "1px solid",
-                  borderColor: isSendingCopilot || !copilotInput.trim() ? "var(--border-subtle)" : "#4f46e5",
-                  color: isSendingCopilot || !copilotInput.trim() ? "var(--text-tertiary)" : "#FFFFFF",
+                  borderColor: isSendingCopilot || !copilotInput.trim() ? "var(--border)" : "#FFFFFF",
+                  color: isSendingCopilot || !copilotInput.trim() ? "var(--text-tertiary)" : "#000000",
                   cursor: isSendingCopilot || !copilotInput.trim() ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -2296,10 +2297,10 @@ Include:
             </div>
             <div>
               <h1 style={{ fontSize: "32px", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.025em", lineHeight: 1.2, margin: 0 }}>
-                Objectives & Goals Tracker
+                Goals & Tasks
               </h1>
               <p style={{ fontSize: "15px", color: "var(--text-secondary)", marginTop: "6px", lineHeight: 1.5, margin: "6px 0 0 0" }}>
-                Directly mapped to your Knowledge Spaces. Track hierarchical sub-goals, tasks, and cross-space leverage.
+                Track your study plans, goals, and daily tasks across your spaces.
               </p>
             </div>
           </div>
@@ -2348,7 +2349,7 @@ Include:
             }}
           >
             <Plus size={16} />
-            <span>New Objective</span>
+            <span>New Goal</span>
           </button>
         </div>
       </div>
@@ -2371,13 +2372,13 @@ Include:
           }}
         >
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Total Objectives
+            Total Goals
           </div>
           <div style={{ fontSize: "26px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
             {metrics.total}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
-            Across {spaces.length} knowledge spaces
+            Across {spaces.length} spaces
           </div>
         </div>
 
@@ -2396,7 +2397,7 @@ Include:
             {metrics.inProgress}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
-            Driven by domain grounding
+            In your active spaces
           </div>
         </div>
 
@@ -2409,13 +2410,13 @@ Include:
           }}
         >
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Completed Objectives
+            Completed Goals
           </div>
           <div style={{ fontSize: "26px", fontWeight: 700, color: "#10b981", marginTop: "4px" }}>
             {metrics.completed}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
-            {metrics.completionRate}% objective clearance
+            {metrics.completionRate}% completed
           </div>
         </div>
 
@@ -2428,13 +2429,13 @@ Include:
           }}
         >
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Sub-Tasks Execution
+            Tasks Progress
           </div>
           <div style={{ fontSize: "26px", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
             {metrics.completedTasks} / {metrics.totalTasks}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
-            {metrics.taskRate}% actionable tasks verified
+            {metrics.taskRate}% tasks done
           </div>
         </div>
       </div>
@@ -2453,10 +2454,10 @@ Include:
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
             <Zap size={16} style={{ color: "#fbbf24" }} />
             <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
-              High-Leverage Strategic Bottlenecks
+              Key Shared Tasks
             </h3>
             <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-              (Tasks that simultaneously advance 2+ active goals)
+              (Tasks that help complete 2 or more of your goals)
             </span>
           </div>
 
@@ -2493,7 +2494,7 @@ Include:
                     fontWeight: 600,
                   }}
                 >
-                  {syn.count}x Leverage
+                  {syn.count}x Impact
                 </span>
               </div>
             ))}
@@ -2631,7 +2632,7 @@ Include:
             />
             <input
               type="text"
-              placeholder="Search objectives or tasks..."
+              placeholder="Search goals or tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -2807,13 +2808,13 @@ Include:
                               goal.priority === "high"
                                 ? "rgba(239, 68, 68, 0.15)"
                                 : goal.priority === "medium"
-                                ? "rgba(99, 102, 241, 0.15)"
-                                : "rgba(107, 114, 128, 0.15)",
+                                ? "rgba(255, 255, 255, 0.08)"
+                                : "rgba(255, 255, 255, 0.04)",
                             color:
                               goal.priority === "high"
                                 ? "#f87171"
                                 : goal.priority === "medium"
-                                ? "var(--accent)"
+                                ? "var(--text-primary)"
                                 : "var(--text-tertiary)",
                           }}
                         >
@@ -3030,8 +3031,8 @@ Include:
                 style={{
                   padding: "12px 16px",
                   borderRadius: "10px",
-                  background: isSpaceVerified ? "rgba(16, 185, 129, 0.08)" : "rgba(99, 102, 241, 0.08)",
-                  border: isSpaceVerified ? "1px solid rgba(16, 185, 129, 0.25)" : "1px solid rgba(99, 102, 241, 0.25)",
+                  background: isSpaceVerified ? "rgba(16, 185, 129, 0.08)" : "var(--surface-subtle)",
+                  border: isSpaceVerified ? "1px solid rgba(16, 185, 129, 0.25)" : "1px solid var(--border)",
                   display: "flex",
                   flexDirection: "column",
                   gap: "8px",

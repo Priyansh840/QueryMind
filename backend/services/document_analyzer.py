@@ -28,6 +28,27 @@ logger = logging.getLogger(__name__)
 class CrossDocumentAnalyzer:
     """Service for synthesizing insights and detecting relationships across multiple documents."""
 
+    @staticmethod
+    def _extract_text(content: Any) -> str:
+        """Safely extracts a flat string from LLM responses, handling strings, lists of blocks, and message objects."""
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict):
+                    parts.append(str(item.get("text", "")))
+                elif hasattr(item, "text"):
+                    parts.append(str(getattr(item, "text", "")))
+                else:
+                    parts.append(str(item))
+            return "".join(parts)
+        if hasattr(content, "content"):
+            return CrossDocumentAnalyzer._extract_text(content.content)
+        return str(content)
+
     @classmethod
     async def load_document_contexts(
         cls,
@@ -95,7 +116,7 @@ class CrossDocumentAnalyzer:
             SystemMessage(content=cls._get_system_prompt() + "\nCRITICAL: Respond ONLY in valid JSON matching the schema."),
             HumanMessage(content=prompt),
         ])
-        content_str = response.content if hasattr(response, "content") else str(response)
+        content_str = cls._extract_text(response)
         return cls._parse_fallback_json(content_str, doc_contexts)
 
     @classmethod
@@ -154,7 +175,7 @@ class CrossDocumentAnalyzer:
                 SystemMessage(content=cls._get_system_prompt() + "\nCRITICAL: Output purely valid JSON."),
                 HumanMessage(content=prompt),
             ])
-            raw_text = response.content if hasattr(response, "content") else str(response)
+            raw_text = cls._extract_text(response)
             result = cls._parse_fallback_json(raw_text, doc_contexts)
 
         # Step 4: Final Synthesis Complete
@@ -224,7 +245,7 @@ Return purely valid JSON matching this schema:
             HumanMessage(content=prompt),
         ])
 
-        raw_str = resp.content if hasattr(resp, "content") else str(resp)
+        raw_str = cls._extract_text(resp)
         clean_json = raw_str.strip()
         if clean_json.startswith("```json"):
             clean_json = clean_json.split("```json", 1)[1].split("```", 1)[0].strip()
@@ -323,10 +344,10 @@ Produce a comprehensive DocumentAnalysisResult JSON object with:
     @classmethod
     def _parse_fallback_json(
         cls,
-        raw_text: str,
+        raw_text: Any,
         doc_contexts: List[Dict[str, Any]],
     ) -> DocumentAnalysisResult:
-        clean = raw_text.strip()
+        clean = cls._extract_text(raw_text).strip()
         if clean.startswith("```json"):
             clean = clean.split("```json", 1)[1].split("```", 1)[0].strip()
         elif clean.startswith("```"):
