@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useMyndStore } from "@/lib/mynd-store";
 import { queryMindApi, GoalData, ProjectData } from "@/lib/api";
+import DailyScheduleWidget from "@/components/dashboard/DailyScheduleWidget";
 import {
   FileText,
   FileCode,
@@ -444,6 +445,11 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* =========================================================================
+          Today's AI Study Schedule & Time-Blocked Sprints
+          ========================================================================= */}
+      <DailyScheduleWidget />
 
       {/* =========================================================================
           2. Action & Ingestion Hub: Real Space Intelligence & Fast Actions

@@ -34,6 +34,7 @@ import {
 import { queryMindApi } from "@/lib/api";
 import { useMyndStore } from "@/lib/mynd-store";
 import VoiceChatModal from "@/components/chat/VoiceChatModal";
+import DailyScheduleWidget from "@/components/dashboard/DailyScheduleWidget";
 import { useSpeechToText } from "@/lib/voice";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -143,6 +144,7 @@ function ChatPageContent() {
     goalTitles: string[];
     prompt: string;
   } | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   // Check URL query parameters for goal-specific prefill & detect cross-goal sprint opportunities
   useEffect(() => {
@@ -681,9 +683,9 @@ function ChatPageContent() {
                 : "Ask anything about your documents, notes, or study topics."}
             </p>
 
-            {/* Today's High-Yield Sprint Recommendation - Seamless & Natural Pill */}
-            {!focusedGoalDesc && dailySprint && (
-              <div style={{ marginTop: "14px", display: "flex", justifyContent: "center" }}>
+            {/* Today's High-Yield Sprint Recommendation & Daily Schedule Row */}
+            <div style={{ marginTop: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+              {!focusedGoalDesc && dailySprint && (
                 <button
                   type="button"
                   onClick={() => handleSend(dailySprint.prompt)}
@@ -700,7 +702,7 @@ function ChatPageContent() {
                     cursor: "pointer",
                     transition: "all 150ms var(--ease)",
                     boxShadow: "var(--shadow-xs)",
-                    maxWidth: "600px",
+                    maxWidth: "500px",
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.borderColor = "var(--border-strong)";
@@ -738,7 +740,7 @@ function ChatPageContent() {
                     style={{
                       color: "var(--text-primary)",
                       fontWeight: 500,
-                      maxWidth: "280px",
+                      maxWidth: "240px",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -772,8 +774,42 @@ function ChatPageContent() {
                     }}
                   />
                 </button>
-              </div>
-            )}
+              )}
+
+              {/* View Full Daily Schedule Button */}
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(true)}
+                title="View your daily time-blocked study schedule"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "5px 12px",
+                  borderRadius: "20px",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  transition: "all 150ms var(--ease)",
+                  boxShadow: "var(--shadow-xs)",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border-strong)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                  e.currentTarget.style.background = "var(--surface-hover)";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border)";
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                  e.currentTarget.style.background = "var(--surface)";
+                }}
+              >
+                <Calendar style={{ width: "12px", height: "12px", color: "#10B981" }} />
+                <span>Today&apos;s Schedule</span>
+              </button>
+            </div>
           </div>
 
           {/* Central Composer Box - ChatGPT Pill Style */}
@@ -1515,6 +1551,67 @@ function ChatPageContent() {
         }}
         isGenerating={isOrchestrating}
       />
+
+      {/* Daily Schedule Modal in Chat */}
+      {isScheduleModalOpen && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsScheduleModalOpen(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(8px)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: "680px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              borderRadius: "16px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsScheduleModalOpen(false)}
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                zIndex: 10,
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                color: "#FFFFFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <X size={14} />
+            </button>
+            <DailyScheduleWidget
+              compact={false}
+              onOpenChatSprint={(prompt) => {
+                setIsScheduleModalOpen(false);
+                handleSend(prompt);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ─── Voice Notification Toast ─── */}
       {voiceToast && (
