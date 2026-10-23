@@ -38,6 +38,11 @@ export default function AppSidebar() {
   const toggleTheme = useMyndStore((state) => state.toggleTheme);
 
   const pathname = usePathname();
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userProfile.avatarUrl]);
 
   const initials = (() => {
     const name = userProfile.name || "User";
@@ -376,10 +381,12 @@ export default function AppSidebar() {
                     overflow: "hidden",
                   }}
                 >
-                  {userProfile.avatarUrl ? (
+                  {userProfile.avatarUrl && !avatarError ? (
                     <img
                       src={userProfile.avatarUrl}
-                      alt={userProfile.name}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      onError={() => setAvatarError(true)}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   ) : (
@@ -511,10 +518,12 @@ export default function AppSidebar() {
                 overflow: "hidden",
               }}
             >
-              {userProfile.avatarUrl ? (
+              {userProfile.avatarUrl && !avatarError ? (
                 <img
                   src={userProfile.avatarUrl}
-                  alt={userProfile.name}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarError(true)}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               ) : (

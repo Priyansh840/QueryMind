@@ -47,6 +47,12 @@ export default function ProfilePage() {
       .catch(() => setMemoryCount(0));
   }, []);
 
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userProfile?.avatarUrl]);
+
   const initials = (() => {
     const name = userProfile?.name?.trim() || "User";
     const parts = name.split(/\s+/);
@@ -181,10 +187,12 @@ export default function ProfilePage() {
                 letterSpacing: "0.5px",
               }}
             >
-              {userProfile?.avatarUrl ? (
+              {userProfile?.avatarUrl && !avatarError ? (
                 <img
                   src={userProfile.avatarUrl}
-                  alt={userProfile.name}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarError(true)}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               ) : (

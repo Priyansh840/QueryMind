@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { PanelRight } from "lucide-react";
 import { useMyndStore } from "@/lib/mynd-store";
@@ -15,6 +15,12 @@ export default function WorkspaceHeader() {
   const toggleContextPanel = useMyndStore((state) => state.toggleContextPanel);
   const isContextPanelCollapsed = useMyndStore((state) => state.isContextPanelCollapsed);
   const selectedObject = useMyndStore((state) => state.selectedObject);
+
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userProfile?.avatarUrl]);
 
   const initials = (() => {
     const name = userProfile?.name?.trim() || "User";
@@ -122,10 +128,12 @@ export default function WorkspaceHeader() {
           }}
           onClick={() => router.push("/profile")}
         >
-          {userProfile?.avatarUrl ? (
+          {userProfile?.avatarUrl && !avatarError ? (
             <img
               src={userProfile.avatarUrl}
-              alt={userProfile.name}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           ) : (

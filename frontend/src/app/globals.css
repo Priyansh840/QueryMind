@@ -44,4 +44,16 @@ a[style*="var(--accent)"]:not([style*="var(--accent-soft)"]):not([style*="transp
   color: var(--accent-contrast, #000000) !important;
 }
 
+/* Hide Next.js dev overlay button that obstructs the bottom-left sidebar */
+nextjs-portal,
+[data-nextjs-toast],
+[data-next-badge],
+[data-nextjs-dev-tools-button],
+#nextjs-dev-tools,
+.__next-dev-tools,
+div[class*="nextjs-portal"],
+div[class*="dev-overlay"] {
+  display: none !important;
+}
+
 
