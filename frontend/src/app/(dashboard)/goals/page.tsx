@@ -31,6 +31,9 @@ import {
   ChevronRight,
   ListTodo,
   Award,
+  Sparkles,
+  Play,
+  Clock,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -78,6 +81,61 @@ function computeProgress(tasks?: GoalTask[], status?: string): number {
   return Math.round((completedWeight / totalWeight) * 100);
 }
 
+// Dynamic runway and realistic pacing calculator
+function calculatePacingStats(timeframe?: string, dailyDedication?: string, targetDate?: string, createdAt?: string) {
+  let days = 14;
+
+  if (targetDate) {
+    const target = new Date(targetDate);
+    const start = createdAt ? new Date(createdAt) : new Date();
+    const diffMs = target.getTime() - start.getTime();
+    const diffDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    if (!isNaN(diffDays) && diffDays > 0) {
+      days = diffDays;
+    }
+  } else if (timeframe) {
+    const tf = timeframe.toLowerCase();
+    if (tf.includes("3 day")) days = 3;
+    else if (tf.includes("1 week") || tf.includes("7 day")) days = 7;
+    else if (tf.includes("2 week") || tf.includes("14 day")) days = 14;
+    else if (tf.includes("1 month") || tf.includes("30 day") || tf.includes("4 week")) days = 30;
+    else if (tf.includes("2 month") || tf.includes("60 day") || tf.includes("8 week")) days = 60;
+    else if (tf.includes("3 month") || tf.includes("90 day") || tf.includes("12 week") || tf.includes("13 week")) days = 90;
+    else if (tf.includes("6 month") || tf.includes("180 day")) days = 180;
+    else if (tf.includes("1 year") || tf.includes("365 day")) days = 365;
+    else {
+      const match = tf.match(/(\d+)\s*(day|week|month|year)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        const unit = match[2];
+        if (unit.startsWith("day")) days = val;
+        else if (unit.startsWith("week")) days = val * 7;
+        else if (unit.startsWith("month")) days = val * 30;
+        else if (unit.startsWith("year")) days = val * 365;
+      }
+    }
+  }
+
+  const weeks = Math.max(1, Math.round((days / 7) * 10) / 10);
+
+  let hoursPerDay = 2;
+  const dd = (dailyDedication || "").toLowerCase();
+  if (dd.includes("1-2") || dd.includes("1 hr") || dd.includes("1hr")) hoursPerDay = 1.5;
+  else if (dd.includes("3-4") || dd.includes("3 hr") || dd.includes("4 hr")) hoursPerDay = 3.5;
+  else if (dd.includes("6-8") || dd.includes("6 hr") || dd.includes("8 hr")) hoursPerDay = 7;
+
+  const totalHours = Math.round(days * hoursPerDay);
+  const patternsCount = Math.max(1, Math.round(days / 2.5));
+
+  return {
+    days,
+    weeks,
+    totalHours,
+    hoursPerDay,
+    patternsCount,
+  };
+}
+
 // Stop words to find cross-goal synergy
 const STOP_WORDS = new Set([
   "and", "or", "the", "a", "an", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -117,6 +175,12 @@ function GoalsPageContent() {
 
   const spaces = useMyndStore((state) => state.spaces);
   const activeSpaceId = useMyndStore((state) => state.activeSpaceId);
+
+  // Focus Timer controls for Start Sprint triggers
+  const setFocusObjective = useMyndStore((state) => state.setFocusObjective);
+  const setFocusDuration = useMyndStore((state) => state.setFocusDuration);
+  const startFocusTimer = useMyndStore((state) => state.startFocusTimer);
+  const toggleFocusMode = useMyndStore((state) => state.toggleFocusMode);
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -661,6 +725,24 @@ function GoalsPageContent() {
     } else {
       setRegenTimeframe("2 weeks");
     }
+
+    // Smart Anti-Clutter Default: Expand ONLY the active current week/sub-goal, collapse others
+    const allTasks = goal.tasks || [];
+    const firstUncompleted = allTasks.find((t) => !t.completed);
+    const activeSubGoalName = firstUncompleted?.sub_goal?.trim() || allTasks[0]?.sub_goal?.trim() || "Core Objectives";
+
+    const initialCollapse: Record<string, boolean> = {};
+    const seen = new Set<string>();
+    for (const t of allTasks) {
+      const g = t.sub_goal?.trim() || "Core Objectives";
+      if (!seen.has(g)) {
+        seen.add(g);
+        // Active sub-goal is expanded (false); past/future are collapsed (true)
+        initialCollapse[g] = g !== activeSubGoalName;
+      }
+    }
+    setCollapsedSubGoals(initialCollapse);
+
     setCopilotMessages([
       {
         role: "assistant",
@@ -913,6 +995,8 @@ Include:
     const spaceColor = getSpaceColor(selectedGoal.space_id);
     const allTasks = selectedGoal.tasks || [];
     const completedCount = allTasks.filter((t) => t.completed).length;
+    const activeTask = allTasks.find((t) => !t.completed);
+    const pacing = calculatePacingStats(selectedGoal.timeframe, undefined, selectedGoal.target_date, (selectedGoal as any).created_at);
 
     // Group tasks by Sub-Goal
     const groupedBySubGoal = allTasks.reduce((acc, t) => {
@@ -1219,12 +1303,164 @@ Include:
                   />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: "12px", color: "var(--text-tertiary)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: "12px", color: "var(--text-tertiary)", flexWrap: "wrap", gap: "6px" }}>
                   <span>{completedCount} of {allTasks.length} tasks completed</span>
-                  {selectedGoal.target_date && <span>Target: {selectedGoal.target_date}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span>⚡ ~{pacing.totalHours} hrs study runway ({pacing.days} days)</span>
+                    {selectedGoal.target_date && <span>Target: {selectedGoal.target_date}</span>}
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Today's Mission / Active Sprint Focus Card */}
+            {activeTask && (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)",
+                  border: "1px solid rgba(59, 130, 246, 0.3)",
+                  borderRadius: "14px",
+                  padding: "18px 22px",
+                  marginBottom: "20px",
+                  boxShadow: "0 8px 24px -6px rgba(0, 0, 0, 0.4)",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                  <div style={{ flex: 1, minWidth: "260px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          padding: "3px 8px",
+                          borderRadius: "5px",
+                          background: "rgba(59, 130, 246, 0.2)",
+                          color: "#60a5fa",
+                          border: "1px solid rgba(59, 130, 246, 0.35)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <Sparkles size={11} /> Today&apos;s Mission
+                      </span>
+
+                      {activeTask.time_phase && (
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            padding: "2px 8px",
+                            borderRadius: "5px",
+                            background: activeTask.time_phase.includes("Hard") ? "rgba(239, 68, 68, 0.15)" : activeTask.time_phase.includes("Easy") ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                            color: activeTask.time_phase.includes("Hard") ? "#f87171" : activeTask.time_phase.includes("Easy") ? "#34d399" : "#fbbf24",
+                            border: "1px solid",
+                            borderColor: activeTask.time_phase.includes("Hard") ? "rgba(239, 68, 68, 0.3)" : activeTask.time_phase.includes("Easy") ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)",
+                          }}
+                        >
+                          ⏳ {activeTask.time_phase}
+                        </span>
+                      )}
+
+                      <span style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
+                        • {activeTask.sub_goal || "Core Objectives"}
+                      </span>
+                    </div>
+
+                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 6px 0", lineHeight: 1.35 }}>
+                      {activeTask.title}
+                    </h4>
+
+                    {activeTask.deliverable && (
+                      <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: 0, lineHeight: 1.45 }}>
+                        <strong style={{ color: "#93c5fd" }}>Target Output:</strong> {activeTask.deliverable}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSubTask(selectedGoal, activeTask.id)}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: "8px",
+                        background: "rgba(16, 185, 129, 0.12)",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        color: "#34d399",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      className="hover:bg-[rgba(16,185,129,0.22)]"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Complete (+50 XP)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mins = parseInt(activeTask.estimated_time?.replace(/\D/g, "") || "45", 10) || 45;
+                        setFocusObjective(activeTask.title);
+                        setFocusDuration(mins * 60);
+                        startFocusTimer();
+                        toggleFocusMode();
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: "8px",
+                        background: "var(--accent)",
+                        border: "none",
+                        color: "var(--accent-contrast, #000000)",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      className="hover:opacity-90"
+                    >
+                      <Play size={13} fill="currentColor" />
+                      <span>Sprint ({activeTask.estimated_time || "45m"})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prompt = `I am working on my goal "${selectedGoal.description}", specifically pattern task "${activeTask.title}" (${activeTask.deliverable || ""}). Walk me through the pattern intuition, edge cases, and solve step-by-step.`;
+                        router.push(`/chat?prompt=${encodeURIComponent(prompt)}`);
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--surface-secondary)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-primary)",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                      className="hover:border-[var(--border-strong)]"
+                    >
+                      <Bot size={13} />
+                      <span>AI Tutor</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Hierarchical Sub-Goals & Action Items Section */}
             <div
@@ -1238,14 +1474,38 @@ Include:
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                 <div>
                   <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
-                    Sub-Goals & Milestones Hierarchy
+                    Milestones & Pattern Progression
                   </h3>
                   <p style={{ fontSize: "12px", color: "var(--text-tertiary)", margin: "2px 0 0 0" }}>
-                    Decomposed milestones structured into modular sub-goals.
+                    Decomposed 2–3 day pattern recognition ladder (Easy/Med → Med/Hard).
                   </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allCollapsed = subGoalTitles.every((t) => collapsedSubGoals[t]);
+                      const nextState: Record<string, boolean> = {};
+                      subGoalTitles.forEach((t) => {
+                        nextState[t] = !allCollapsed;
+                      });
+                      setCollapsedSubGoals(nextState);
+                    }}
+                    style={{
+                      padding: "6px 11px",
+                      borderRadius: "7px",
+                      background: "var(--surface-secondary)",
+                      border: "1px solid var(--border-subtle)",
+                      color: "var(--text-secondary)",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {subGoalTitles.every((t) => collapsedSubGoals[t]) ? "Expand All" : "Collapse Others"}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setIsAddingSubGoalSection(!isAddingSubGoalSection)}
@@ -1264,7 +1524,7 @@ Include:
                     }}
                   >
                     <Plus size={13} />
-                    <span>New Sub-Goal</span>
+                    <span>New Milestone</span>
                   </button>
 
                   <button
@@ -1430,6 +1690,15 @@ Include:
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {subPct === 100 ? (
+                            <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px", background: "rgba(16, 185, 129, 0.15)", color: "#34d399", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                              ✓ Completed
+                            </span>
+                          ) : subGoalTasks.some((t) => t.id === activeTask?.id) ? (
+                            <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px", background: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+                              ⚡ Active Pattern
+                            </span>
+                          ) : null}
                           <span style={{ fontSize: "11px", fontWeight: 600, color: subPct === 100 ? "#10b981" : "var(--text-tertiary)" }}>
                             {subPct}%
                           </span>
@@ -1503,6 +1772,25 @@ Include:
                                     >
                                       {task.title}
                                     </span>
+
+                                    {task.time_phase && (
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          fontWeight: 600,
+                                          padding: "2px 7px",
+                                          borderRadius: "4px",
+                                          background: task.time_phase.includes("Hard") ? "rgba(239, 68, 68, 0.12)" : task.time_phase.includes("Easy") ? "rgba(16, 185, 129, 0.12)" : "rgba(59, 130, 246, 0.12)",
+                                          color: task.time_phase.includes("Hard") ? "#f87171" : task.time_phase.includes("Easy") ? "#34d399" : "#60a5fa",
+                                          border: "1px solid",
+                                          borderColor: task.time_phase.includes("Hard") ? "rgba(239, 68, 68, 0.25)" : task.time_phase.includes("Easy") ? "rgba(16, 185, 129, 0.25)" : "rgba(59, 130, 246, 0.25)",
+                                          whiteSpace: "nowrap",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {task.time_phase}
+                                      </span>
+                                    )}
 
                                     {task.estimated_time && (
                                       <span
@@ -2151,6 +2439,37 @@ Include:
                   })}
                 </div>
               </div>
+
+              {/* Live Realistic Pacing Runway Indicator */}
+              {(() => {
+                const effectiveTf = regenTimeframe === "custom" && regenCustomTimeframe.trim() ? regenCustomTimeframe.trim() : regenTimeframe;
+                const pacing = calculatePacingStats(effectiveTf, regenDailyCommitment, selectedGoal.target_date);
+                return (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      background: "rgba(59, 130, 246, 0.08)",
+                      border: "1px solid rgba(59, 130, 246, 0.25)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "8px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Sparkles size={14} style={{ color: "#60a5fa" }} />
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#93c5fd" }}>
+                        Runway: {pacing.days} Days ({pacing.weeks} Wks) • ~{pacing.totalHours} hrs budget
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                      ~{pacing.patternsCount} core pattern milestones (Easy/Med → Med/Hard)
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Confirmation warning note */}
               <div style={{ fontSize: "11px", color: "var(--text-tertiary)", background: "var(--surface-secondary)", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
@@ -3319,6 +3638,38 @@ Include:
                   />
                 </div>
               </div>
+
+              {/* Live Realistic Pacing Runway Indicator */}
+              {(() => {
+                const effectiveTf = newGoalTimeframe === "custom" && customTimeframeInput.trim() ? customTimeframeInput.trim() : newGoalTimeframe;
+                const pacing = calculatePacingStats(effectiveTf, newGoalDailyCommitment, newGoalTargetDate);
+                return (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      background: "rgba(59, 130, 246, 0.08)",
+                      border: "1px solid rgba(59, 130, 246, 0.25)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "8px",
+                      marginBottom: "14px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Sparkles size={14} style={{ color: "#60a5fa" }} />
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#93c5fd" }}>
+                        Runway: {pacing.days} Days ({pacing.weeks} Wks) • ~{pacing.totalHours} hrs budget
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                      ~{pacing.patternsCount} pattern milestones (Day 1: Easy/Med → Day 2: Med/Hard)
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Sub-Goals & Tasks staging */}
               <div
